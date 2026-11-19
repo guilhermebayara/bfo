@@ -18,6 +18,10 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 - A diferença entre o saldo do arquivo e o saldo de abertura aparece como um ajuste visível na conta.
 - Transação importada: valor total e data ficam travados. A classificação pode ser editada: categoria, nota, tags e divisão em partes (a soma das partes sempre igual ao valor original). Decidido em 19/11/2026, resolvendo a ambiguidade levantada na Sessão G.
 - Durante as fases, a importação precisa poder ser apagada e refeita. A importação definitiva e as datas de corte acontecem quando o dono começar a usar.
+- Faturas no arquivo: o período importado fica sem faturas. Compras e pagamentos de cartão antigos entram como transações e transferências comuns. As faturas de cada cartão começam na data de corte dele.
+- Grupos do Lunch Money que não são transferência nem pagamento de fatura: cada transação do grupo entra separada, com uma nota indicando o grupo de origem.
+- Recorrentes do Lunch Money: os ativos entram como recorrentes, com as transações passadas ligadas a eles pelo `recurring_id`. Marca de assinatura e tipo o dono aplica depois.
+- Histórico de saldos e de orçamento: importados já na sessão de importação e guardados para as fases 2 e 3, para o token ser usado uma vez só.
 - Dados de teste: as sessões usam dados fictícios do repositório (seed). Na homologação, o dono roda a importação real.
 
 ## Contas
