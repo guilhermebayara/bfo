@@ -55,3 +55,7 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
 - [ ] Ligar bfo.bayara.design ao Worker de produção, com Access.
 - [ ] Repositório privado antes do primeiro uso do token real.
 - [ ] Importação definitiva e datas de corte de cada conta.
+
+## Ideias para depois das três fases (sem decisão)
+
+- Importação pontual de extrato ou fatura (OFX ou CSV, quando o banco oferecer), separada da importação do histórico do Lunch Money. Diferenças: as transações entram como manuais e editáveis, passam por uma tela de revisão antes de salvar e são cruzadas com o que já foi lançado para não duplicar. Uso principal: achar a compra que faltou numa conferência de fatura. Baixa prioridade, porque o lançamento manual dá a melhor visão dos dados e os bancos não têm um padrão de exportação confiável.
