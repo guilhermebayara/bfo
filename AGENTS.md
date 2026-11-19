@@ -37,6 +37,7 @@ Este arquivo vale para qualquer agente (Codex, Claude Code). O CLAUDE.md aponta 
 
 - Desktop primeiro. O uso sério acontece no computador. O celular é uma versão secundária, responsiva, instalável na tela inicial.
 - Modo escuro sempre, sem alternância de tema por enquanto.
+- Até o conceito visual ser escolhido, a interface é funcional e neutra. Cores, tipografia e espaçamentos ficam centralizados em tokens (variáveis CSS num arquivo só), para o visual ser trocado depois sem mexer nas telas. Nenhuma sessão inventa identidade visual por conta própria.
 
 ## Branches e deploy
 

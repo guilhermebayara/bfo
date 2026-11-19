@@ -4,11 +4,13 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
 
 ## Fase 1: Movimento (brief em docs/briefs/fase-1-movimento.md)
 
-- [ ] Sessão A: fundação técnica e duas propostas visuais. Para e espera a escolha do dono.
-- [ ] Sessão B: contas de movimento, transações, lançamento manual, categorias e grupos, marco e ajuste por conta.
+- [ ] Sessão A: fundação técnica, seed e interface funcional de Transações e Contas (estrutura e hierarquia, visual neutro).
+- [ ] Sessão B: lançamento manual completo, categorias e grupos, marco e ajuste por conta.
 - [ ] Sessão C: cartão, fatura, parceladas, pagar fatura, conferência.
 - [ ] Sessão D: recorrentes, assinaturas, aviso de renovação.
 - [ ] Sessão E: script de importação do Lunch Money (API v2), apagar e refazer importação.
+
+- [ ] Conceito visual: feito no Claude depois que a estrutura da fase 1 estiver redonda. Duas propostas numa prévia, o dono escolhe olhando a tela, e só então o visual é aplicado.
 
 ## Fase 2: Patrimônio
 
