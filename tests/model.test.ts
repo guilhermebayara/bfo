@@ -1,4 +1,4 @@
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { env } from 'cloudflare:workers';
 import { applyD1Migrations } from 'cloudflare:test';
 import app from '../src/server/index';
@@ -25,7 +25,7 @@ beforeAll(async () => {
 });
 beforeEach(async () => {
   await db.exec(
-    `DELETE FROM transactions; DELETE FROM recurring; DELETE FROM installment_plans; DELETE FROM statements; DELETE FROM accounts; DELETE FROM categories; DELETE FROM category_groups; DELETE FROM allocation_groups; DELETE FROM subscription_types;`,
+    `DELETE FROM reconciliations; DELETE FROM transaction_tags; DELETE FROM tags; DELETE FROM fx_rates; DELETE FROM transactions; UPDATE payees SET merged_into_id=NULL; DELETE FROM payees; DELETE FROM recurring; DELETE FROM installment_plans; DELETE FROM statements; DELETE FROM accounts; DELETE FROM institutions; DELETE FROM categories; DELETE FROM category_groups; DELETE FROM allocation_groups; DELETE FROM subscription_types;`,
   );
   await db.exec(
     `INSERT INTO accounts(id,name,kind) VALUES ('a','Conta fictícia','checking'); INSERT INTO allocation_groups VALUES('g','Essencial',60,0); INSERT INTO category_groups VALUES('cg','Grupo','g',0); INSERT INTO categories VALUES('c','Categoria','cg',0,0);`,
@@ -388,4 +388,329 @@ it('rejeita escrita de outra origem e corpo sem JSON', async () => {
       )
     ).status,
   ).toBe(415);
+});
+
+const manual = (overrides: Record<string, unknown> = {}) =>
+  request('/transactions', 'POST', {
+    account_id: 'a',
+    date: '2026-10-01',
+    amount_cents: 12345,
+    payee: 'Loja fictícia',
+    category_id: 'c',
+    tag_ids: [],
+    ...overrides,
+  });
+describe('Sessão B', () => {
+  it('cria conta manual ativa e permite lançamento no dia da criação', async () => {
+    await db
+      .prepare(
+        "INSERT INTO institutions(id,name) VALUES('i','Instituição fictícia')",
+      )
+      .run();
+    const response = await request('/accounts', 'POST', {
+      name: 'Conta nova',
+      kind: 'checking',
+      currency: 'BRL',
+      institution_id: 'i',
+      opening_balance_cents: 50000,
+    });
+    expect(response.status).toBe(201);
+    const { id } = await response.json();
+    const account = (await (await request('/accounts')).json()).find(
+      (a) => a.id === id,
+    );
+    expect(account.cutoff_date).toBeTruthy();
+    expect(account.balance_cents).toBe(50000);
+    expect(
+      (
+        await manual({
+          account_id: id,
+          date: new Date().toISOString().slice(0, 10),
+        })
+      ).status,
+    ).toBe(201);
+  });
+  it('sugere categoria e tags do lançamento mais recente do beneficiário', async () => {
+    await activate();
+    await db
+      .prepare("INSERT INTO tags VALUES('tag','Planejado','#888888')")
+      .run();
+    expect(
+      (await manual({ date: '2026-09-01', category_id: null })).status,
+    ).toBe(201);
+    expect(
+      (await manual({ date: '2026-10-01', tag_ids: ['tag'] })).status,
+    ).toBe(201);
+    expect(
+      await (
+        await request('/payees/suggestion?name=loja%20fict%C3%ADcia')
+      ).json(),
+    ).toEqual({ category_id: 'c', tag_ids: ['tag'] });
+    const filtered = await (await request('/transactions?tag=tag')).json();
+    expect(filtered.total).toBe(1);
+    expect(filtered.items[0].tags[0].id).toBe('tag');
+    expect(
+      await (await request('/payees/suggestion?name=desconhecido')).json(),
+    ).toEqual({ category_id: null, tag_ids: [] });
+  });
+  it('usa o cache PTAX e permite cotação manual com valor original preservado', async () => {
+    await activate();
+    await db.prepare("UPDATE accounts SET currency='USD' WHERE id='a'").run();
+    await db
+      .prepare("INSERT INTO fx_rates VALUES('USD','2026-10-01',5.1234)")
+      .run();
+    const response = await manual({ amount_cents: 101 });
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({
+      amount_brl_cents: 517,
+      fx_rate: 5.1234,
+      fx_source: 'ptax',
+    });
+    const custom = await manual({ amount_cents: -101, fx_rate: 4.9 });
+    expect(custom.status).toBe(201);
+    const { id } = await custom.json();
+    expect(
+      await db
+        .prepare(
+          'SELECT amount_cents,currency,amount_brl_cents,fx_source FROM transactions WHERE id=?',
+        )
+        .bind(id)
+        .first(),
+    ).toEqual({
+      amount_cents: -101,
+      currency: 'USD',
+      amount_brl_cents: -495,
+      fx_source: 'manual',
+    });
+    expect((await manual({ fx_rate: 0 })).status).toBe(400);
+    expect((await manual({ fx_rate: -2 })).status).toBe(400);
+    expect(
+      (await manual({ amount_cents: Number.MAX_SAFE_INTEGER, fx_rate: 2 }))
+        .status,
+    ).toBe(400);
+  });
+  it('conferência mostra diferença e grava ajuste visível com saldo final correto', async () => {
+    await activate();
+    const preview = await (
+      await request('/accounts/a/reconcile', 'POST', {
+        bank_balance_cents: 100000,
+      })
+    ).json();
+    expect(preview).toEqual({
+      app_balance_cents: 110000,
+      bank_balance_cents: 100000,
+      adjustment_cents: 10000,
+    });
+    expect(
+      (
+        await request('/accounts/a/reconcile', 'POST', {
+          bank_balance_cents: 100000,
+          expected_balance_cents: 110000,
+          confirm: true,
+        })
+      ).status,
+    ).toBe(201);
+    const account = (await (await request('/accounts')).json())[0];
+    expect(account.balance_cents).toBe(100000);
+    expect(account.last_reconciled_at).toBe(
+      new Date().toISOString().slice(0, 10),
+    );
+    const record = await db.prepare('SELECT * FROM reconciliations').first();
+    expect(record.adjustment_transaction_id).toBeTruthy();
+    expect(
+      await db
+        .prepare('SELECT origin,amount_cents FROM transactions WHERE id=?')
+        .bind(record.adjustment_transaction_id)
+        .first(),
+    ).toEqual({ origin: 'adjustment', amount_cents: 10000 });
+    expect(
+      (
+        await request('/accounts/a/reconcile', 'POST', {
+          bank_balance_cents: 100000,
+          expected_balance_cents: 110000,
+          confirm: true,
+        })
+      ).status,
+    ).toBe(409);
+  });
+  it('confere saldo igual sem inventar lançamento e reverte tudo em falha', async () => {
+    await activate();
+    expect(
+      (
+        await request('/accounts/a/reconcile', 'POST', {
+          bank_balance_cents: 110000,
+          expected_balance_cents: 110000,
+          confirm: true,
+        })
+      ).status,
+    ).toBe(201);
+    expect(
+      (
+        await db
+          .prepare(
+            'SELECT COUNT(*) AS n FROM reconciliations WHERE adjustment_transaction_id IS NULL',
+          )
+          .first()
+      ).n,
+    ).toBe(1);
+    await db.exec(
+      "CREATE TRIGGER fail_reconciliation BEFORE UPDATE OF last_reconciled_at ON accounts BEGIN SELECT RAISE(ABORT,'falha simulada'); END;",
+    );
+    try {
+      expect(
+        (
+          await request('/accounts/a/reconcile', 'POST', {
+            bank_balance_cents: 100000,
+            expected_balance_cents: 110000,
+            confirm: true,
+          })
+        ).status,
+      ).toBe(500);
+      expect(
+        (await db.prepare('SELECT COUNT(*) AS n FROM reconciliations').first())
+          .n,
+      ).toBe(1);
+      expect((await (await request('/accounts')).json())[0].balance_cents).toBe(
+        110000,
+      );
+    } finally {
+      await db.exec('DROP TRIGGER fail_reconciliation;');
+    }
+  });
+  it('conta encerrada sai das opções sem perder histórico e recusa lançamento', async () => {
+    await activate();
+    await db
+      .prepare("UPDATE accounts SET closed_at='2026-10-31' WHERE id='a'")
+      .run();
+    expect(await (await request('/account-options')).json()).toEqual([]);
+    expect((await (await request('/accounts')).json())[0].closed_at).toBe(
+      '2026-10-31',
+    );
+    expect((await (await request('/transactions')).json()).total).toBe(4);
+    expect((await manual()).status).toBe(409);
+  });
+  it('unifica beneficiários em lote e preserva o registro original importado', async () => {
+    await activate();
+    await db
+      .prepare(
+        "INSERT INTO payees(id,name) VALUES('original','Entrada'),('target','Nome escolhido')",
+      )
+      .run();
+    // A fixture foi criada após a migração. O vínculo é definido antes de marcar como importada.
+    await db
+      .prepare(
+        "INSERT INTO transactions(id,account_id,date,amount_cents,payee,payee_id,origin,kind,category_id) VALUES('linked','a','2026-05-01',100,'Entrada','original','imported','regular','c')",
+      )
+      .run();
+    expect(
+      (
+        await request('/payees/merge', 'POST', {
+          target_id: 'target',
+          source_ids: ['original'],
+        })
+      ).status,
+    ).toBe(200);
+    const listed = await (await request('/payees')).json();
+    expect(listed.find((p) => p.id === 'target')).toMatchObject({
+      count: 1,
+      first_date: '2026-05-01',
+      last_date: '2026-05-01',
+    });
+    expect(listed.find((p) => p.id === 'original')).toBeUndefined();
+    expect(
+      (await (await request('/transactions')).json()).items.find(
+        (t) => t.id === 'linked',
+      ).payee,
+    ).toBe('Nome escolhido');
+    expect(
+      await db
+        .prepare("SELECT payee,payee_id FROM transactions WHERE id='linked'")
+        .first(),
+    ).toEqual({ payee: 'Entrada', payee_id: 'original' });
+    expect(
+      (await (await request('/payees/suggestion?name=Nome%20escolhido')).json())
+        .category_id,
+    ).toBe('c');
+    expect((await manual({ payee: 'Entrada' })).status).toBe(201);
+    expect(
+      (
+        await request('/payees/merge', 'POST', {
+          target_id: 'target',
+          source_ids: ['target'],
+        })
+      ).status,
+    ).toBe(400);
+  });
+  it('edita os níveis de categorias e tags com referências validadas', async () => {
+    const tag = await request('/tags', 'POST', {
+      name: 'Evento',
+      color: '#123456',
+    });
+    expect(tag.status).toBe(201);
+    const { id } = await tag.json();
+    expect(
+      (
+        await request(`/tags/${id}`, 'PATCH', {
+          name: 'Evento novo',
+          color: '#ffffff',
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await request('/tags', 'POST', {
+          name: 'Insegura',
+          color: 'url(https://exemplo.test)',
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await request('/categories/c', 'PATCH', {
+          name: 'Nova categoria',
+          category_group_id: 'cg',
+          is_income: 1,
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await request('/category-groups/cg', 'PATCH', {
+          allocation_group_id: 'ausente',
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (await request('/allocation-groups/g', 'PATCH', { target_percent: 101 }))
+        .status,
+    ).toBe(400);
+  });
+});
+
+it('consulta PTAX, guarda cache e aceita fallback manual quando a API externa falha', async () => {
+  await activate();
+  await db.prepare("UPDATE accounts SET currency='USD' WHERE id='a'").run();
+  const external = vi
+    .spyOn(globalThis, 'fetch')
+    .mockResolvedValue(Response.json({ value: [{ cotacaoVenda: 5.2 }] }));
+  try {
+    expect(
+      await (await request('/fx?currency=USD&date=2026-10-01')).json(),
+    ).toEqual({ rate: 5.2, source: 'ptax' });
+    expect((await manual()).status).toBe(201);
+    expect(external).toHaveBeenCalledTimes(1);
+    external.mockRejectedValue(new Error('serviço indisponível'));
+    expect((await request('/fx?currency=EUR&date=2026-10-01')).status).toBe(
+      503,
+    );
+    expect((await manual({ date: '2026-10-02' })).status).toBe(400);
+    const fallback = await manual({ date: '2026-10-02', fx_rate: 5.4 });
+    expect(fallback.status).toBe(201);
+    expect(await fallback.json()).toMatchObject({
+      fx_source: 'manual',
+      amount_brl_cents: 66663,
+    });
+  } finally {
+    external.mockRestore();
+  }
 });

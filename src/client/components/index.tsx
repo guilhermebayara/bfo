@@ -26,14 +26,16 @@ export function MoneyField({
   value,
   onChange,
   id = 'opening-balance',
+  label = 'Saldo de abertura (R$)',
 }: {
   value: string;
   onChange: (value: string) => void;
   id?: string;
+  label?: string;
 }) {
   return (
     <label htmlFor={id}>
-      Saldo de abertura (R$)
+      {label}
       <input
         id={id}
         inputMode="decimal"
@@ -124,5 +126,27 @@ export function Modal({
       </div>
       {children}
     </dialog>
+  );
+}
+
+export function CategoryOptions({
+  categories,
+}: {
+  categories: import('../../shared/types').Category[];
+}) {
+  return (
+    <>
+      {[...new Set(categories.map((c) => c.group_name))].map((group) => (
+        <optgroup key={group} label={group}>
+          {categories
+            .filter((c) => c.group_name === group)
+            .map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+        </optgroup>
+      ))}
+    </>
   );
 }

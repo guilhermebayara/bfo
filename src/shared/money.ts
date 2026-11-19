@@ -11,9 +11,9 @@ export function parseMoney(value: string): number {
     throw new Error('Valor fora do limite permitido.');
   return negative ? -cents : cents;
 }
-export function formatMoney(cents: number): string {
+export function formatMoney(cents: number, currency = 'BRL'): string {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
-    currency: 'BRL',
+    currency,
   }).format(cents / 100);
 }

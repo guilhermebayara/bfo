@@ -35,3 +35,43 @@ Testes de modelo e API rodam em Workers com D1 local isolado pelo plugin oficial
 ### Interface provisória
 
 Uma família tipográfica de sistema, fundo escuro e tokens CSS centralizados. Componentes compartilhados concentram os controles para facilitar a etapa de conceito visual. Entrada e saída têm rótulos e sinais além de cor. O modal usa `dialog`, com foco e cancelamento por Escape. Seções futuras ficam desativadas e identificadas como “Em breve”. O espaço superior reserva a faixa de avisos sem simular alertas de renovação ainda não implementados.
+
+## Sessão B
+
+### Organização e modelo
+
+`main.tsx` fica restrito à montagem do React e aos estilos. `App.tsx` concentra navegação e dados compartilhados, `screens/` contém as telas e `components/` os controles e formulários. Tokens CSS continuam centralizados e o visual permanece provisório.
+
+A migração `0002_session_b.sql` reconstrói `accounts` para remover a restrição original a BRL, mantendo IDs, referências, campos e saldos. A suspensão temporária das verificações de chaves estrangeiras é encerrada após restaurar a tabela com o nome original. O teste de atualização parte da migração inicial com dados e verifica `foreign_key_check`. Nenhuma alteração na migração inicial. As tags da página de transações são agregadas na própria consulta SQL, mantendo duas consultas D1 por página, independentemente do número de linhas.
+
+Campos novos de transações são preenchidos para o histórico BRL existente com cotação 1 e valor em reais igual ao original. O trigger de proteção das importadas passa a cobrir os campos novos. Beneficiários anteriores ganham registros e vínculos na migração. `archived` é preservado por compatibilidade; contas arquivadas existentes recebem `closed_at`.
+
+### Lançamento, sugestões e unificação
+
+O lançamento recebe valor inteiro seguro na moeda da conta, direção expressa pelo sinal, beneficiário, categoria opcional, nota e várias tags. A moeda vem da conta, não do cliente. Conta encerrada ou ainda em arquivo não aceita lançamento. O formulário usa categorias em `optgroup`, com grupo de categoria acima das opções.
+
+A sugestão usa a última transação do beneficiário, por data decrescente, criação e ID como desempate. Ignora ajustes. Nomes são comparados sem distinção entre maiúsculas e minúsculas, com espaços nas pontas removidos na entrada. A categoria e as tags sugeridas continuam editáveis no formulário; nenhuma regra automática é criada.
+
+Unificar nomes preenche `payees.merged_into_id` e redireciona aliases anteriores para o destino canônico no mesmo batch. Transações importadas mantêm tanto o texto quanto o vínculo originais; consultas e sugestões resolvem o nome canônico. A tela de beneficiários agrega quantidade e período do histórico conjunto. Novos lançamentos que usam um alias recebem o vínculo canônico. Não há exclusão do histórico nem alteração de valores por essa operação.
+
+### Moedas e PTAX
+
+A consulta usa a API pública PTAX do Banco Central, serviço `CotacaoMoedaPeriodo`, cotação de venda e boletim de fechamento. Busca o último fechamento até a data informada, numa janela de dez dias anteriores, cobrindo fins de semana e feriados usuais. Ausência de boletim, falha HTTP ou timeout de oito segundos devolvem orientação para cotação manual. A transação continua possível com a cotação informada pelo usuário.
+
+`fx_rates` armazena o resultado por moeda e data solicitada. Valores manuais e os valores ilustrativos do seed não entram no cache PTAX. O Worker busca ou reutiliza a cotação automática no momento da gravação; não confia em uma indicação de fonte enviada pelo navegador. Uma correção do campo torna a cotação manual. BRL usa 1. `amount_brl_cents` é arredondado para o centavo mais próximo, com o mesmo tratamento para entrada e saída, validando limite inteiro seguro após conversão.
+
+Contas mostram o saldo na moeda original e uma equivalência em reais pela PTAX disponível na data atual. O subtotal usa reais somente se todas as cotações necessárias estiverem disponíveis; caso contrário informa indisponibilidade, sem somar moedas diferentes. Essa equivalência não implementa o histórico mensal do patrimônio, previsto para a fase 2. Datas futuras não entram no saldo corrente, evitando contabilizar antecipadamente parcelas futuras do seed.
+
+### Contas e conferência
+
+Conta manual nasce ativa, com corte no dia anterior à criação. O saldo inicial representa o fechamento de ontem; lançamentos de hoje entram sobre essa base. A regra de corte permanece explícita no formulário. A ativação das importadas segue a regra da sessão A e passa a converter o ajuste em reais para contas estrangeiras, com PTAX ou fallback manual.
+
+A conferência é do saldo corrente na data atual. A primeira chamada é uma prévia sem gravação. A confirmação envia o saldo do app visto na prévia; tanto a leitura quanto a escrita transacional conferem esse valor. Uma alteração intermediária exige nova conferência. O batch cria `reconciliations`, registra a diferença como transação `adjustment`, vincula o ajuste e atualiza `last_reconciled_at`. Diferença zero registra a conferência sem criar lançamento. Uma falha reverte todo o batch.
+
+Contas encerradas aparecem somente no bloco recolhido ao final de Contas. Não entram nas opções de filtros nem no lançamento manual, mas seu histórico continua visível na consulta geral de transações. O endpoint de opções também as exclui.
+
+### Prévia e validação
+
+`preview:homologacao` usa `wrangler preview --env homologacao`. O bloco `previews` declara o D1 de homologação explicitamente; todos os testes usam D1 local isolado. Publicação remota, migração e seed remotos continuam dependendo do login do dono e dos passos em `docs/cloudflare.md`.
+
+Os testes cobrem sugestão por beneficiário, cache PTAX, arredondamento e fallback manual, conferência com ajuste e rollback, conta encerrada fora das opções, unificação com preservação do registro importado e atualização de uma base da sessão A. Testes de navegador exercitam o fluxo manual com tags e moeda estrangeira, agrupamento e conferência, configuração e unificação de beneficiários. Chamadas externas controladas nos testes não comprovam acesso ao serviço PTAX real.

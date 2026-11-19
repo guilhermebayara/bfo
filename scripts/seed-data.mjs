@@ -7,10 +7,48 @@ export function seedSql() {
       : typeof v === 'number'
         ? String(v)
         : `'${v.replaceAll("'", "''")}'`;
-  const insert = (table, row) =>
+  const insert = (table, row) => {
+    if (table === 'transactions') {
+      const payee_id =
+        'seed-payee-' +
+        row.payee
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-zA-Z0-9]/g, '-');
+      sql.push(
+        `INSERT INTO payees(id,name) VALUES (${literal(payee_id)},${literal(row.payee)}) ON CONFLICT DO NOTHING;`,
+      );
+      row = {
+        currency: 'BRL',
+        fx_rate: 1,
+        amount_brl_cents: row.amount_cents,
+        fx_source: 'manual',
+        ...row,
+        payee_id,
+      };
+      // Resolve também beneficiários migrados da sessão A, sem duplicar nomes.
+      row.payee_id = null;
+      const values = Object.entries(row).map(([k, v]) =>
+        k === 'payee_id'
+          ? `(SELECT id FROM payees WHERE name=${literal(row.payee)} COLLATE NOCASE)`
+          : literal(v),
+      );
+      sql.push(
+        `INSERT INTO ${table} (${Object.keys(row).join(',')}) VALUES (${values.join(',')}) ON CONFLICT(id) DO NOTHING;`,
+      );
+      return;
+    }
     sql.push(
       `INSERT INTO ${table} (${Object.keys(row).join(',')}) VALUES (${Object.values(row).map(literal).join(',')}) ON CONFLICT(id) DO NOTHING;`,
     );
+  };
+  for (const [id, name] of [
+    ['horizonte', 'Instituição Horizonte'],
+    ['brisa', 'Instituição Brisa'],
+  ])
+    insert('institutions', { id, name });
+  insert('tags', { id: 'planned', name: 'Planejado', color: '#888888' });
+  insert('tags', { id: 'travel', name: 'Viagem fictícia', color: '#a0a0a0' });
   insert('allocation_groups', {
     id: 'essential',
     name: 'Essencial',
@@ -57,6 +95,9 @@ export function seedSql() {
       name,
       kind,
       currency: 'BRL',
+      institution_id: ['checking', 'card-a'].includes(id)
+        ? 'horizonte'
+        : 'brisa',
       cutoff_date: null,
       opening_balance_cents: 0,
       ...(kind === 'credit_card' ? { closing_day: 20, due_day: 27 } : {}),
@@ -218,5 +259,57 @@ export function seedSql() {
       renewal_date,
       active: 1,
     });
+  // Só complementa vínculos vazios dos IDs fictícios já instalados na sessão A.
+  sql.push(
+    "UPDATE accounts SET institution_id=CASE WHEN id IN ('checking','card-a') THEN 'horizonte' ELSE 'brisa' END WHERE id IN ('checking','card-a','card-b','cash') AND institution_id IS NULL;",
+  );
+  insert('accounts', {
+    id: 'closed',
+    name: 'Conta antiga fictícia',
+    kind: 'checking',
+    currency: 'BRL',
+    institution_id: 'brisa',
+    closed_at: '2026-09-30',
+    cutoff_date: '2025-01-01',
+    opening_balance_cents: 0,
+  });
+  insert('accounts', {
+    id: 'usd',
+    name: 'Conta exterior fictícia',
+    kind: 'checking',
+    currency: 'USD',
+    institution_id: 'horizonte',
+    cutoff_date: '2025-08-31',
+    opening_balance_cents: 100000,
+  });
+  insert('transactions', {
+    id: 'seed-usd',
+    account_id: 'usd',
+    date: '2026-10-14',
+    amount_cents: 2500,
+    currency: 'USD',
+    fx_rate: 5,
+    amount_brl_cents: 12500,
+    fx_source: 'manual',
+    payee: 'Loja exterior fictícia',
+    category_id: 'entertainment',
+    note: 'Cotação fictícia, não é PTAX real.',
+    origin: 'manual',
+    kind: 'regular',
+  });
+  insert('transactions', {
+    id: 'seed-closed',
+    account_id: 'closed',
+    date: '2026-09-01',
+    amount_cents: 5000,
+    payee: 'Compra histórica fictícia',
+    category_id: 'groceries',
+    note: 'Histórico preservado.',
+    origin: 'manual',
+    kind: 'regular',
+  });
+  sql.push(
+    "INSERT INTO transaction_tags(transaction_id,tag_id) VALUES('seed-usd','travel'),('seed-2026-10-market','planned') ON CONFLICT DO NOTHING;",
+  );
   return sql.join('\n');
 }
