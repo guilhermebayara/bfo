@@ -34,6 +34,11 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 - Aporte e rendimento separados. Aporte vem das transferências lançadas da conta corrente para a conta de investimento. Rendimento é a variação do saldo menos os aportes do mês.
 - Empréstimos: saldo devedor atualizado no mês. A parcela entra como recorrente na conta corrente.
 
+## Tabela de transações
+
+- A tabela de Transações funciona como uma planilha. Toda célula visível é editável com um clique, salva sozinha e atualiza na hora tudo que depende dela (saldos, faturas, resumos). Teclado como numa planilha: Enter e Tab salvam e avançam, Esc cancela, setas movem entre células. Campos travados das importadas ficam visivelmente não editáveis.
+- Isso é comportamento da interface e vale desde já, antes do conceito visual.
+
 ## Moedas
 
 - Cada conta tem a sua moeda. Cada lançamento guarda o valor original, a moeda e o valor em reais.
