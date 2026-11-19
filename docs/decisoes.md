@@ -4,6 +4,8 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 
 ## Produto
 
+- Princípio: as decisões de produto não fixam forma nem posição de elementos de interface quando isso não for necessário. Layout fica livre para o conceito visual.
+
 - BFO (Bayara Family Office) é a versão própria do Lunch Money: transações, contas, recorrentes, orçamento, patrimônio líquido ao longo do tempo, dívidas, imóvel, investimentos e categorias agrupadas.
 - O dono só passa a usar de verdade quando as três fases estiverem prontas. As fases são rodadas de teste e ajuste: cada uma fica redonda antes de construir a que depende dela.
 - Web, desktop primeiro. App nativo é possibilidade para o futuro.
