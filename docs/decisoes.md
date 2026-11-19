@@ -34,6 +34,19 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 - Aporte e rendimento separados. Aporte vem das transferências lançadas da conta corrente para a conta de investimento. Rendimento é a variação do saldo menos os aportes do mês.
 - Empréstimos: saldo devedor atualizado no mês. A parcela entra como recorrente na conta corrente.
 
+## Moedas
+
+- Cada conta tem a sua moeda. Cada lançamento guarda o valor original, a moeda e o valor em reais.
+- A cotação é buscada sozinha na data do lançamento, pela PTAX do Banco Central. O dono pode corrigir quando o banco tiver usado outra cotação.
+- Orçamento, categorias e relatórios usam o valor em reais.
+- No patrimônio, o saldo de conta em moeda estrangeira é convertido pela cotação do último dia de cada mês.
+
+## Tags e beneficiários
+
+- Tags continuam: nome e cor, várias por transação, filtro em Transações. São importadas do Lunch Money. A tag "Pagamento de fatura" do Lunch Money vira o tipo próprio de lançamento na importação.
+- Sem regras automáticas. No lugar, ao digitar o beneficiário, o app sugere a categoria e as tags usadas da última vez com ele.
+- Tela de beneficiários para unificar nomes repetidos em lote.
+
 ## Cartão e fatura
 
 - Fatura é uma entidade: fechamento, vencimento, compras do ciclo, estado (aberta, fechada, paga).

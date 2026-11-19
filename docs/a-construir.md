@@ -9,7 +9,8 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
 - [ ] Sessão B: ajustes da revisão da Sessão A e próximo bloco. Detalhe no prompt da sessão. Inclui:
   - Transações: colunas na ordem data, conta, beneficiário, valor, categoria, alocação, origem. Seletor de categoria agrupado (grupo em cima, categorias dentro).
   - Contas: entidade instituição, agrupamento por instituição com subtotal e alternância por tipo, "atualizado em" com a ação Conferir saldo, seção recolhida de encerradas, explicação do estado "só arquivo".
-  - Lançamento manual completo, categorias e grupos editáveis.
+  - Lançamento manual completo com sugestão de categoria e tags pelo beneficiário, categorias e grupos editáveis, tags.
+  - Moedas: moeda por conta, valor original e em reais, cotação PTAX automática com correção manual.
   - Separar o front em componentes e telas (hoje está quase tudo em src/client/main.tsx).
 - [ ] Sessão C: cartão, fatura, parceladas, pagar fatura, conferência.
 - [ ] Sessão D: recorrentes, assinaturas, aviso de renovação.
