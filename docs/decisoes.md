@@ -16,7 +16,7 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 - Cada conta tem dois momentos: arquivo (importado) e daqui pra frente (lançamento manual).
 - Cada conta tem a própria data de corte e um saldo de abertura nessa data, conferido com o extrato. As contas são ativadas uma a uma.
 - A diferença entre o saldo do arquivo e o saldo de abertura aparece como um ajuste visível na conta.
-- Transação importada aceita correção de categoria e nota. Valor e data ficam travados.
+- Transação importada: valor total e data ficam travados. A classificação pode ser editada: categoria, nota, tags e divisão em partes (a soma das partes sempre igual ao valor original). Decidido em 19/11/2026, resolvendo a ambiguidade levantada na Sessão G.
 - Durante as fases, a importação precisa poder ser apagada e refeita. A importação definitiva e as datas de corte acontecem quando o dono começar a usar.
 - Dados de teste: as sessões usam dados fictícios do repositório (seed). Na homologação, o dono roda a importação real.
 
