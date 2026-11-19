@@ -55,6 +55,17 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 - O ajuste de fatura conta como gasto, na categoria própria "Diferença de fatura".
 - Compra parcelada: lançada uma vez, com valor total e número de parcelas. O app gera as parcelas, cada uma ligada à fatura do seu mês.
 
+- Parcelada retroativa: ao lançar uma compra que já começou (ex.: 3/10), o dono informa valor da parcela, total de parcelas e parcela atual. O app cria todas as parcelas, cada uma na fatura do seu mês, incluindo as que já passaram. Motivo: serve no dia da virada e também depois, quando uma compra ficar sem lançar por um tempo.
+- Parcelas retroativas que caem antes da data de corte da conta ficam marcadas como retroativas, porque os meses entre o fim do Lunch Money e o início do BFO não são fidedignos. Parcela retroativa que cai numa fatura já fechada entra na fatura, aparece marcada e a conferência daquela fatura é recalculada.
+- A quantidade é sempre em número de parcelas, nunca em meses.
+- Antecipação no cartão: ação na compra parcelada. O dono escolhe quantas parcelas antecipa, o app mostra o valor cheio e ele digita o valor cobrado pelo banco. Entra uma linha só na fatura atual com o valor pago, as parcelas antecipadas saem dos meses seguintes e o desconto fica no histórico da compra, reduzindo o custo real dela.
+- Antecipação de empréstimo (fase 2): o pagamento sai da corrente, o saldo devedor cai pelo valor cheio das parcelas antecipadas e o desconto fica registrado no empréstimo.
+
+## Divisão de transação
+
+- Uma transação pode ser dividida em partes, cada uma com categoria e tags próprias, por valor ou por percentual. O app mostra quanto falta dividir e só salva com a soma fechada. Desfazer a divisão volta a uma transação só.
+- Sem "dividir ao longo do tempo": o parcelamento por número de parcelas cobre isso.
+
 ## Categorias e orçamento
 
 - Duas camadas. Grupos de categoria organizam (Moradia, Alimentação). Grupos de alocação dizem o tipo de dinheiro (Essencial, Estilo de vida, Investimento), cada um com percentual previsto (ex.: 60 / 25 / 15). Cada grupo de categoria pertence a um grupo de alocação.
@@ -68,11 +79,13 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 
 ## Recorrentes e assinaturas
 
+- Recorrente é reconhecido pela conta, pelo beneficiário e pela data próxima. O valor pode variar (ex.: conta de luz), sem faixa de valor para configurar.
+
 - Assinatura é uma marca aplicável a qualquer recorrente. A categoria do item continua a dele. Não existe categoria de assinatura.
 - Tipo de assinatura: lista que o dono cria e edita (ex.: Essencial e as demais). A tela de assinaturas agrupa por tipo e também por grupo de alocação.
 - Tela de assinaturas: valor, próxima cobrança, conta ou cartão onde cai, total por tipo.
 - Assinatura anual: no planejamento e no orçamento conta no mês da cobrança. A tela de assinaturas mostra também o equivalente mensal, como informação.
-- A assinatura guarda data de renovação. Aviso dentro do app, numa faixa no topo enquanto a renovação estiver próxima. Sem e-mail.
+- A assinatura guarda data de renovação e um prazo de aviso próprio, com 30 dias como padrão. Aviso dentro do app, numa faixa no topo enquanto a renovação estiver próxima. Sem e-mail.
 
 ## Fases
 
