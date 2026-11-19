@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.wrangler/
+.dev.vars
+.env
+.env.*
+# Dados reais da importação do Lunch Money: nunca versionar
+private-data/

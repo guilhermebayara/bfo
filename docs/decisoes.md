@@ -1,0 +1,69 @@
+# Decisões
+
+Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores são ilustrativos.
+
+## Produto
+
+- BFO (Bayara Family Office) é a versão própria do Lunch Money: transações, contas, recorrentes, orçamento, patrimônio líquido ao longo do tempo, dívidas, imóvel, investimentos e categorias agrupadas.
+- O dono só passa a usar de verdade quando as três fases estiverem prontas. As fases são rodadas de teste e ajuste: cada uma fica redonda antes de construir a que depende dela.
+- Web, desktop primeiro. App nativo é possibilidade para o futuro.
+
+## Importação e os dois momentos
+
+- O histórico vem do Lunch Money pela API v2, por um script rodado na máquina do dono. O token ele digita na hora. O arquivo gerado nunca entra no repositório.
+- Na API v2, valor positivo é sempre débito e valor negativo é sempre crédito, independente da configuração do usuário no Lunch Money.
+- Cada conta tem dois momentos: arquivo (importado) e daqui pra frente (lançamento manual).
+- Cada conta tem a própria data de corte e um saldo de abertura nessa data, conferido com o extrato. As contas são ativadas uma a uma.
+- A diferença entre o saldo do arquivo e o saldo de abertura aparece como um ajuste visível na conta.
+- Transação importada aceita correção de categoria e nota. Valor e data ficam travados.
+- Durante as fases, a importação precisa poder ser apagada e refeita. A importação definitiva e as datas de corte acontecem quando o dono começar a usar.
+- Dados de teste: as sessões usam dados fictícios do repositório (seed). Na homologação, o dono roda a importação real.
+
+## Contas
+
+- Contas de movimento (corrente, cartão) vivem de transações.
+- Contas de saldo (imóvel, investimentos, empréstimos) recebem uma atualização mensal com o valor do momento.
+- Patrimônio líquido ao longo do tempo é a soma das duas no fim de cada mês.
+- Investimentos: uma conta por corretora, com saldo separado por tipo (renda variável, renda fixa, fundos). Atualização mensal numa tela só. Sem acompanhar ativo individual.
+- Aporte e rendimento separados. Aporte vem das transferências lançadas da conta corrente para a conta de investimento. Rendimento é a variação do saldo menos os aportes do mês.
+- Empréstimos: saldo devedor atualizado no mês. A parcela entra como recorrente na conta corrente.
+
+## Cartão e fatura
+
+- Fatura é uma entidade: fechamento, vencimento, compras do ciclo, estado (aberta, fechada, paga).
+- Pagar fatura é um tipo próprio de lançamento. Sai da corrente, abate o cartão, nunca entra no orçamento e aparece como uma linha só (ex.: "Fatura Cartão X novembro").
+- Conferência: ao fechar a fatura, o dono digita o valor do banco. O app compara com a soma lançada e mostra a diferença. Ele escolhe procurar a compra que faltou ou fechar com um ajuste. O app guarda o histórico de divergência por fatura.
+- O ajuste de fatura conta como gasto, na categoria própria "Diferença de fatura".
+- Compra parcelada: lançada uma vez, com valor total e número de parcelas. O app gera as parcelas, cada uma ligada à fatura do seu mês.
+
+## Categorias e orçamento
+
+- Duas camadas. Grupos de categoria organizam (Moradia, Alimentação). Grupos de alocação dizem o tipo de dinheiro (Essencial, Estilo de vida, Investimento), cada um com percentual previsto (ex.: 60 / 25 / 15). Cada grupo de categoria pertence a um grupo de alocação.
+- Base do percentual: renda prevista do mês, informada ao montar o orçamento, comparada depois com a renda que entrou.
+- Investimento na alocação conta só os aportes. Rendimento fica fora. Investimento fica fora do orçamento de gastos.
+- Orçamento pode ser preenchido por categoria (o grupo é a soma) ou por grupo, distribuindo depois entre as categorias.
+- Tela de orçamento por grupo de alocação: percentual previsto, valor distribuído nas categorias, valor realizado. Avisa quando as categorias passam do percentual do grupo.
+- Gasto no cartão entra no orçamento no mês da compra.
+- Exceção: parcela entra no orçamento no mês da fatura dela.
+- Parcelas futuras aparecem como valor já comprometido no orçamento de cada mês seguinte, antes da distribuição do resto.
+
+## Recorrentes e assinaturas
+
+- Assinatura é uma marca aplicável a qualquer recorrente. A categoria do item continua a dele. Não existe categoria de assinatura.
+- Tipo de assinatura: lista que o dono cria e edita (ex.: Essencial e as demais). A tela de assinaturas agrupa por tipo e também por grupo de alocação.
+- Tela de assinaturas: valor, próxima cobrança, conta ou cartão onde cai, total por tipo.
+- Assinatura anual: no planejamento e no orçamento conta no mês da cobrança. A tela de assinaturas mostra também o equivalente mensal, como informação.
+- A assinatura guarda data de renovação. Aviso dentro do app, numa faixa no topo enquanto a renovação estiver próxima. Sem e-mail.
+
+## Fases
+
+1. Movimento: contas de movimento, lançamento manual, lista de transações, marco e ajuste por conta, recorrentes, grupos de categoria, cartão com fatura, parceladas, conferência de fatura, assinaturas, importação.
+2. Patrimônio: contas de saldo, investimentos por tipo, aporte e rendimento, empréstimos, patrimônio líquido ao longo do tempo.
+3. Orçamento: orçamento por categoria e por grupo, alocação por percentual, parcelas comprometidas.
+
+## Infraestrutura
+
+- Cloudflare, conta BFO, dentro do login do dono. D1. Access fechado no e-mail do dono.
+- Homologação no endereço gratuito do Workers durante as fases.
+- Produção em bfo.bayara.design. O domínio está sendo transferido para a Cloudflare e vai ficar na conta BFO.
+- Repositório público por enquanto, só com dados fictícios. Vira privado quando o token do Lunch Money entrar em uso.
