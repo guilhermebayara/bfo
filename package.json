@@ -14,7 +14,7 @@
     "db:seed:homologacao": "node scripts/seed.mjs --remote",
     "deploy:homologacao": "npm run build && wrangler deploy --env homologacao",
     "deploy:producao": "npm run build && wrangler deploy --env producao",
-    "preview:homologacao": "npm run build && wrangler versions upload --env homologacao",
+    "preview:homologacao": "npm run build && wrangler preview --env homologacao",
     "test:e2e": "playwright test",
     "format": "prettier --write src scripts tests vite.config.ts vitest.config.ts playwright.config.ts tsconfig.json wrangler.jsonc package.json index.html"
   },

@@ -13,7 +13,17 @@
     "homologacao": {
       "name": "bfo-homologacao",
       "workers_dev": true,
-      "preview_urls": true,
+      "preview_urls": false,
+      "previews": {
+        "d1_databases": [
+          {
+            "binding": "DB",
+            "database_name": "bfo-homologacao",
+            "database_id": "9db4bc67-bacb-4176-8701-34d24f7c7bce",
+            "migrations_dir": "migrations",
+          },
+        ],
+      },
       "d1_databases": [
         {
           "binding": "DB",

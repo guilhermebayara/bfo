@@ -6,19 +6,20 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
 
 - [x] Sessão A: fundação técnica, seed e interface funcional de Transações e Contas (estrutura e hierarquia, visual neutro).
   - Implementação e validação local concluídas. Publicação e validação remota dependem dos passos em `docs/cloudflare.md`.
-- [ ] Sessão B: ajustes da revisão da Sessão A e próximo bloco. Detalhe no prompt da sessão. Inclui:
+- [x] Sessão B: ajustes da revisão da Sessão A e próximo bloco. Detalhe no prompt da sessão. Inclui:
   - Transações: colunas na ordem data, conta, beneficiário, valor, categoria, alocação, origem. Seletor de categoria agrupado (grupo em cima, categorias dentro).
   - Contas: entidade instituição, agrupamento por instituição com subtotal e alternância por tipo, "atualizado em" com a ação Conferir saldo, seção recolhida de encerradas, explicação do estado "só arquivo".
   - Lançamento manual completo com sugestão de categoria e tags pelo beneficiário, categorias e grupos editáveis, tags.
   - Moedas: moeda por conta, valor original e em reais, cotação PTAX automática com correção manual.
-  - Separar o front em componentes e telas (hoje está quase tudo em src/client/main.tsx).
+  - Front separado em componentes e telas.
+  - Migração nova, seed ampliado, testes e configuração de Previews implementados. Migração/seed remotos e configuração do painel seguem os passos em `docs/cloudflare.md`.
 - [ ] Sessão C: cartão, fatura, parceladas, pagar fatura, conferência.
 - [ ] Sessão D: recorrentes, assinaturas, aviso de renovação.
 - [ ] Sessão E: script de importação do Lunch Money (API v2), apagar e refazer importação.
 
 - [ ] Conceito visual: feito no Claude depois que a estrutura da fase 1 estiver redonda. Duas propostas numa prévia, o dono escolhe olhando a tela, e só então o visual é aplicado.
 
-- [ ] Ajuste técnico (entra na próxima sessão): a Cloudflare trocou as prévias por versão com alias pelo recurso Previews, com comando padrão `npx wrangler preview`. Migrar a configuração (bloco `previews` no ambiente homologacao do wrangler, comando de prévia com o ambiente) e atualizar docs/cloudflare.md com os nomes atuais do painel (Settings > Build, preview builds, Preview command).
+- [x] Ajuste técnico (Sessão B): a Cloudflare trocou as prévias por versão com alias pelo recurso Previews, com comando padrão `npx wrangler preview`. Migrar a configuração (bloco `previews` no ambiente homologacao do wrangler, comando de prévia com o ambiente) e atualizar docs/cloudflare.md com os nomes atuais do painel (Settings > Build, preview builds, Preview command).
 
 ## Fase 2: Patrimônio
 

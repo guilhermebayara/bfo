@@ -1,16 +1,14 @@
 # Cloudflare: homologação e produção
 
-Os dois D1 já existem na conta BFO. Não crie outros bancos. Os IDs informados estão em `wrangler.jsonc`; cada ambiente aponta seu binding `DB` ao banco correspondente. O campo `database_name` serve como nome legível na configuração; as operações documentadas resolvem o binding e o ID.
+Os dois D1 já existem na conta BFO. Não crie outros bancos. `wrangler.jsonc` mantém os IDs existentes e o binding `DB` de cada ambiente. Produção não recebe seed.
 
 ## Passos do dono, em ordem
 
-1. Entre na conta BFO e confira os D1 existentes: homologação `9db4bc67-bacb-4176-8701-34d24f7c7bce`; produção `32c0ee02-7cdf-4fc7-b83f-e8808ba3f4de`. Não é necessário criá-los nesta sessão.
-2. Em Workers & Pages, conecte `guilhermebayara/bfo` ao Workers Builds para o Worker `bfo-homologacao`. Escolha `homologacao` como branch de produção desse projeto de homologação e a raiz do repositório como diretório. Use Node.js 24, instalação `npm ci`, build `npm run build` e deploy `npx wrangler deploy --env homologacao`. Confira que `DB` está vinculado ao D1 de homologação. O ambiente chamado “produção” do projeto de Builds significa sua branch principal de build; aqui ela continua sendo homologação do BFO.
-3. Ative builds de branches que não são de produção e inclua as branches `tst-*`. Use `npx wrangler versions upload --env homologacao --preview-alias "$WORKERS_CI_BRANCH"` como comando de deploy dessas branches. `WORKERS_CI_BRANCH` é fornecida pelo Workers Builds; para esta sessão seu valor é `tst-fundacao`. O build continua `npm run build`. Não execute `wrangler deploy` para prévias, pois ele alteraria a versão ativa de homologação. Após conectar o repositório, dispare o primeiro build da branch. O primeiro deploy do Worker principal precisa existir antes de enviar uma versão de prévia.
-4. Ative Cloudflare Access no endereço workers.dev de `bfo-homologacao` e também nas URLs de prévia. Restrinja a política ao seu login e proteja todos os caminhos, inclusive `/api/*`. Confira a cobertura das prévias de versão e do alias `tst-fundacao`, consultando os hosts mostrados no painel. Teste em janela anônima: páginas e API devem exigir login. Faça isso antes de usar qualquer dado real. As prévias usam o mesmo D1 de homologação e compartilham as alterações entre si.
-5. Na sua máquina, com a branch `tst-fundacao` ou a entrega já integrada em `homologacao`, rode os comandos abaixo. Autentique na conta BFO e confira o ID do banco indicado pelo Wrangler antes de confirmar. Nesta sessão, migração e seed remotos são exclusivos de homologação.
+1. Na máquina autenticada na conta BFO, entre na raiz do checkout da branch `tst-sessao-b` e atualize as dependências. Confira a identidade e o banco de homologação antes de executar a migração:
 
 ```sh
+git switch tst-sessao-b
+git pull --ff-only
 npm ci
 npx wrangler login
 npx wrangler whoami
@@ -18,18 +16,37 @@ npm run db:migrate:homologacao
 npm run db:seed:homologacao
 ```
 
-Se uma operação falhar, corrija a causa antes da seguinte. Não execute seed no banco de produção. O seed não é parte do build nem do deploy automático. Pode ser repetido sem duplicar as fixtures; também preserva edições existentes.
+`db:migrate:homologacao` executa `wrangler d1 migrations apply DB --remote --env homologacao`. Só as migrações pendentes são aplicadas; `0002_session_b.sql` preserva os registros da sessão A, reconstrói `accounts` para aceitar moedas estrangeiras e acrescenta as novas entidades. O ID esperado é `9db4bc67-bacb-4176-8701-34d24f7c7bce`. Se uma etapa falhar, corrija a causa antes da seguinte.
 
-6. Abra Transações e Contas na prévia da branch. Confira filtros e edição de categoria/nota; em Contas, confira a prévia antes de confirmar uma ativação. O ajuste deve aparecer em Transações, filtrando pela conta e pela origem Ajuste. Faça squash do PR para `homologacao` somente depois da revisão. Esta sessão não integra nem publica em produção.
+O seed usa IDs estáveis e pode ser repetido sem apagar edições ou reativar contas. Acrescenta instituições fictícias, uma conta encerrada, uma conta USD e tags. Preenche instituição somente quando o vínculo dos IDs fictícios antigos estiver vazio. O câmbio do lançamento fictício em USD é manual e ilustrativo, sem gravar cotação fictícia no cache PTAX.
 
-## Endereços esperados
+2. Em **Workers & Pages > bfo-homologacao > Settings > Build > Branch control**, mantenha `homologacao` como branch de produção desse projeto de build. Isso significa homologação do BFO. Ative **preview builds** para `tst-*`, incluindo `tst-sessao-b`. Use Node.js 24 e a raiz do repositório. Comandos:
 
-O subdomínio workers.dev da conta aparece no painel da Cloudflare. Ele não é inferido do nome do repositório. Os formatos abaixo ainda dependem dos passos de configuração e do primeiro build bem-sucedido:
+| Campo | Comando |
+|---|---|
+| Instalação | `npm ci` |
+| Build | `npm run build` |
+| Deploy da branch homologacao | `npx wrangler deploy --env homologacao` |
+| Preview command | `npx wrangler preview --env homologacao` |
 
-- Homologação: `https://bfo-homologacao.<SUBDOMINIO-DA-CONTA>.workers.dev/transacoes` e `/contas`.
-- Prévia da sessão: `https://tst-fundacao-bfo-homologacao.<SUBDOMINIO-DA-CONTA>.workers.dev/transacoes` e `/contas`.
-- O comando `versions upload` também informa uma URL de versão. Use o endereço completo impresso no build e confirme a proteção pelo Access.
+O script local `npm run preview:homologacao` compila e executa o mesmo Preview command. O Wrangler usa o nome da branch como nome da Preview por padrão. O bloco `env.homologacao.previews` declara `DB` explicitamente. Confira também a configuração base de Previews no painel, caso exista, pois ela pode sobrescrever configurações locais.
+
+As Previews desta etapa compartilham o D1 de homologação. Alterações feitas em qualquer uma aparecem nas demais. Não use `wrangler deploy` para publicar uma branch de teste sobre a versão ativa. O comando antigo `wrangler versions upload --preview-alias` foi substituído pelo recurso Previews. `preview_urls` fica desativado para os antigos endereços de versão.
+
+3. Configure a proteção em **Zero Trust > Access > Applications > Add an application > Self-hosted**. Inclua o host `bfo-homologacao.bfo-825.workers.dev`, cobrindo todos os caminhos, inclusive `/api/*`. Crie uma política **Allow**, com regra **Include > Emails** para o seu e-mail, informado somente no painel. Cadastre também os hosts de Preview efetivamente mostrados pelo novo recurso; não reutilize por suposição o formato antigo dos aliases de versão. Confirme a cobertura de cada Preview no painel. Em janela anônima, tanto páginas quanto API devem exigir autenticação. Faça isso antes de usar dados reais.
+
+4. Dispare o preview build de `tst-sessao-b`. Copie a URL exibida no resultado e valide Transações, Contas, Categorias, Tags e Beneficiários. O endereço só deve ser divulgado como prévia funcional depois de responder e estar protegido pelo Access. Faça squash do PR para `homologacao` após revisar. A sessão B não faz merge nem publica em produção.
+
+## Endereços de homologação
+
+Estes endereços passam a exibir a sessão B depois da integração e do deploy de `homologacao`:
+
+- https://bfo-homologacao.bfo-825.workers.dev/transacoes
+- https://bfo-homologacao.bfo-825.workers.dev/contas
+- https://bfo-homologacao.bfo-825.workers.dev/categorias
+- https://bfo-homologacao.bfo-825.workers.dev/tags
+- https://bfo-homologacao.bfo-825.workers.dev/beneficiarios
 
 ## Produção
 
-O ambiente `producao` está configurado para `bfo-producao` e para o D1 `32c0ee02-7cdf-4fc7-b83f-e8808ba3f4de`. Workers.dev e prévias ficam desativados nesse ambiente. A ligação do domínio e a migração de produção pertencem à etapa futura de produção, após as três fases. Nenhum seed é executado automaticamente por scripts de deploy.
+O ambiente `producao` permanece ligado ao Worker `bfo-producao` e ao D1 `32c0ee02-7cdf-4fc7-b83f-e8808ba3f4de`, sem workers.dev nem prévias. Migração, domínio e deploy de produção pertencem à etapa futura, após as três fases.
