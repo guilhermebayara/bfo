@@ -38,6 +38,8 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 
 - A tabela de Transações funciona como uma planilha. Toda célula visível é editável com um clique, salva sozinha e atualiza na hora tudo que depende dela (saldos, faturas, resumos). Teclado como numa planilha: Enter e Tab salvam e avançam, Esc cancela, setas movem entre células. Campos travados das importadas ficam visivelmente não editáveis.
 - Isso é comportamento da interface e vale desde já, antes do conceito visual.
+- Novo lançamento entra como uma linha extra no topo da tabela. O botão de adicionar já traz a conta padrão do dono (definida nas configurações) e tem uma seta para escolher outra.
+- A lista de contas dessa seta mostra só contas de movimento, agrupadas por tipo (cartões, contas correntes, dinheiro), com a instituição em cada uma e em ordem alfabética dentro do grupo. Contas de saldo (investimento, imóvel, empréstimo) e contas encerradas ficam de fora, porque não recebem lançamentos.
 
 ## Moedas
 
