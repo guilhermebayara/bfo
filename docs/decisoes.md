@@ -36,6 +36,15 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 
 ## Tabela de transações
 
+- Transações é o painel de gestão: tudo que mexe em dinheiro pode ser registrado ali. As outras telas (Cartão, Contas, Recorrentes) servem para ver e conferir e podem ter as mesmas ações, mas nenhuma ação é exclusiva delas.
+- Como cada tipo entra pela tabela:
+  - Despesa e receita: linha normal, sinal automático pela categoria.
+  - Transferência: "Nova transferência" na seta do botão de adicionar, com conta de origem e de destino lado a lado, data e valor.
+  - Pagamento de fatura: transferência cujo destino é um cartão. A linha vira pagamento de fatura sozinha e pergunta qual fatura, sugerindo a mais antiga em aberto. Aceita pagamento parcial.
+  - Compra parcelada: quando a conta da linha é um cartão, aparece a célula de parcelas (1x por padrão). Acima de 1x surge "parcela atual" (retroativa) e a prévia das parcelas.
+  - Ações sobre transação existente no menu "..." da linha: dividir, antecipar, mover de fatura, cancelar parcelas futuras, criar recorrente.
+  - Ajustes de conferência nascem na conferência de saldo ou de fatura e aparecem na tabela como linhas de ajuste.
+
 - A tabela de Transações funciona como uma planilha. Toda célula visível é editável com um clique, salva sozinha e atualiza na hora tudo que depende dela (saldos, faturas, resumos). Teclado como numa planilha: Enter e Tab salvam e avançam, Esc cancela, setas movem entre células. Campos travados das importadas ficam visivelmente não editáveis.
 - A célula tem o mesmo tamanho em repouso, ao passar o mouse e em edição, como no Lunch Money: o campo de edição ocupa exatamente a célula, sem crescer nem encolher. Vale também para a linha de lançamento novo.
 - Isso é comportamento da interface e vale desde já, antes do conceito visual.
