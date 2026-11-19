@@ -10,15 +10,20 @@ Ao fim da fase 1, o dono consegue cadastrar as contas de movimento, ver o histó
 
 Nomes em inglês no código e no banco, interface em português.
 
-- `accounts`: id, name, kind (`checking`, `credit_card`, `cash`), currency, cutoff_date (nula até a conta ser ativada), opening_balance_cents, archived, created_at. Cartão guarda também closing_day e due_day.
+- `institutions`: id, name, sort.
+- `accounts`: id, institution_id, name, kind (`checking`, `credit_card`, `cash`), currency, cutoff_date (nula até a conta ser ativada), opening_balance_cents, last_reconciled_at, closed_at, created_at. Cartão guarda também closing_day e due_day.
 - `allocation_groups`: id, name, target_percent, sort. Seed: Essencial, Estilo de vida, Investimento.
 - `category_groups`: id, name, allocation_group_id, sort.
 - `categories`: id, name, category_group_id, is_income, sort. Inclui a categoria de sistema "Diferença de fatura".
-- `transactions`: id, account_id, date, amount_cents (positivo é saída, negativo é entrada, igual à API v2 do Lunch Money), payee, category_id, note, origin (`imported`, `manual`, `adjustment`), kind (`regular`, `transfer`, `card_payment`, `installment`), transfer_pair_id, statement_id, installment_plan_id, external_id (id do Lunch Money), created_at.
+- `transactions`: id, account_id, date, amount_cents na moeda da conta (positivo é saída, negativo é entrada, igual à API v2 do Lunch Money), currency, fx_rate, amount_brl_cents, fx_source (`ptax`, `manual`), payee_id, category_id, note, origin (`imported`, `manual`, `adjustment`), kind (`regular`, `transfer`, `card_payment`, `installment`), transfer_pair_id, statement_id, installment_plan_id, external_id (id do Lunch Money), created_at.
 - `statements` (faturas): id, account_id, period_start, closing_date, due_date, status (`open`, `closed`, `paid`), bank_amount_cents (valor digitado pelo dono), closed_at.
 - `installment_plans`: id, account_id, description, total_cents, count, first_date, category_id.
 - `recurring`: id, account_id, payee, amount_cents, category_id, cadence (`monthly`, `yearly`, `weekly`, `custom`), next_date, is_subscription, subscription_type_id, renewal_date, active.
 - `subscription_types`: id, name, sort.
+- `tags`: id, name, color. `transaction_tags`: transaction_id, tag_id.
+- `payees`: id, name, merged_into_id. Base da sugestão de categoria e tags.
+- `reconciliations`: id, account_id, date, bank_balance_cents, app_balance_cents, adjustment_transaction_id.
+- `fx_rates`: currency, date, rate (cache da PTAX).
 
 Regras que o modelo precisa garantir:
 

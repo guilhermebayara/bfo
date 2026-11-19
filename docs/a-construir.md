@@ -4,13 +4,34 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
 
 ## Fase 1: Movimento (brief em docs/briefs/fase-1-movimento.md)
 
-- [ ] Sessão A: fundação técnica, seed e interface funcional de Transações e Contas (estrutura e hierarquia, visual neutro).
-- [ ] Sessão B: lançamento manual completo, categorias e grupos, marco e ajuste por conta.
-- [ ] Sessão C: cartão, fatura, parceladas, pagar fatura, conferência.
-- [ ] Sessão D: recorrentes, assinaturas, aviso de renovação.
-- [ ] Sessão E: script de importação do Lunch Money (API v2), apagar e refazer importação.
+- [x] Sessão A: fundação técnica, seed e interface funcional de Transações e Contas (estrutura e hierarquia, visual neutro).
+  - Implementação e validação local concluídas. Publicação e validação remota dependem dos passos em `docs/cloudflare.md`.
+- [x] Sessão B: ajustes da revisão da Sessão A e próximo bloco. Detalhe no prompt da sessão. Inclui:
+  - Transações: colunas na ordem data, conta, beneficiário, valor, categoria, alocação, origem. Seletor de categoria agrupado (grupo em cima, categorias dentro).
+  - Contas: entidade instituição, agrupamento por instituição com subtotal e alternância por tipo, "atualizado em" com a ação Conferir saldo, seção recolhida de encerradas, explicação do estado "só arquivo".
+  - Lançamento manual completo com sugestão de categoria e tags pelo beneficiário, categorias e grupos editáveis, tags.
+  - Moedas: moeda por conta, valor original e em reais, cotação PTAX automática com correção manual.
+  - Front separado em componentes e telas.
+  - Migração nova, seed ampliado, testes e configuração de Previews implementados. Migração/seed remotos e configuração do painel seguem os passos em `docs/cloudflare.md`.
+- [x] Sessão C: infraestrutura no modelo do acervo da família. Configuração do painel e publicação em [Cloudflare](cloudflare.md).
+- [x] Sessão D: cartão, fatura, parceladas, pagar fatura, conferência.
+  - Tela de Cartão, compra original com as parcelas, baixa em uma linha e histórico de conferência. Migração e seed fictício seguem os comandos de [Cloudflare](cloudflare.md).
+- [x] Sessão E: navegação mês a mês em Transações e lançamento e edição na própria tabela, depois recorrentes, assinaturas e aviso de renovação.
+  - Transações abre no mês atual. Setas de mês anterior e próximo, "ir para o mês" e "voltar para este mês" sempre à mão. O mês fica no endereço (ex.: /transacoes/2026-11), para voltar e compartilhar.
+  - Linha de lançamento no topo da tabela, com data (calendário), categoria (busca agrupada), beneficiário, valor com moeda, notas, conta e tags, e um botão de adicionar. Enter salva e deixa a linha pronta para o próximo lançamento.
+  - Edição na própria linha de qualquer campo permitido, respeitando a trava das importadas.
+  - Referência: prints do Lunch Money enviados pelo dono em 19/11.
+  - [x] Navegação mensal no endereço, filtros dentro do mês, lançamento completo no topo da tabela com Enter e edição nas células, preservando importadas e faturas fechadas.
+  - [x] Recorrentes por mês e categoria, esperado e realizado, criação a partir de transação e edição dos cadastros.
+  - [x] Assinaturas por tipo ou alocação, equivalente mensal, tipos editáveis e faixa de renovação.
+  - [x] Migração 0004 e seed fictício ampliado, validados em D1 local isolado. Build e 74 testes de API/regras e 14 testes de navegador aprovados.
+  - [x] Migração e seed remotos aplicados pelo dono.
+- [ ] Sessão F: parcelada retroativa, antecipação no cartão com desconto, divisão de transação, prazo de aviso por assinatura (padrão 30 dias). Regras em docs/decisoes.md (Cartão e fatura, Divisão de transação, Recorrentes e assinaturas). A antecipação de empréstimo fica na fase 2.
+- [ ] Sessão G: script de importação do Lunch Money (API v2), apagar e refazer importação. Construída e testada só com dados simulados; a importação real espera o repositório privado.
 
 - [ ] Conceito visual: feito no Claude depois que a estrutura da fase 1 estiver redonda. Duas propostas numa prévia, o dono escolhe olhando a tela, e só então o visual é aplicado.
+
+- [x] Ajuste técnico (Sessão B): a Cloudflare trocou as prévias por versão com alias pelo recurso Previews, com comando padrão `npx wrangler preview`. Migrar a configuração (bloco `previews` no ambiente homologacao do wrangler, comando de prévia com o ambiente) e atualizar docs/cloudflare.md com os nomes atuais do painel (Settings > Build, preview builds, Preview command).
 
 ## Fase 2: Patrimônio
 

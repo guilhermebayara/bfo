@@ -22,12 +22,30 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 
 ## Contas
 
+- Instituição é o primeiro nível. Cada conta pertence a uma instituição, e o tipo (corrente, cartão, investimento, empréstimo) fica na conta. A tela de Contas agrupa por instituição, com subtotal, e tem alternância para agrupar por tipo.
+- Toda conta criada à mão nasce ativa. Só as contas importadas do Lunch Money começam como "só arquivo", e são ativadas no dia em que o dono começar a usar o BFO. A tela explica esse estado.
+- "Atualizado em" é a data da última conferência de saldo. A ação "Conferir saldo" funciona como a conferência da fatura: o dono digita o saldo do banco, vê a diferença e escolhe procurar o que faltou ou lançar um ajuste.
+- Conta encerrada sai da lista principal e dos filtros e vai para uma seção recolhida "Encerradas" no fim da tela. O histórico continua nas transações e no patrimônio.
+
 - Contas de movimento (corrente, cartão) vivem de transações.
 - Contas de saldo (imóvel, investimentos, empréstimos) recebem uma atualização mensal com o valor do momento.
 - Patrimônio líquido ao longo do tempo é a soma das duas no fim de cada mês.
 - Investimentos: uma conta por corretora, com saldo separado por tipo (renda variável, renda fixa, fundos). Atualização mensal numa tela só. Sem acompanhar ativo individual.
 - Aporte e rendimento separados. Aporte vem das transferências lançadas da conta corrente para a conta de investimento. Rendimento é a variação do saldo menos os aportes do mês.
 - Empréstimos: saldo devedor atualizado no mês. A parcela entra como recorrente na conta corrente.
+
+## Moedas
+
+- Cada conta tem a sua moeda. Cada lançamento guarda o valor original, a moeda e o valor em reais.
+- A cotação é buscada sozinha na data do lançamento, pela PTAX do Banco Central. O dono pode corrigir quando o banco tiver usado outra cotação.
+- Orçamento, categorias e relatórios usam o valor em reais.
+- No patrimônio, o saldo de conta em moeda estrangeira é convertido pela cotação do último dia de cada mês.
+
+## Tags e beneficiários
+
+- Tags continuam: nome e cor, várias por transação, filtro em Transações. São importadas do Lunch Money. A tag "Pagamento de fatura" do Lunch Money vira o tipo próprio de lançamento na importação.
+- Sem regras automáticas. No lugar, ao digitar o beneficiário, o app sugere a categoria e as tags usadas da última vez com ele.
+- Tela de beneficiários para unificar nomes repetidos em lote.
 
 ## Cartão e fatura
 
@@ -36,6 +54,17 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 - Conferência: ao fechar a fatura, o dono digita o valor do banco. O app compara com a soma lançada e mostra a diferença. Ele escolhe procurar a compra que faltou ou fechar com um ajuste. O app guarda o histórico de divergência por fatura.
 - O ajuste de fatura conta como gasto, na categoria própria "Diferença de fatura".
 - Compra parcelada: lançada uma vez, com valor total e número de parcelas. O app gera as parcelas, cada uma ligada à fatura do seu mês.
+
+- Parcelada retroativa: ao lançar uma compra que já começou (ex.: 3/10), o dono informa valor da parcela, total de parcelas e parcela atual. O app cria todas as parcelas, cada uma na fatura do seu mês, incluindo as que já passaram. Motivo: serve no dia da virada e também depois, quando uma compra ficar sem lançar por um tempo.
+- Parcelas retroativas que caem antes da data de corte da conta ficam marcadas como retroativas, porque os meses entre o fim do Lunch Money e o início do BFO não são fidedignos. Parcela retroativa que cai numa fatura já fechada entra na fatura, aparece marcada e a conferência daquela fatura é recalculada.
+- A quantidade é sempre em número de parcelas, nunca em meses.
+- Antecipação no cartão: ação na compra parcelada. O dono escolhe quantas parcelas antecipa, o app mostra o valor cheio e ele digita o valor cobrado pelo banco. Entra uma linha só na fatura atual com o valor pago, as parcelas antecipadas saem dos meses seguintes e o desconto fica no histórico da compra, reduzindo o custo real dela.
+- Antecipação de empréstimo (fase 2): o pagamento sai da corrente, o saldo devedor cai pelo valor cheio das parcelas antecipadas e o desconto fica registrado no empréstimo.
+
+## Divisão de transação
+
+- Uma transação pode ser dividida em partes, cada uma com categoria e tags próprias, por valor ou por percentual. O app mostra quanto falta dividir e só salva com a soma fechada. Desfazer a divisão volta a uma transação só.
+- Sem "dividir ao longo do tempo": o parcelamento por número de parcelas cobre isso.
 
 ## Categorias e orçamento
 
@@ -50,11 +79,13 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 
 ## Recorrentes e assinaturas
 
+- Recorrente é reconhecido pela conta, pelo beneficiário e pela data próxima. O valor pode variar (ex.: conta de luz), sem faixa de valor para configurar.
+
 - Assinatura é uma marca aplicável a qualquer recorrente. A categoria do item continua a dele. Não existe categoria de assinatura.
 - Tipo de assinatura: lista que o dono cria e edita (ex.: Essencial e as demais). A tela de assinaturas agrupa por tipo e também por grupo de alocação.
 - Tela de assinaturas: valor, próxima cobrança, conta ou cartão onde cai, total por tipo.
 - Assinatura anual: no planejamento e no orçamento conta no mês da cobrança. A tela de assinaturas mostra também o equivalente mensal, como informação.
-- A assinatura guarda data de renovação. Aviso dentro do app, numa faixa no topo enquanto a renovação estiver próxima. Sem e-mail.
+- A assinatura guarda data de renovação e um prazo de aviso próprio, com 30 dias como padrão. Aviso dentro do app, numa faixa no topo enquanto a renovação estiver próxima. Sem e-mail.
 
 ## Fases
 
