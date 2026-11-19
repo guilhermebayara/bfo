@@ -21,8 +21,8 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
   - Linha de lançamento no topo da tabela, com data (calendário), categoria (busca agrupada), beneficiário, valor com moeda, notas, conta e tags, e um botão de adicionar. Enter salva e deixa a linha pronta para o próximo lançamento.
   - Edição na própria linha de qualquer campo permitido, respeitando a trava das importadas.
   - Referência: prints do Lunch Money enviados pelo dono em 19/11.
-- [ ] Sessão G (depois da E e antes da importação, se fizer sentido trocar a ordem com a F): parcelada retroativa, antecipação no cartão com desconto, divisão de transação. Regras em docs/decisoes.md (Cartão e fatura, Divisão de transação). A antecipação de empréstimo fica na fase 2.
-- [ ] Sessão F: script de importação do Lunch Money (API v2), apagar e refazer importação.
+- [ ] Sessão F: parcelada retroativa, antecipação no cartão com desconto, divisão de transação. Regras em docs/decisoes.md (Cartão e fatura, Divisão de transação). A antecipação de empréstimo fica na fase 2.
+- [ ] Sessão G: script de importação do Lunch Money (API v2), apagar e refazer importação.
 
 - [ ] Conceito visual: feito no Claude depois que a estrutura da fase 1 estiver redonda. Duas propostas numa prévia, o dono escolhe olhando a tela, e só então o visual é aplicado.
 
