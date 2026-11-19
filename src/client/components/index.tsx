@@ -1,3 +1,4 @@
+import type { Transaction } from '../../shared/types';
 import {
   useEffect,
   useRef,
@@ -147,6 +148,30 @@ export function CategoryOptions({
             ))}
         </optgroup>
       ))}
+    </>
+  );
+}
+
+export function InstallmentLink({
+  item,
+}: {
+  item: Pick<
+    Transaction,
+    'installment_plan_id' | 'installment_number' | 'installment_count'
+  >;
+}) {
+  if (!item.installment_plan_id) return null;
+  return (
+    <>
+      {' '}
+      <a
+        href={`/parceladas/${encodeURIComponent(item.installment_plan_id)}`}
+        aria-label={`Compra original, parcela ${item.installment_number} de ${item.installment_count}`}
+      >
+        {item.installment_number && item.installment_count
+          ? `${item.installment_number}/${item.installment_count}`
+          : 'Compra original'}
+      </a>
     </>
   );
 }

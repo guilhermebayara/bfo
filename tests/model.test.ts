@@ -326,7 +326,7 @@ it('seed é repetível, cobre 14 meses e mantém edições e contas ativadas', a
     (
       await db
         .prepare(
-          "SELECT bank_amount_cents-(SELECT SUM(amount_cents) FROM transactions WHERE statement_id=statements.id) AS difference FROM statements WHERE id='statement-2026-10'",
+          "SELECT bank_amount_cents-app_amount_cents AS difference FROM statement_checks WHERE id='seed-statement-check'",
         )
         .first()
     ).difference,

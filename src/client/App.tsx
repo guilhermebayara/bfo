@@ -3,6 +3,8 @@ import type { Account, Category } from '../shared/types';
 import { Button } from './components';
 import { api } from './api';
 import { Transactions } from './screens/Transactions';
+import { Cards } from './screens/Cards';
+import { InstallmentPurchase } from './screens/InstallmentPurchase';
 import { Accounts } from './screens/Accounts';
 import { Categories, Tags, Payees } from './screens/Configuration';
 export function App() {
@@ -67,6 +69,7 @@ export function App() {
             Contas
           </a>
           {[
+            ['/cartao', 'Cartão'],
             ['/categorias', 'Categorias'],
             ['/tags', 'Tags'],
             ['/beneficiarios', 'Beneficiários'],
@@ -80,14 +83,14 @@ export function App() {
               {label}
             </a>
           ))}
-          {['Cartão', 'Recorrentes', 'Assinaturas'].map((label) => (
+          {['Recorrentes', 'Assinaturas'].map((label) => (
             <button key={label} disabled>
               {label}
               <small>Em breve</small>
             </button>
           ))}
         </nav>
-        <p className="environment">Dados fictícios · Sessão B</p>
+        <p className="environment">Dados fictícios · Sessão D</p>
       </aside>
       <div className="workspace">
         <div className="alert-space" aria-label="Espaço reservado para avisos">
@@ -101,6 +104,14 @@ export function App() {
             </div>
           ) : !ready ? (
             <p role="status">Carregando contas…</p>
+          ) : path === '/cartao' ? (
+            <Cards accounts={accounts} onSaved={load} />
+          ) : path.startsWith('/parceladas/') ? (
+            <InstallmentPurchase
+              key={path}
+              id={path.slice('/parceladas/'.length)}
+              accounts={accounts}
+            />
           ) : path === '/categorias' ? (
             <Categories onSaved={load} />
           ) : path === '/tags' ? (

@@ -210,6 +210,13 @@ export function Accounts({
                 : 'Ainda não conferida'}
             </td>
             <td>
+              {a.kind === 'credit_card' && (
+                <p>
+                  <a href={`/cartao?account=${encodeURIComponent(a.id)}`}>
+                    Ver faturas
+                  </a>
+                </p>
+              )}
               {!a.closed_at &&
                 !a.archived &&
                 (a.cutoff_date ? (

@@ -14,7 +14,8 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
   - Front separado em componentes e telas.
   - Migração nova, seed ampliado, testes e configuração de Previews implementados. Migração/seed remotos e configuração do painel seguem os passos em `docs/cloudflare.md`.
 - [x] Sessão C: infraestrutura no modelo do acervo da família. Configuração do painel e publicação em [Cloudflare](cloudflare.md).
-- [ ] Sessão D: cartão, fatura, parceladas, pagar fatura, conferência.
+- [x] Sessão D: cartão, fatura, parceladas, pagar fatura, conferência.
+  - Tela de Cartão, compra original com as parcelas, baixa em uma linha e histórico de conferência. Migração e seed fictício seguem os comandos de [Cloudflare](cloudflare.md).
 - [ ] Sessão E: recorrentes, assinaturas, aviso de renovação.
 - [ ] Sessão F: script de importação do Lunch Money (API v2), apagar e refazer importação.
 

@@ -11,6 +11,8 @@ export interface Account {
   opening_balance_cents: number;
   balance_cents: number;
   archived: number;
+  closing_day: number | null;
+  due_day: number | null;
 }
 export interface Category {
   id: string;
@@ -38,6 +40,10 @@ export interface Transaction {
   note: string;
   origin: 'imported' | 'manual' | 'adjustment';
   kind: string;
+  statement_id: string | null;
+  installment_plan_id: string | null;
+  installment_number: number | null;
+  installment_count: number | null;
 }
 export interface ActivationPreview {
   archive_balance_cents: number;
@@ -62,4 +68,36 @@ export interface Named {
   name: string;
   allocation_group_id?: string;
   target_percent?: number;
+}
+
+export interface Statement {
+  id: string;
+  account_id: string;
+  period_start: string;
+  closing_date: string;
+  due_date: string;
+  status: 'open' | 'closed' | 'paid';
+  total_cents: number;
+  bank_amount_cents: number | null;
+  difference_cents: number | null;
+  is_current: number;
+}
+
+export interface StatementCheck {
+  id: string;
+  app_amount_cents: number;
+  bank_amount_cents: number;
+  action: 'search' | 'close';
+  created_at: string;
+  adjustment_transaction_id: string | null;
+}
+
+export interface InstallmentPlan {
+  id: string;
+  account_id: string;
+  description: string;
+  total_cents: number;
+  count: number;
+  first_date: string;
+  currency: string;
 }
