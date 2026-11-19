@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { splitAmounts } from '../shared/splits';
 import {
   currentMonth,
   validMonth,
@@ -128,7 +129,9 @@ app.get('/api/categories', async (c) =>
 );
 app.get('/api/transactions', async (c) => {
   const query = c.req.query();
-  const conditions: string[] = [];
+  const conditions: string[] = [
+    '(t.advance_id IS NULL OR t.installment_number IS NULL)',
+  ];
   const params: string[] = [];
   if (query.month) {
     if (!validMonth(query.month)) fail('Mês inválido.');
@@ -142,8 +145,13 @@ app.get('/api/transactions', async (c) => {
     ['origin', 'origin'],
   ] as const)
     if (query[key]) {
-      conditions.push(`t.${column}=?`);
+      conditions.push(
+        key === 'category'
+          ? '(CASE WHEN EXISTS(SELECT 1 FROM transaction_splits WHERE transaction_id=t.id) THEN EXISTS(SELECT 1 FROM transaction_splits WHERE transaction_id=t.id AND category_id=?) ELSE t.category_id=? END)'
+          : `t.${column}=?`,
+      );
       params.push(query[key]);
+      if (key === 'category') params.push(query[key]);
     }
   if (
     query.origin &&
@@ -152,9 +160,9 @@ app.get('/api/transactions', async (c) => {
     fail('Origem inválida.');
   if (query.tag) {
     conditions.push(
-      'EXISTS (SELECT 1 FROM transaction_tags tt WHERE tt.transaction_id=t.id AND tt.tag_id=?)',
+      '(CASE WHEN EXISTS(SELECT 1 FROM transaction_splits WHERE transaction_id=t.id) THEN EXISTS(SELECT 1 FROM transaction_splits p JOIN split_tags st ON st.split_id=p.id WHERE p.transaction_id=t.id AND st.tag_id=?) ELSE EXISTS (SELECT 1 FROM transaction_tags tt WHERE tt.transaction_id=t.id AND tt.tag_id=?) END)',
     );
-    params.push(query.tag);
+    params.push(query.tag, query.tag);
   }
   if (query.from) {
     conditions.push('t.date>=?');
@@ -176,7 +184,7 @@ app.get('/api/transactions', async (c) => {
     .bind(...params)
     .first<{ count: number }>();
   const { results } = await c.var.DB.prepare(
-    `SELECT t.*, ip.count AS installment_count, COALESCE(canonical.name,p.name,t.payee) AS payee, COALESCE(p.merged_into_id,p.id) AS payee_id, a.name AS account_name, ag.name AS allocation_name, (SELECT json_group_array(json_object('id',tags.id,'name',tags.name,'color',tags.color)) FROM transaction_tags tt JOIN tags ON tags.id=tt.tag_id WHERE tt.transaction_id=t.id) AS tags_json FROM transactions t JOIN accounts a ON a.id=t.account_id LEFT JOIN installment_plans ip ON ip.id=t.installment_plan_id LEFT JOIN payees p ON p.id=t.payee_id LEFT JOIN payees canonical ON canonical.id=p.merged_into_id LEFT JOIN categories cat ON cat.id=t.category_id LEFT JOIN category_groups cg ON cg.id=cat.category_group_id LEFT JOIN allocation_groups ag ON ag.id=cg.allocation_group_id ${where} ORDER BY t.date DESC,t.id LIMIT 50 OFFSET ?`,
+    `SELECT t.*, (SELECT COUNT(*) FROM transaction_splits WHERE transaction_id=t.id) AS split_count, ip.count AS installment_count, COALESCE(canonical.name,p.name,t.payee) AS payee, COALESCE(p.merged_into_id,p.id) AS payee_id, a.name AS account_name, ag.name AS allocation_name, (SELECT json_group_array(json_object('id',tags.id,'name',tags.name,'color',tags.color)) FROM transaction_tags tt JOIN tags ON tags.id=tt.tag_id WHERE tt.transaction_id=t.id) AS tags_json FROM transactions t JOIN accounts a ON a.id=t.account_id LEFT JOIN installment_plans ip ON ip.id=t.installment_plan_id LEFT JOIN payees p ON p.id=t.payee_id LEFT JOIN payees canonical ON canonical.id=p.merged_into_id LEFT JOIN categories cat ON cat.id=t.category_id LEFT JOIN category_groups cg ON cg.id=cat.category_group_id LEFT JOIN allocation_groups ag ON ag.id=cg.allocation_group_id ${where} ORDER BY t.date DESC,t.id LIMIT 50 OFFSET ?`,
   )
     .bind(...params, (page - 1) * 50)
     .all();
@@ -194,6 +202,25 @@ app.patch('/api/transactions/:id', async (c) => {
     .bind(c.req.param('id'))
     .first<import('../shared/types').Transaction>();
   if (!t) return fail('Transação não encontrada.', 404);
+  const split = await db
+    .prepare('SELECT 1 FROM transaction_splits WHERE transaction_id=?')
+    .bind(t.id)
+    .first();
+  if (
+    split &&
+    [
+      'account_id',
+      'date',
+      'amount_cents',
+      'fx_rate',
+      'category_id',
+      'tag_ids',
+    ].some((k) => k in body)
+  )
+    fail(
+      'Desfaça a divisão antes de alterar valor, data, conta ou classificação.',
+      409,
+    );
   const editable = t.origin === 'manual' && t.kind === 'regular';
   keys(
     body,
@@ -571,10 +598,25 @@ app.post('/api/transactions', async (c) => {
     'tag_ids',
     'fx_rate',
     'installment_count',
+    'installment_current',
+    'installment_amount_cents',
   ]);
   if (typeof b.account_id !== 'string') fail('Conta inválida.');
   const day = date(b.date);
-  const amount = cents(b.amount_cents);
+  const count = cents(b.installment_count ?? 1);
+  const current = cents(b.installment_current ?? 1);
+  const perPart =
+    b.installment_amount_cents === undefined
+      ? null
+      : cents(b.installment_amount_cents);
+  if (current < 1 || current > count || count < 1 || count > 120)
+    fail('Parcela atual inválida.');
+  const amount = cents(perPart === null ? b.amount_cents : perPart * count);
+  if (
+    perPart !== null &&
+    (perPart < 1 || count < 2 || b.amount_cents !== undefined)
+  )
+    fail('Informe o valor da parcela e o total de parcelas.');
   if (!amount) fail('Informe valor diferente de zero.');
   const name = text(b.payee, 'Beneficiário');
   const account = await c.var.DB.prepare('SELECT * FROM accounts WHERE id=?')
@@ -583,7 +625,7 @@ app.post('/api/transactions', async (c) => {
   if (!account) fail('Conta não encontrada.', 404);
   if (account!.closed_at || account!.archived) fail('Conta encerrada.', 409);
   if (!account!.cutoff_date) fail('Ative a conta antes de lançar.', 409);
-  if (day <= account!.cutoff_date!)
+  if (count === 1 && day <= account!.cutoff_date!)
     fail('O lançamento deve ser posterior ao corte.');
   if (b.category_id != null)
     await exists(c.var.DB, 'categories', b.category_id);
@@ -600,7 +642,6 @@ app.post('/api/transactions', async (c) => {
   const tags = [...new Set((b.tag_ids ?? []) as string[])];
   for (const id of tags) await exists(c.var.DB, 'tags', id);
   const card = account!.kind === 'credit_card';
-  const count = cents(b.installment_count ?? 1);
   if (count < 1 || count > 120 || (count > 1 && (!card || amount < count)))
     fail(
       'Informe de 2 a 120 parcelas para uma compra no cartão, com pelo menos um centavo por parcela.',
@@ -632,7 +673,12 @@ app.post('/api/transactions', async (c) => {
           name,
           amount,
           count,
-          day,
+          statementCycle(
+            day,
+            account!.closing_day!,
+            account!.due_day!,
+            1 - current,
+          ).date,
           b.category_id ?? null,
         ),
     );
@@ -642,7 +688,12 @@ app.post('/api/transactions', async (c) => {
   let allocatedNative = 0;
   for (let i = 0; i < count; i++) {
     const cycle = card
-      ? statementCycle(day, account!.closing_day!, account!.due_day!, i)
+      ? statementCycle(
+          day,
+          account!.closing_day!,
+          account!.due_day!,
+          i + 1 - current,
+        )
       : null;
     const part = installmentAmount(amount, count, i);
     allocatedNative += part;
@@ -651,6 +702,10 @@ app.post('/api/transactions', async (c) => {
       id: crypto.randomUUID(),
       cycle,
       date: cycle?.date ?? day,
+      retroactive: Number(
+        Boolean(planId) && (cycle?.date ?? day) <= account!.cutoff_date!,
+      ),
+      allowClosed: Number(Boolean(planId) && (current > 1 || perPart !== null)),
       amount: part,
       brl: cumulative - allocatedBrl,
       number: planId ? i + 1 : null,
@@ -671,9 +726,9 @@ app.post('/api/transactions', async (c) => {
   writes.push(
     db
       .prepare(
-        `INSERT INTO transactions(id,account_id,date,amount_cents,currency,fx_rate,amount_brl_cents,fx_source,payee,payee_id,category_id,note,origin,kind,statement_id,installment_plan_id,installment_number)
+        `INSERT INTO transactions(id,account_id,date,amount_cents,currency,fx_rate,amount_brl_cents,fx_source,payee,payee_id,category_id,note,origin,kind,statement_id,installment_plan_id,installment_number,retroactive,added_to_closed)
      SELECT entry.value->>'id',?,entry.value->>'date',entry.value->>'amount',?,?,entry.value->>'brl',?,?,
-       COALESCE(p.merged_into_id,p.id),?,?,'manual',?,s.id,?,entry.value->>'number'
+       COALESCE(p.merged_into_id,p.id),?,?,'manual',?,s.id,?,entry.value->>'number',entry.value->>'retroactive',CASE WHEN s.status<>'open' AND entry.value->>'allowClosed'=1 THEN 1 ELSE 0 END
      FROM json_each(?) entry CROSS JOIN payees p
      LEFT JOIN statements s ON s.account_id=? AND s.closing_date=entry.value->>'$.cycle.closingDate'
      WHERE p.name=? COLLATE NOCASE`,
@@ -725,11 +780,274 @@ app.get('/api/installment-plans/:id', async (c) => {
   if (!plan) return fail('Compra parcelada não encontrada.', 404);
   const { results } = await db
     .prepare(
-      'SELECT t.id,t.date,t.amount_cents,t.amount_brl_cents,t.note,t.installment_number,s.due_date,s.id AS statement_id FROM transactions t LEFT JOIN statements s ON s.id=t.statement_id WHERE t.installment_plan_id=? ORDER BY t.date,t.id',
+      'SELECT t.id,t.date,t.amount_cents,t.amount_brl_cents,t.note,t.installment_number,t.retroactive,t.added_to_closed,t.advance_id,s.due_date,s.closing_date,s.status,s.id AS statement_id FROM transactions t LEFT JOIN statements s ON s.id=t.statement_id WHERE t.installment_plan_id=? ORDER BY t.date,t.id',
     )
     .bind(plan.id)
     .all();
-  return c.json({ plan, installments: results });
+  const advances = await db
+    .prepare(
+      'SELECT * FROM installment_advances WHERE installment_plan_id=? ORDER BY created_at,id',
+    )
+    .bind(plan.id)
+    .all();
+  const discount = advances.results.reduce(
+    (sum, a) => sum + Number(a.face_cents) - Number(a.paid_cents),
+    0,
+  );
+  const cycle = statementCycle(
+    today(),
+    Number(
+      (await db
+        .prepare('SELECT closing_day FROM accounts WHERE id=?')
+        .bind(plan.account_id)
+        .first())!.closing_day,
+    ),
+    1,
+  );
+  return c.json({
+    plan,
+    installments: results,
+    advances: advances.results,
+    real_cost_cents: Number(plan.total_cents) - discount,
+    current_closing_date: cycle.closingDate,
+  });
+});
+
+app.post('/api/installment-plans/:id/advance', async (c) => {
+  const db = c.var.DB;
+  const b = object(await c.req.json());
+  keys(b, ['count', 'paid_cents', 'expected_face_cents', 'fx_rate']);
+  const count = cents(b.count),
+    paid = cents(b.paid_cents);
+  if (count < 1 || count > 120 || paid < 0) fail('Antecipação inválida.');
+  const plan = await db
+    .prepare(
+      'SELECT p.*,a.currency,a.closing_day,a.due_day,a.cutoff_date,a.closed_at,a.archived FROM installment_plans p JOIN accounts a ON a.id=p.account_id WHERE p.id=?',
+    )
+    .bind(c.req.param('id'))
+    .first();
+  if (!plan) return fail('Compra parcelada não encontrada.', 404);
+  const day = today();
+  if (
+    plan.closed_at ||
+    plan.archived ||
+    !plan.cutoff_date ||
+    day <= String(plan.cutoff_date)
+  )
+    fail('Conta indisponível.', 409);
+  const cycle = statementCycle(
+    day,
+    Number(plan.closing_day),
+    Number(plan.due_day),
+  );
+  const future = await db
+    .prepare(
+      `SELECT t.id,t.amount_cents FROM transactions t JOIN statements s ON s.id=t.statement_id
+    WHERE t.installment_plan_id=? AND t.installment_number IS NOT NULL AND t.advance_id IS NULL AND s.status='open' AND s.closing_date>?
+    ORDER BY t.installment_number LIMIT ?`,
+    )
+    .bind(plan.id, cycle.closingDate, count)
+    .all<{ id: string; amount_cents: number }>();
+  const face = future.results.reduce((sum, t) => sum + t.amount_cents, 0);
+  if (future.results.length !== count)
+    fail('Não há essa quantidade de parcelas futuras abertas.', 409);
+  if (paid > face) fail('O valor cobrado não pode superar o valor cheio.');
+  if (cents(b.expected_face_cents) !== face)
+    fail('As parcelas mudaram. Confira o valor cheio novamente.', 409);
+  const q = await fx(db, String(plan.currency), day, b.fx_rate);
+  const advanceId = crypto.randomUUID(),
+    transactionId = crypto.randomUUID();
+  const ids = JSON.stringify(future.results.map((t) => t.id));
+  const results = await db.batch([
+    db
+      .prepare(
+        `INSERT INTO statements(id,account_id,period_start,closing_date,due_date,status) VALUES(?,?,?,?,?,'open') ON CONFLICT(account_id,closing_date) DO NOTHING`,
+      )
+      .bind(
+        crypto.randomUUID(),
+        plan.account_id,
+        cycle.periodStart,
+        cycle.closingDate,
+        cycle.dueDate,
+      ),
+    db
+      .prepare(
+        `INSERT INTO installment_advances(id,installment_plan_id,count,face_cents,paid_cents)
+      SELECT ?,?,?,?,? WHERE (SELECT COUNT(*) FROM transactions t JOIN statements s ON s.id=t.statement_id WHERE t.id IN (SELECT value FROM json_each(?)) AND t.advance_id IS NULL AND s.status='open' AND s.closing_date>?)=?
+      AND EXISTS(SELECT 1 FROM statements WHERE account_id=? AND closing_date=? AND status='open')`,
+      )
+      .bind(
+        advanceId,
+        plan.id,
+        count,
+        face,
+        paid,
+        ids,
+        cycle.closingDate,
+        count,
+        plan.account_id,
+        cycle.closingDate,
+      ),
+    db
+      .prepare(
+        `UPDATE transactions SET advance_id=? WHERE id IN (SELECT value FROM json_each(?)) AND EXISTS(SELECT 1 FROM installment_advances WHERE id=?)`,
+      )
+      .bind(advanceId, ids, advanceId),
+    db
+      .prepare(
+        `INSERT INTO transactions(id,account_id,date,amount_cents,currency,fx_rate,amount_brl_cents,fx_source,payee,category_id,note,origin,kind,statement_id,installment_plan_id,advance_id)
+      SELECT ?,?,?,?, ?,?,?,?, ?,?,?,'manual','installment',s.id,?,? FROM statements s WHERE s.account_id=? AND s.closing_date=? AND EXISTS(SELECT 1 FROM installment_advances WHERE id=?)`,
+      )
+      .bind(
+        transactionId,
+        plan.account_id,
+        day,
+        paid,
+        plan.currency,
+        q.rate,
+        converted(paid, q.rate),
+        q.source,
+        plan.description,
+        plan.category_id,
+        `Antecipação de ${count} parcelas.`,
+        plan.id,
+        advanceId,
+        plan.account_id,
+        cycle.closingDate,
+        advanceId,
+      ),
+  ]);
+  if (!results[1].meta.changes)
+    fail('As parcelas ou a fatura atual mudaram. Atualize a compra.', 409);
+  return c.json(
+    {
+      id: advanceId,
+      transaction_id: transactionId,
+      face_cents: face,
+      paid_cents: paid,
+      discount_cents: face - paid,
+    },
+    201,
+  );
+});
+app.get('/api/transactions/:id/splits', async (c) => {
+  const db = c.var.DB;
+  await exists(db, 'transactions', c.req.param('id'));
+  const { results } = await db
+    .prepare(
+      `SELECT p.*, (SELECT json_group_array(json_object('id',t.id,'name',t.name,'color',t.color)) FROM split_tags st JOIN tags t ON t.id=st.tag_id WHERE st.split_id=p.id) AS tags_json FROM transaction_splits p WHERE p.transaction_id=? ORDER BY p.position`,
+    )
+    .bind(c.req.param('id'))
+    .all();
+  return c.json(
+    results.map(({ tags_json, ...p }) => ({
+      ...p,
+      tags: JSON.parse(String(tags_json)),
+    })),
+  );
+});
+app.put('/api/transactions/:id/splits', async (c) => {
+  const db = c.var.DB;
+  const t = await db
+    .prepare('SELECT * FROM transactions WHERE id=?')
+    .bind(c.req.param('id'))
+    .first<import('../shared/types').Transaction>();
+  if (!t) return fail('Transação não encontrada.', 404);
+  if (
+    !['regular', 'installment'].includes(t.kind) ||
+    t.origin === 'adjustment' ||
+    t.advance_id
+  )
+    fail('Este lançamento não permite divisão.', 409);
+  const b = object(await c.req.json());
+  keys(b, ['mode', 'parts', 'expected_amount_cents']);
+  if (cents(b.expected_amount_cents) !== t.amount_cents)
+    fail('O valor original mudou. Abra a divisão novamente.', 409);
+  if (!Array.isArray(b.parts)) fail('Partes inválidas.');
+  const parts = (b.parts as unknown[]).map(object);
+  let amounts: number[];
+  try {
+    amounts = splitAmounts(
+      t.amount_cents,
+      String(b.mode),
+      parts.map((p) => cents(p.value)),
+    );
+  } catch (e) {
+    return fail((e as Error).message);
+  }
+  for (const p of parts) {
+    keys(p, ['value', 'category_id', 'note', 'tag_ids']);
+    if (p.category_id != null) await exists(db, 'categories', p.category_id);
+    if (
+      typeof (p.note ?? '') !== 'string' ||
+      String(p.note ?? '').length > 2000
+    )
+      fail('Nota inválida.');
+    if (
+      !Array.isArray(p.tag_ids ?? []) ||
+      ((p.tag_ids ?? []) as unknown[]).length > 50
+    )
+      fail('Tags inválidas.');
+    p.tag_ids = [...new Set((p.tag_ids ?? []) as string[])];
+    for (const id of p.tag_ids as string[]) await exists(db, 'tags', id);
+  }
+  let allocated = 0,
+    native = 0;
+  const rows = parts.map((p, i) => {
+    native += Math.abs(amounts[i]);
+    const cumulative =
+      Number(
+        (BigInt(native) * BigInt(Math.abs(t.amount_brl_cents))) /
+          BigInt(Math.abs(t.amount_cents)),
+      ) * Math.sign(t.amount_cents);
+    const brl = cumulative - allocated;
+    allocated = cumulative;
+    return {
+      id: crypto.randomUUID(),
+      position: i,
+      amount: amounts[i],
+      brl,
+      category: p.category_id ?? null,
+      note: p.note ?? '',
+      tags: p.tag_ids,
+    };
+  });
+  // Uma única transação D1 preserva o original e substitui todas as partes.
+  await db.batch([
+    db
+      .prepare('DELETE FROM transaction_splits WHERE transaction_id=?')
+      .bind(t.id),
+    db
+      .prepare(
+        `INSERT INTO transaction_splits(id,transaction_id,position,amount_cents,amount_brl_cents,category_id,note)
+      SELECT value->>'id',?,value->>'position',CASE WHEN (SELECT COUNT(*) FROM transactions WHERE id=? AND amount_cents=? AND amount_brl_cents=? AND date=? AND account_id=? AND fx_rate=?)=1 THEN value->>'amount' ELSE 0 END,value->>'brl',value->>'category',value->>'note' FROM json_each(?)`,
+      )
+      .bind(
+        t.id,
+        t.id,
+        t.amount_cents,
+        t.amount_brl_cents,
+        t.date,
+        t.account_id,
+        t.fx_rate,
+        JSON.stringify(rows),
+      ),
+    db
+      .prepare(
+        `INSERT INTO split_tags(split_id,tag_id) SELECT p.value->>'id',tag.value FROM json_each(?) p JOIN transaction_splits saved ON saved.id=p.value->>'id' CROSS JOIN json_each(p.value->'tags') tag`,
+      )
+      .bind(JSON.stringify(rows)),
+  ]);
+  return c.json({ ok: true });
+});
+app.delete('/api/transactions/:id/splits', async (c) => {
+  await exists(c.var.DB, 'transactions', c.req.param('id'));
+  await c.var.DB.prepare(
+    'DELETE FROM transaction_splits WHERE transaction_id=?',
+  )
+    .bind(c.req.param('id'))
+    .run();
+  return c.json({ ok: true });
 });
 
 app.get('/api/cards/:id/statements', async (c) => {
@@ -772,9 +1090,9 @@ app.get('/api/cards/:id/statements', async (c) => {
       await db
         .prepare(
           `SELECT s.*, s.closing_date=? AS is_current,
-      COALESCE((SELECT bank_amount_cents-app_amount_cents FROM statement_checks
+      CASE WHEN EXISTS(SELECT 1 FROM statement_revisions WHERE statement_id=s.id) THEN s.bank_amount_cents-s.total_cents ELSE COALESCE((SELECT bank_amount_cents-app_amount_cents FROM statement_checks
                 WHERE statement_id=s.id ORDER BY rowid DESC LIMIT 1),
-               s.bank_amount_cents-s.total_cents) AS difference_cents
+               s.bank_amount_cents-s.total_cents) END AS difference_cents
      FROM statement_totals s WHERE s.account_id=? ORDER BY s.closing_date DESC`,
         )
         .bind(current.closingDate, card.id)
@@ -800,7 +1118,17 @@ app.get('/api/statements/:id', async (c) => {
       .bind(id),
   ]);
   if (!statement.results.length) return fail('Fatura não encontrada.', 404);
-  return c.json({ items: items.results, checks: checks.results });
+  const revisions = await db
+    .prepare(
+      'SELECT * FROM statement_revisions WHERE statement_id=? ORDER BY rowid DESC',
+    )
+    .bind(id)
+    .all();
+  return c.json({
+    items: items.results,
+    checks: checks.results,
+    revisions: revisions.results,
+  });
 });
 
 async function readStatement(db: D1Database, id: string) {
@@ -1259,7 +1587,7 @@ app.get('/api/subscriptions', async (c) => {
         r.cadence,
         r.interval_days,
       ),
-      renewal_soon: renewalSoon(r.renewal_date, today()),
+      renewal_soon: renewalSoon(r.renewal_date, today(), r.notice_days),
     })),
   );
 });
@@ -1281,6 +1609,7 @@ for (const method of ['post', 'patch'] as const)
         'is_subscription',
         'subscription_type_id',
         'renewal_date',
+        'notice_days',
         'active',
         'transaction_id',
       ]);
@@ -1328,6 +1657,9 @@ for (const method of ['post', 'patch'] as const)
         await exists(db, 'subscription_types', r.subscription_type_id);
         if (r.renewal_date == null) fail('Informe a renovação.');
       }
+      r.notice_days = cents(r.notice_days ?? 30);
+      if (Number(r.notice_days) < 0 || Number(r.notice_days) > 3660)
+        fail('Prazo de aviso deve ficar entre 0 e 3660 dias.');
       if (r.renewal_date != null) r.renewal_date = date(r.renewal_date);
       if (
         typeof (r.description ?? '') !== 'string' ||
@@ -1346,6 +1678,7 @@ for (const method of ['post', 'patch'] as const)
         'is_subscription',
         'subscription_type_id',
         'renewal_date',
+        'notice_days',
         'active',
       ];
       const values = fields.map(

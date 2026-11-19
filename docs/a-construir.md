@@ -26,7 +26,13 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
   - [x] Assinaturas por tipo ou alocação, equivalente mensal, tipos editáveis e faixa de renovação.
   - [x] Migração 0004 e seed fictício ampliado, validados em D1 local isolado. Build e 74 testes de API/regras e 14 testes de navegador aprovados.
   - [x] Migração e seed remotos aplicados pelo dono.
-- [ ] Sessão F: parcelada retroativa, antecipação no cartão com desconto, divisão de transação, prazo de aviso por assinatura (padrão 30 dias). Regras em docs/decisoes.md (Cartão e fatura, Divisão de transação, Recorrentes e assinaturas). A antecipação de empréstimo fica na fase 2.
+- [x] Sessão F: parcelada retroativa, antecipação no cartão com desconto, divisão de transação, prazo de aviso por assinatura (padrão 30 dias). Regras em docs/decisoes.md (Cartão e fatura, Divisão de transação, Recorrentes e assinaturas). A antecipação de empréstimo fica na fase 2.
+  - [x] Lançamento pelo valor da parcela, total de parcelas e parcela atual. Todas as parcelas são geradas nos ciclos correspondentes, com resto de centavos na última, marcação antes do corte e histórico de recálculo quando a fatura já está fechada ou paga.
+  - [x] Antecipação das próximas parcelas futuras abertas, com uma linha na fatura atual, valor cheio, valor cobrado, desconto e custo real da compra. Parcelas antecipadas ficam no histórico e saem das somas futuras.
+  - [x] Divisão por valor ou percentual com categorias, tags e notas próprias; soma obrigatoriamente fechada, filtros pelas partes e opção de desfazer. Valor e data da importada são preservados.
+  - [x] Prazo de aviso por assinatura, padrão de 30 dias, editável no cadastro e usado na faixa de renovação.
+  - [x] Migração 0005 e seed fictício aplicados e conferidos em `bfo-teste` e `bfo-homologacao`, sem alterações em produção. Exemplos isolados: Cartão de parcelas fictício e Conta de divisão fictícia.
+  - [x] Build, 83 testes de API/regras e 18 testes de navegador aprovados. Interface neutra mantida, com os tokens existentes.
 - [ ] Sessão G: script de importação do Lunch Money (API v2), apagar e refazer importação. Construída e testada só com dados simulados; a importação real espera o repositório privado.
 
 - [ ] Conceito visual: feito no Claude depois que a estrutura da fase 1 estiver redonda. Duas propostas numa prévia, o dono escolhe olhando a tela, e só então o visual é aplicado.

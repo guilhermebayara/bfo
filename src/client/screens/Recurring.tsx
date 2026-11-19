@@ -55,6 +55,7 @@ export function RecurringEditor({
     is_subscription: item?.is_subscription ?? 0,
     subscription_type_id: item?.subscription_type_id ?? '',
     renewal_date: item?.renewal_date ?? '',
+    notice_days: String(item?.notice_days ?? 30),
     active: item?.active ?? 1,
   });
   const field = (k: keyof typeof form, v: string | number) =>
@@ -75,6 +76,7 @@ export function RecurringEditor({
         body: JSON.stringify({
           ...rest,
           amount_cents: parseMoney(amount),
+          notice_days: Number(form.notice_days),
           interval_days:
             form.cadence === 'custom' ? Number(form.interval_days) : null,
           category_id: form.category_id || null,
@@ -224,6 +226,17 @@ export function RecurringEditor({
                     </option>
                   ))}
                 </select>
+              </label>
+              <label>
+                Prazo de aviso em dias
+                <input
+                  type="number"
+                  required
+                  min="0"
+                  max="3660"
+                  value={form.notice_days}
+                  onChange={(e) => field('notice_days', e.target.value)}
+                />
               </label>
               <a href="/tipos-assinatura">Criar e editar tipos</a>
               <label>
@@ -422,6 +435,9 @@ export function RecurringScreen({
                         : r.arrived
                           ? 'Chegou'
                           : 'Ainda não'}
+                    {subscriptions && (
+                      <small>Aviso com {r.notice_days} dias</small>
+                    )}
                     {!subscriptions && !catalog && r.arrived && (
                       <small>
                         Realizado: {formatMoney(r.actual_cents, r.currency)}
