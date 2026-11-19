@@ -24,9 +24,11 @@ const humanDate = (date: string) => date.split('-').reverse().join('/');
 function InlineEdit({
   transaction,
   categories,
+  onSaved,
 }: {
   transaction: Transaction;
   categories: Category[];
+  onSaved: (category: string) => void;
 }) {
   const [category, setCategory] = useState(transaction.category_id ?? '');
   const [note, setNote] = useState(transaction.note);
@@ -48,6 +50,7 @@ function InlineEdit({
       });
       setSaved({ category, note });
       setMessage('Salvo.');
+      onSaved(category);
     } catch (error) {
       setMessage((error as Error).message);
     } finally {
@@ -270,6 +273,16 @@ function Transactions({
                         key={`${t.id}-${revision}`}
                         transaction={t}
                         categories={categories}
+                        onSaved={(category) => {
+                          if (
+                            filters.category &&
+                            filters.category !== category
+                          ) {
+                            if (data.items.length === 1 && page > 1)
+                              setPage(page - 1);
+                            else setRetry((value) => value + 1);
+                          }
+                        }}
                       />
                     </td>
                     <td

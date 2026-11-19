@@ -113,3 +113,26 @@ test('modal cancela sem ativar e interface cabe em tela pequena', async ({
     ),
   ).toBe(true);
 });
+test('reclassificação retira a linha do filtro de categoria atual', async ({
+  page,
+}) => {
+  await page.goto('/transacoes');
+  await page
+    .getByRole('combobox', { name: 'Categoria', exact: true })
+    .selectOption('restaurant');
+  await expect(
+    page.getByText('14 transações ·', { exact: false }),
+  ).toBeVisible();
+  const row = page
+    .getByRole('row')
+    .filter({ hasText: 'Cozinha da Praça' })
+    .first();
+  await row.getByRole('combobox').selectOption('entertainment');
+  await row.getByRole('button', { name: 'Salvar', exact: true }).click();
+  await expect(
+    page.getByText('13 transações ·', { exact: false }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('row').filter({ hasText: 'Cozinha da Praça' }),
+  ).toHaveCount(13);
+});

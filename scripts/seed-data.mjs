@@ -76,6 +76,18 @@ export function seedSql() {
     first_date: '2026-06-12',
     category_id: 'entertainment',
   });
+  insert('transactions', {
+    id: 'seed-cash-opening',
+    account_id: 'cash',
+    date: '2025-09-01',
+    amount_cents: -50000,
+    payee: 'Saldo inicial da carteira',
+    category_id: null,
+    note: 'Saldo inicial fictício do arquivo.',
+    origin: 'imported',
+    kind: 'regular',
+    external_id: 'fake-cash-opening',
+  });
   // 14 meses: setembro/2025 a outubro/2026. Os primeiros sete são importados.
   for (let month = 0; month < 14; month++) {
     const d = new Date(Date.UTC(2025, 8 + month, 1));
