@@ -22,6 +22,11 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 
 ## Contas
 
+- Instituição é o primeiro nível. Cada conta pertence a uma instituição, e o tipo (corrente, cartão, investimento, empréstimo) fica na conta. A tela de Contas agrupa por instituição, com subtotal, e tem alternância para agrupar por tipo.
+- Toda conta criada à mão nasce ativa. Só as contas importadas do Lunch Money começam como "só arquivo", e são ativadas no dia em que o dono começar a usar o BFO. A tela explica esse estado.
+- "Atualizado em" é a data da última conferência de saldo. A ação "Conferir saldo" funciona como a conferência da fatura: o dono digita o saldo do banco, vê a diferença e escolhe procurar o que faltou ou lançar um ajuste.
+- Conta encerrada sai da lista principal e dos filtros e vai para uma seção recolhida "Encerradas" no fim da tela. O histórico continua nas transações e no patrimônio.
+
 - Contas de movimento (corrente, cartão) vivem de transações.
 - Contas de saldo (imóvel, investimentos, empréstimos) recebem uma atualização mensal com o valor do momento.
 - Patrimônio líquido ao longo do tempo é a soma das duas no fim de cada mês.

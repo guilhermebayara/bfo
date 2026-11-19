@@ -6,7 +6,11 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
 
 - [x] Sessão A: fundação técnica, seed e interface funcional de Transações e Contas (estrutura e hierarquia, visual neutro).
   - Implementação e validação local concluídas. Publicação e validação remota dependem dos passos em `docs/cloudflare.md`.
-- [ ] Sessão B: lançamento manual completo, categorias e grupos, marco e ajuste por conta.
+- [ ] Sessão B: ajustes da revisão da Sessão A e próximo bloco. Detalhe no prompt da sessão. Inclui:
+  - Transações: colunas na ordem data, conta, beneficiário, valor, categoria, alocação, origem. Seletor de categoria agrupado (grupo em cima, categorias dentro).
+  - Contas: entidade instituição, agrupamento por instituição com subtotal e alternância por tipo, "atualizado em" com a ação Conferir saldo, seção recolhida de encerradas, explicação do estado "só arquivo".
+  - Lançamento manual completo, categorias e grupos editáveis.
+  - Separar o front em componentes e telas (hoje está quase tudo em src/client/main.tsx).
 - [ ] Sessão C: cartão, fatura, parceladas, pagar fatura, conferência.
 - [ ] Sessão D: recorrentes, assinaturas, aviso de renovação.
 - [ ] Sessão E: script de importação do Lunch Money (API v2), apagar e refazer importação.
