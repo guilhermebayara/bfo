@@ -7,6 +7,10 @@ export function seedSql() {
       : typeof v === 'number'
         ? String(v)
         : `'${v.replaceAll("'", "''")}'`;
+  const statementId = (id) => {
+    const card = id.startsWith('statement-brisa-') ? 'card-b' : 'card-a';
+    return `(SELECT id FROM statements WHERE account_id='${card}' AND closing_date='${id.slice(-7)}-20')`;
+  };
   const insert = (table, row) => {
     if (table === 'transactions') {
       const payee_id =
@@ -29,17 +33,25 @@ export function seedSql() {
       // Resolve também beneficiários migrados da sessão A, sem duplicar nomes.
       row.payee_id = null;
       const values = Object.entries(row).map(([k, v]) =>
-        k === 'payee_id'
-          ? `(SELECT id FROM payees WHERE name=${literal(row.payee)} COLLATE NOCASE)`
-          : literal(v),
+        k === 'statement_id'
+          ? statementId(v)
+          : k === 'payee_id'
+            ? `(SELECT id FROM payees WHERE name=${literal(row.payee)} COLLATE NOCASE)`
+            : literal(v),
       );
+      const input =
+        row.kind === 'card_payment'
+          ? `SELECT ${values.join(',')} WHERE EXISTS (
+            SELECT 1 FROM statements WHERE id=${statementId(row.statement_id)}
+              AND status='paid' AND bank_amount_cents=${literal(row.amount_cents)}) ON CONFLICT DO NOTHING`
+          : `VALUES (${values.join(',')}) ON CONFLICT(id) DO NOTHING`;
       sql.push(
-        `INSERT INTO ${table} (${Object.keys(row).join(',')}) VALUES (${values.join(',')}) ON CONFLICT(id) DO NOTHING;`,
+        `INSERT INTO ${table} (${Object.keys(row).join(',')}) ${input};`,
       );
       return;
     }
     sql.push(
-      `INSERT INTO ${table} (${Object.keys(row).join(',')}) VALUES (${Object.values(row).map(literal).join(',')}) ON CONFLICT(id) DO NOTHING;`,
+      `INSERT INTO ${table} (${Object.keys(row).join(',')}) VALUES (${Object.values(row).map(literal).join(',')}) ON CONFLICT DO NOTHING;`,
     );
   };
   for (const [id, name] of [
@@ -98,7 +110,7 @@ export function seedSql() {
       institution_id: ['checking', 'card-a'].includes(id)
         ? 'horizonte'
         : 'brisa',
-      cutoff_date: null,
+      cutoff_date: ['card-a', 'card-b'].includes(id) ? '2025-08-31' : null,
       opening_balance_cents: 0,
       ...(kind === 'credit_card' ? { closing_day: 20, due_day: 27 } : {}),
     });
@@ -157,22 +169,24 @@ export function seedSql() {
   }
   for (let month = 0; month < 12; month++) {
     const ym = new Date(Date.UTC(2026, 5 + month, 1)).toISOString().slice(0, 7);
+    const prev = new Date(Date.UTC(2026, 4 + month, 1))
+      .toISOString()
+      .slice(0, 7);
     insert('statements', {
       id: `statement-${ym}`,
       account_id: 'card-a',
-      period_start: `${ym}-01`,
+      period_start: `${prev}-21`,
       closing_date: `${ym}-20`,
       due_date: `${ym}-27`,
-      status: month < 4 ? 'paid' : month === 4 ? 'closed' : 'open',
-      bank_amount_cents: month === 4 ? 53000 : null,
-      closed_at: month <= 4 ? `${ym}-20T12:00:00Z` : null,
+      status: 'open',
     });
     insert('transactions', {
       id: `seed-installment-${month}`,
       account_id: 'card-a',
       date: `${ym}-12`,
       amount_cents: 10000,
-      payee: `Mesa de trabalho (${month + 1}/12)`,
+      payee: 'Mesa de trabalho',
+      installment_number: month + 1,
       category_id: 'entertainment',
       note: 'Compra parcelada fictícia.',
       origin: 'manual',
@@ -183,8 +197,86 @@ export function seedSql() {
   }
   // Compras comuns ligadas às faturas correspondentes. Outubro tem divergência de 1.420 centavos.
   sql.push(
-    "UPDATE transactions SET statement_id='statement-'||substr(date,1,7) WHERE id LIKE 'seed-2026-%' AND account_id='card-a' AND origin='manual' AND kind='regular' AND date>='2026-06-01' AND statement_id IS NULL;",
+    "UPDATE transactions SET statement_id=(SELECT id FROM statements WHERE account_id='card-a' AND closing_date=substr(transactions.date,1,7)||'-20') WHERE id LIKE 'seed-2026-%' AND account_id='card-a' AND origin='manual' AND kind='regular' AND date>='2026-06-01' AND statement_id IS NULL;",
   );
+  insert('transactions', {
+    id: 'seed-brisa-open',
+    account_id: 'card-b',
+    date: '2026-11-15',
+    amount_cents: 2190,
+    payee: 'Música de Teste',
+    category_id: 'entertainment',
+    origin: 'manual',
+    kind: 'regular',
+  });
+  insert('statements', {
+    id: 'statement-brisa-2026-11',
+    account_id: 'card-b',
+    period_start: '2026-10-21',
+    closing_date: '2026-11-20',
+    due_date: '2026-11-27',
+    status: 'open',
+  });
+  for (const [card, ym, amount, paid] of [
+    ...['06', '07', '08', '09'].map((month) => [
+      'card-a',
+      `2026-${month}`,
+      51580,
+      true,
+    ]),
+    ['card-a', '2026-10', 53000, false],
+    ['card-b', '2026-09', 9800, true],
+    ['card-b', '2026-10', 9800, false],
+  ]) {
+    const closing = `${ym}-20`;
+    const id = card === 'card-a' ? `statement-${ym}` : `statement-brisa-${ym}`;
+    const prev = new Date(`${ym}-01T00:00:00Z`);
+    prev.setUTCMonth(prev.getUTCMonth() - 1);
+    const start = `${prev.toISOString().slice(0, 7)}-21`;
+    if (card === 'card-b')
+      insert('statements', {
+        id,
+        account_id: card,
+        period_start: start,
+        closing_date: closing,
+        due_date: `${ym}-27`,
+        status: 'open',
+      });
+    const target = `(SELECT id FROM statements WHERE account_id=${literal(card)} AND closing_date=${literal(closing)})`;
+    // A migração pode encontrar faturas fictícias das sessões anteriores já fechadas.
+    sql.push(`UPDATE statements SET status=${literal(paid ? 'paid' : 'closed')},
+      bank_amount_cents=${amount},closed_at=${literal(closing + 'T12:00:00Z')}
+      WHERE id=${literal(id)} AND bank_amount_cents IS NULL;`);
+    if (paid)
+      insert('transactions', {
+        id: `seed-payment-${card}-${ym}`,
+        account_id: 'checking',
+        date: `${ym}-27`,
+        amount_cents: amount,
+        payee: `Fatura ${card === 'card-a' ? 'Cartão Aurora' : 'Cartão Brisa'} ${new Intl.DateTimeFormat('pt-BR', { month: 'long', timeZone: 'UTC' }).format(new Date(closing))}`,
+        origin: 'manual',
+        kind: 'card_payment',
+        statement_id: id,
+      });
+    if (card === 'card-a' && ym === '2026-10') {
+      sql.push(`INSERT INTO statement_checks(id,statement_id,app_amount_cents,bank_amount_cents,action,created_at)
+        VALUES('seed-statement-check',${target},51580,53000,'close','2026-10-20T12:00:00Z') ON CONFLICT(id) DO NOTHING;`);
+      insert('transactions', {
+        id: 'seed-statement-adjustment',
+        account_id: 'card-a',
+        date: closing,
+        amount_cents: 1420,
+        payee: 'Diferença de fatura',
+        category_id: 'statement-difference',
+        origin: 'adjustment',
+        kind: 'regular',
+        statement_id: id,
+      });
+      sql.push(
+        "UPDATE statement_checks SET adjustment_transaction_id='seed-statement-adjustment' WHERE id='seed-statement-check' AND adjustment_transaction_id IS NULL;",
+      );
+    }
+  }
   for (const [
     id,
     account_id,
@@ -311,5 +403,5 @@ export function seedSql() {
   sql.push(
     "INSERT INTO transaction_tags(transaction_id,tag_id) VALUES('seed-usd','travel'),('seed-2026-10-market','planned') ON CONFLICT DO NOTHING;",
   );
-  return sql.join('\n');
+  return sql.map((line) => line.replaceAll('\n', ' ')).join('\n');
 }

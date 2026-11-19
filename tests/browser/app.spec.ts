@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 test('filtra transações, edita uma importada e mantém os dados após recarregar', async ({
   page,
+  request,
 }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -48,9 +49,13 @@ test('filtra transações, edita uma importada e mantém os dados após recarreg
     page.getByText('1 transações ·', { exact: false }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Limpar filtros' }).click();
-  await expect(page.getByText('Página 1 de 2')).toBeVisible();
+  const { total, page_size } = await (
+    await request.get('/api/transactions')
+  ).json();
+  const pages = Math.ceil(total / page_size);
+  await expect(page.getByText(`Página 1 de ${pages}`)).toBeVisible();
   await page.getByRole('button', { name: 'Próxima', exact: true }).click();
-  await expect(page.getByText('Página 2 de 2')).toBeVisible();
+  await expect(page.getByText(`Página 2 de ${pages}`)).toBeVisible();
   expect(errors).toEqual([]);
 });
 test('prévia, correção e confirmação de ativação com ajuste visível', async ({

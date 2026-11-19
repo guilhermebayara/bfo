@@ -15,10 +15,14 @@ export function ManualTransaction({
   const active = accounts.filter(
     (a) => !a.closed_at && !a.archived && a.cutoff_date,
   );
-  const [account, setAccount] = useState(active[0]?.id ?? '');
+  const requestedAccount = new URLSearchParams(location.search).get('account');
+  const [account, setAccount] = useState(
+    active.find((a) => a.id === requestedAccount)?.id ?? active[0]?.id ?? '',
+  );
   const [day, setDay] = useState(new Date().toISOString().slice(0, 10));
   const [amount, setAmount] = useState('');
   const [income, setIncome] = useState(false);
+  const [installments, setInstallments] = useState('1');
   const [payee, setPayee] = useState('');
   const [category, setCategory] = useState('');
   const [note, setNote] = useState('');
@@ -32,7 +36,9 @@ export function ManualTransaction({
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [fxBusy, setFxBusy] = useState(false);
-  const code = accounts.find((a) => a.id === account)?.currency ?? 'BRL';
+  const currentAccount = accounts.find((a) => a.id === account);
+  const code = currentAccount?.currency ?? 'BRL';
+  const canInstall = currentAccount?.kind === 'credit_card' && !income;
   useEffect(() => {
     Promise.all([api<Tag[]>('/tags'), api<Payee[]>('/payees')])
       .then(([t, p]) => {
@@ -109,6 +115,7 @@ export function ManualTransaction({
           category_id: category || null,
           note,
           tag_ids: selected,
+          ...(canInstall ? { installment_count: Number(installments) } : {}),
           ...(code !== 'BRL' && !automatic
             ? { fx_rate: Number(rate.replace(',', '.')) }
             : {}),
@@ -116,6 +123,7 @@ export function ManualTransaction({
       });
       await onSaved();
       setAmount('');
+      setInstallments('1');
       setNote('');
       setError('Lançamento salvo.');
     } catch (e) {
@@ -179,7 +187,8 @@ export function ManualTransaction({
               <small>Sugere a categoria e as tags do último lançamento.</small>
             </label>
             <label>
-              Valor ({code})
+              {canInstall && Number(installments) > 1 ? 'Valor total' : 'Valor'}{' '}
+              ({code})
               <input
                 required
                 inputMode="decimal"
@@ -197,6 +206,19 @@ export function ManualTransaction({
                 <option value="income">Entrada</option>
               </select>
             </label>
+            {canInstall && (
+              <label>
+                Parcelas
+                <input
+                  required
+                  type="number"
+                  min="1"
+                  max="120"
+                  value={installments}
+                  onChange={(e) => setInstallments(e.target.value)}
+                />
+              </label>
+            )}
             <label>
               Categoria
               <select

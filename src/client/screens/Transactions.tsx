@@ -1,7 +1,13 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import type { Account, Category, Transaction, Tag } from '../../shared/types';
 import { formatMoney } from '../../shared/money';
-import { Badge, Button, Table, CategoryOptions } from '../components';
+import {
+  Badge,
+  Button,
+  Table,
+  CategoryOptions,
+  InstallmentLink,
+} from '../components';
 import { api, humanDate } from '../api';
 import { ManualTransaction } from '../components/ManualTransaction';
 function InlineEdit({
@@ -21,6 +27,9 @@ function InlineEdit({
     category: transaction.category_id ?? '',
     note: transaction.note,
   });
+  const categoryLocked =
+    transaction.kind === 'card_payment' ||
+    (transaction.origin === 'adjustment' && transaction.statement_id);
   const dirty = category !== saved.category || note !== saved.note;
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -29,7 +38,9 @@ function InlineEdit({
     try {
       await api(`/transactions/${transaction.id}`, {
         method: 'PATCH',
-        body: JSON.stringify({ category_id: category || null, note }),
+        body: JSON.stringify(
+          categoryLocked ? { note } : { category_id: category || null, note },
+        ),
       });
       setSaved({ category, note });
       setMessage('Salvo.');
@@ -42,21 +53,27 @@ function InlineEdit({
   }
   return (
     <form onSubmit={save} className="inline-edit">
-      <label className="sr-only" htmlFor={`category-${transaction.id}`}>
-        Categoria de {transaction.payee}
-      </label>
-      <select
-        id={`category-${transaction.id}`}
-        value={category}
-        onChange={(e) => {
-          setCategory(e.target.value);
-          setMessage('');
-        }}
-        disabled={busy}
-      >
-        <option value="">Sem categoria</option>
-        <CategoryOptions categories={categories} />
-      </select>
+      {categoryLocked ? (
+        (categories.find((c) => c.id === category)?.name ?? 'Sem categoria')
+      ) : (
+        <>
+          <label className="sr-only" htmlFor={`category-${transaction.id}`}>
+            Categoria de {transaction.payee}
+          </label>
+          <select
+            id={`category-${transaction.id}`}
+            value={category}
+            onChange={(e) => {
+              setCategory(e.target.value);
+              setMessage('');
+            }}
+            disabled={busy}
+          >
+            <option value="">Sem categoria</option>
+            <CategoryOptions categories={categories} />
+          </select>
+        </>
+      )}
       <label className="sr-only" htmlFor={`note-${transaction.id}`}>
         Nota de {transaction.payee}
       </label>
@@ -101,8 +118,8 @@ export function Transactions({
     account: new URLSearchParams(location.search).get('account') ?? '',
     category: '',
     origin: '',
-    from: '',
-    to: '',
+    from: new URLSearchParams(location.search).get('from') ?? '',
+    to: new URLSearchParams(location.search).get('to') ?? '',
   });
   const [tags, setTags] = useState<Tag[]>([]);
   useEffect(() => {
@@ -272,6 +289,7 @@ export function Transactions({
                     <td>{t.account_name}</td>
                     <td>
                       {t.payee}
+                      <InstallmentLink item={t} />
                       <div>
                         {t.tags.map((tag) => (
                           <span
