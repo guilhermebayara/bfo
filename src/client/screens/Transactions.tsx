@@ -4,6 +4,7 @@ import { Button, Table, CategoryOptions } from '../components';
 import { api } from '../api';
 import { currentMonth, validMonth } from '../../shared/recurring';
 import { MonthNavigation } from '../components/MonthNavigation';
+import { SplitTransaction } from '../components/SplitTransaction';
 import { TransactionRow } from '../components/TransactionRow';
 import { RecurringEditor } from './Recurring';
 import { ManualTransaction } from '../components/ManualTransaction';
@@ -30,6 +31,7 @@ export function Transactions({
 }) {
   const rawMonth = path.split('/')[2] ?? currentMonth();
   const month = validMonth(rawMonth) ? rawMonth : currentMonth();
+  const [splitting, setSplitting] = useState<Transaction | null>(null);
   const [recurring, setRecurring] = useState<Transaction | null>(null);
   useEffect(() => {
     if (path === '/transacoes' || path === '/')
@@ -226,6 +228,7 @@ export function Transactions({
                     tags={tags}
                     onSaved={onSaved}
                     onRecurring={setRecurring}
+                    onSplit={setSplitting}
                   />
                 ))}
                 {!data.items.length && (
@@ -254,6 +257,15 @@ export function Transactions({
             </div>
           </>
         )
+      )}
+      {splitting && (
+        <SplitTransaction
+          transaction={splitting}
+          categories={categories}
+          tags={tags}
+          onSaved={onSaved}
+          onClose={() => setSplitting(null)}
+        />
       )}
       {recurring && (
         <RecurringEditor

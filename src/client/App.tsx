@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import type { Account, Category, Recurring } from '../shared/types';
-import { RENEWAL_NOTICE_DAYS } from '../shared/recurring';
 import { Button } from './components';
 import { api } from './api';
 import { Transactions } from './screens/Transactions';
@@ -106,7 +105,7 @@ export function App() {
             </a>
           ))}
         </nav>
-        <p className="environment">Dados fictícios · Sessão E</p>
+        <p className="environment">Dados fictícios · Sessão F</p>
       </aside>
       <div className="workspace">
         {renewals.length > 0 && (
@@ -115,11 +114,11 @@ export function App() {
             role="status"
             aria-label="Aviso de renovação"
           >
-            Renovações nos próximos {RENEWAL_NOTICE_DAYS} dias:{' '}
+            Renovações próximas:{' '}
             {renewals.map((r) => (
               <span key={r.id}>
-                {r.payee} ({r.renewal_date?.split('-').reverse().join('/')}
-                ){' '}
+                {r.payee} ({r.renewal_date?.split('-').reverse().join('/')}) ·
+                aviso com {r.notice_days} dias{' '}
               </span>
             ))}
             <a href="/assinaturas" onClick={(e) => navigate(e, '/assinaturas')}>
@@ -151,6 +150,7 @@ export function App() {
             <InstallmentPurchase
               key={path}
               id={path.slice('/parceladas/'.length)}
+              onSaved={load}
               accounts={accounts}
             />
           ) : path === '/categorias' ? (

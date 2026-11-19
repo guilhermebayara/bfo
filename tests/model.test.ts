@@ -25,7 +25,7 @@ beforeAll(async () => {
 });
 beforeEach(async () => {
   await db.exec(
-    `DELETE FROM reconciliations; DELETE FROM transaction_tags; DELETE FROM tags; DELETE FROM fx_rates; DELETE FROM transactions; UPDATE payees SET merged_into_id=NULL; DELETE FROM payees; DELETE FROM recurring; DELETE FROM installment_plans; DELETE FROM statements; DELETE FROM accounts; DELETE FROM institutions; DELETE FROM categories; DELETE FROM category_groups; DELETE FROM allocation_groups; DELETE FROM subscription_types;`,
+    `DELETE FROM reconciliations; DELETE FROM transaction_tags; DELETE FROM tags; DELETE FROM fx_rates; DELETE FROM transactions; UPDATE payees SET merged_into_id=NULL; DELETE FROM payees; DELETE FROM recurring; DELETE FROM installment_advances; DELETE FROM installment_plans; DELETE FROM statements; DELETE FROM accounts; DELETE FROM institutions; DELETE FROM categories; DELETE FROM category_groups; DELETE FROM allocation_groups; DELETE FROM subscription_types;`,
   );
   await db.exec(
     `INSERT INTO accounts(id,name,kind) VALUES ('a','Conta fictícia','checking'); INSERT INTO allocation_groups VALUES('g','Essencial',60,0); INSERT INTO category_groups VALUES('cg','Grupo','g',0); INSERT INTO categories VALUES('c','Categoria','cg',0,0);`,
@@ -331,6 +331,34 @@ it('seed é repetível, cobre 14 meses e mantém edições e contas ativadas', a
         .first()
     ).difference,
   ).toBe(1420);
+  await db
+    .prepare(
+      "UPDATE transaction_splits SET note='Parte conferida' WHERE id='seed-f-part-1'",
+    )
+    .run();
+  await db.exec(seed);
+  expect(
+    (
+      await db
+        .prepare("SELECT note FROM transaction_splits WHERE id='seed-f-part-1'")
+        .first()
+    ).note,
+  ).toBe('Parte conferida');
+  await db
+    .prepare(
+      "DELETE FROM transaction_splits WHERE transaction_id='seed-f-split'",
+    )
+    .run();
+  await db.exec(seed);
+  expect(
+    (
+      await db
+        .prepare(
+          "SELECT COUNT(*) AS n FROM transaction_splits WHERE transaction_id='seed-f-split'",
+        )
+        .first()
+    ).n,
+  ).toBe(0);
 });
 it('reverte o ajuste se a gravação da abertura falhar', async () => {
   await db.exec(

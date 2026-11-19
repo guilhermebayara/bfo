@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Account, Category, Transaction, Tag } from '../../shared/types';
 import { formatMoney, parseMoney } from '../../shared/money';
 import { Badge, Button, InstallmentLink } from './index';
+import { SplitDetails } from './SplitTransaction';
 import { CategoryPicker } from './CategoryPicker';
 import { api, humanDate } from '../api';
 export function TransactionRow({
@@ -11,6 +12,7 @@ export function TransactionRow({
   tags,
   onSaved,
   onRecurring,
+  onSplit,
 }: {
   t: Transaction;
   accounts: Account[];
@@ -18,6 +20,7 @@ export function TransactionRow({
   tags: Tag[];
   onSaved: () => Promise<void>;
   onRecurring: (t: Transaction) => void;
+  onSplit: (t: Transaction) => void;
 }) {
   const [edit, setEdit] = useState(false),
     [error, setError] = useState(''),
@@ -32,7 +35,7 @@ export function TransactionRow({
     tag_ids: t.tags.map((t) => t.id),
     fx_rate: String(t.fx_rate),
   });
-  const all = t.origin === 'manual' && t.kind === 'regular';
+  const all = t.origin === 'manual' && t.kind === 'regular' && !t.split_count;
   const locked =
     t.kind === 'card_payment' ||
     (t.origin === 'adjustment' && !!t.statement_id);
@@ -46,7 +49,9 @@ export function TransactionRow({
     try {
       const body: Record<string, unknown> = {
         note: draft.note,
-        ...(!locked ? { category_id: draft.category_id || null } : {}),
+        ...(!locked && !t.split_count
+          ? { category_id: draft.category_id || null }
+          : {}),
       };
       if (all) {
         if (draft.date !== t.date) body.date = draft.date;
@@ -133,6 +138,15 @@ export function TransactionRow({
           t.payee
         )}
         <InstallmentLink item={t} />
+        {!!t.split_count && (
+          <SplitDetails
+            id={t.id}
+            categories={categories}
+            currency={t.currency}
+          />
+        )}
+        {!!t.retroactive && <small>Retroativa: antes do corte</small>}
+        {!!t.added_to_closed && <small>Incluída após o fechamento</small>}
       </td>
       <td>
         {edit && all ? (
@@ -174,7 +188,7 @@ export function TransactionRow({
         )}
       </td>
       <td>
-        {edit && !locked ? (
+        {edit && !locked && !t.split_count ? (
           <CategoryPicker
             categories={categories}
             label={`Categoria de ${t.payee}`}
@@ -182,12 +196,16 @@ export function TransactionRow({
             onChange={(v) => field('category_id', v)}
             disabled={busy}
           />
+        ) : t.split_count ? (
+          `Dividida em ${t.split_count} partes`
         ) : (
           (categories.find((c) => c.id === t.category_id)?.name ??
           'Sem categoria')
         )}
       </td>
-      <td>{t.allocation_name ?? 'Sem alocação'}</td>
+      <td>
+        {t.split_count ? 'Por parte' : (t.allocation_name ?? 'Sem alocação')}
+      </td>
       <td>
         {edit ? (
           <input
@@ -221,7 +239,7 @@ export function TransactionRow({
                 {tag.name}
               </label>
             ))
-          : t.tags.map((tag) => (
+          : (t.split_count ? [] : t.tags).map((tag) => (
               <span className="badge" key={tag.id}>
                 {tag.name}
               </span>
@@ -248,6 +266,13 @@ export function TransactionRow({
           </form>
         ) : (
           <>
+            {['regular', 'installment'].includes(t.kind) &&
+              t.origin !== 'adjustment' &&
+              !t.advance_id && (
+                <Button onClick={() => onSplit(t)}>
+                  {t.split_count ? 'Editar divisão' : 'Dividir transação'}
+                </Button>
+              )}
             <Button onClick={() => setEdit(true)}>Editar {t.payee}</Button>
             {t.kind === 'regular' && t.origin !== 'adjustment' && (
               <Button onClick={() => onRecurring(t)}>Criar recorrente</Button>

@@ -33,6 +33,7 @@ export function ManualTransaction({
   const [amount, setAmount] = useState('');
   const [income, setIncome] = useState(false);
   const [installments, setInstallments] = useState('1');
+  const [currentPart, setCurrentPart] = useState('1');
   const [payee, setPayee] = useState('');
   const [category, setCategory] = useState('');
   const [note, setNote] = useState('');
@@ -120,7 +121,12 @@ export function ManualTransaction({
         body: JSON.stringify({
           account_id: account,
           date: day,
-          amount_cents: income ? -value : value,
+          ...(canInstall && Number(installments) > 1
+            ? {
+                installment_amount_cents: value,
+                installment_current: Number(currentPart),
+              }
+            : { amount_cents: income ? -value : value }),
           payee,
           category_id: category || null,
           note,
@@ -138,6 +144,7 @@ export function ManualTransaction({
       setSelected([]);
       requestAnimationFrame(() => payeeInput.current?.focus());
       setInstallments('1');
+      setCurrentPart('1');
       setNote('');
       setError('Lançamento salvo.');
     } catch (e) {
@@ -173,7 +180,9 @@ export function ManualTransaction({
             </select>
           </label>
           <label>
-            Data
+            {canInstall && Number(installments) > 1
+              ? 'Data da parcela atual'
+              : 'Data'}
             <input
               required
               type="date"
@@ -200,8 +209,10 @@ export function ManualTransaction({
             <small>Sugere a categoria e as tags do último lançamento.</small>
           </label>
           <label>
-            {canInstall && Number(installments) > 1 ? 'Valor total' : 'Valor'} (
-            {code})
+            {canInstall && Number(installments) > 1
+              ? 'Valor da parcela'
+              : 'Valor'}{' '}
+            ({code})
             <input
               required
               inputMode="decimal"
@@ -220,16 +231,46 @@ export function ManualTransaction({
             </select>
           </label>
           {canInstall && (
+            <>
+              <label>
+                Total de parcelas
+                <input
+                  required
+                  type="number"
+                  min="1"
+                  max="120"
+                  value={installments}
+                  onChange={(e) => setInstallments(e.target.value)}
+                />
+              </label>
+            </>
+          )}
+          {canInstall && Number(installments) > 1 && (
             <label>
-              Parcelas
+              Parcela atual
               <input
                 required
                 type="number"
                 min="1"
-                max="120"
-                value={installments}
-                onChange={(e) => setInstallments(e.target.value)}
+                max={installments}
+                aria-label="Parcela atual"
+                value={currentPart}
+                onChange={(e) => setCurrentPart(e.target.value)}
               />
+              <small>
+                Total calculado:{' '}
+                {(() => {
+                  try {
+                    return formatMoney(
+                      parseMoney(amount) * Number(installments),
+                      code,
+                    );
+                  } catch {
+                    return 'Preencha o valor da parcela';
+                  }
+                })()}
+                . Todas as parcelas serão criadas, inclusive as anteriores.
+              </small>
             </label>
           )}
           <CategoryPicker

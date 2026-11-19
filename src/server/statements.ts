@@ -33,7 +33,7 @@ export function statementCycle(
 }
 
 export function installmentAmount(total: number, count: number, index: number) {
-  return Math.floor(total / count) + Number(index < total % count);
+  return Math.floor(total / count) + (index === count - 1 ? total % count : 0);
 }
 
 export function today() {

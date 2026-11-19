@@ -109,8 +109,12 @@ export function monthlyEquivalent(
           : amount,
   );
 }
-export function renewalSoon(renewal: string | null, day: string) {
+export function renewalSoon(
+  renewal: string | null,
+  day: string,
+  noticeDays = RENEWAL_NOTICE_DAYS,
+) {
   if (!renewal) return false;
   const days = (Date.parse(renewal) - Date.parse(day)) / 86400000;
-  return days >= 0 && days <= RENEWAL_NOTICE_DAYS;
+  return days >= 0 && days <= noticeDays;
 }

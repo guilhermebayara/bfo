@@ -1,6 +1,13 @@
 // Apenas dados fictícios. IDs estáveis tornam o seed repetível sem apagar edições.
 export function seedSql() {
-  const sql = [];
+  const sql = [
+    'CREATE TABLE IF NOT EXISTS seed_fixtures(id TEXT PRIMARY KEY);',
+  ];
+  let sessionF = false;
+  const fixtureGuard = () =>
+    sessionF
+      ? " WHERE NOT EXISTS(SELECT 1 FROM seed_fixtures WHERE id='session-f')"
+      : '';
   const literal = (v) =>
     v === null
       ? 'NULL'
@@ -8,7 +15,11 @@ export function seedSql() {
         ? String(v)
         : `'${v.replaceAll("'", "''")}'`;
   const statementId = (id) => {
-    const card = id.startsWith('statement-brisa-') ? 'card-b' : 'card-a';
+    const card = id.startsWith('statement-f-')
+      ? 'seed-f-card'
+      : id.startsWith('statement-brisa-')
+        ? 'card-b'
+        : 'card-a';
     return `(SELECT id FROM statements WHERE account_id='${card}' AND closing_date='${id.slice(-7)}-20')`;
   };
   const insert = (table, row) => {
@@ -44,14 +55,14 @@ export function seedSql() {
           ? `SELECT ${values.join(',')} WHERE EXISTS (
             SELECT 1 FROM statements WHERE id=${statementId(row.statement_id)}
               AND status='paid' AND bank_amount_cents=${literal(row.amount_cents)}) ON CONFLICT DO NOTHING`
-          : `VALUES (${values.join(',')}) ON CONFLICT(id) DO NOTHING`;
+          : `SELECT ${values.join(',')}${fixtureGuard() || ' WHERE true'} ON CONFLICT(id) DO NOTHING`;
       sql.push(
         `INSERT INTO ${table} (${Object.keys(row).join(',')}) ${input};`,
       );
       return;
     }
     sql.push(
-      `INSERT INTO ${table} (${Object.keys(row).join(',')}) VALUES (${Object.values(row).map(literal).join(',')}) ON CONFLICT DO NOTHING;`,
+      `INSERT INTO ${table} (${Object.keys(row).join(',')}) SELECT ${Object.values(row).map(literal).join(',')}${fixtureGuard() || ' WHERE true'} ON CONFLICT DO NOTHING;`,
     );
   };
   for (const [id, name] of [
@@ -246,7 +257,7 @@ export function seedSql() {
     // A migração pode encontrar faturas fictícias das sessões anteriores já fechadas.
     sql.push(`UPDATE statements SET status=${literal(paid ? 'paid' : 'closed')},
       bank_amount_cents=${amount},closed_at=${literal(closing + 'T12:00:00Z')}
-      WHERE id=${literal(id)} AND bank_amount_cents IS NULL;`);
+      WHERE id=${literal(id)} AND bank_amount_cents IS NULL AND NOT EXISTS(SELECT 1 FROM seed_fixtures WHERE id='session-f');`);
     if (paid)
       insert('transactions', {
         id: `seed-payment-${card}-${ym}`,
@@ -474,6 +485,157 @@ export function seedSql() {
   });
   sql.push(
     "INSERT INTO transaction_tags(transaction_id,tag_id) VALUES('seed-usd','travel'),('seed-2026-10-market','planned') ON CONFLICT DO NOTHING;",
+  );
+  // Sessão F: exemplos isolados, fictícios e repetíveis. O marcador preserva divisões desfeitas.
+  sessionF = true;
+  insert('accounts', {
+    id: 'seed-f-card',
+    name: 'Cartão de parcelas fictício',
+    kind: 'credit_card',
+    currency: 'BRL',
+    institution_id: 'horizonte',
+    cutoff_date: '2026-10-01',
+    closing_day: 20,
+    due_day: 27,
+  });
+  insert('installment_plans', {
+    id: 'seed-f-retro',
+    account_id: 'seed-f-card',
+    description: 'Cadeira retroativa fictícia',
+    total_cents: 100010,
+    count: 10,
+    first_date: '2026-09-12',
+    category_id: 'entertainment',
+  });
+  insert('installment_plans', {
+    id: 'seed-f-advance',
+    account_id: 'seed-f-card',
+    description: 'Equipamento antecipado fictício',
+    total_cents: 100000,
+    count: 5,
+    first_date: '2026-11-12',
+    category_id: 'entertainment',
+  });
+  insert('installment_advances', {
+    id: 'seed-f-advance-history',
+    installment_plan_id: 'seed-f-advance',
+    count: 2,
+    face_cents: 40000,
+    paid_cents: 37000,
+    created_at: '2026-11-19T12:00:00Z',
+  });
+  for (let i = 0; i < 10; i++) {
+    const ym = new Date(Date.UTC(2026, 8 + i, 1)).toISOString().slice(0, 7);
+    const prev = new Date(Date.UTC(2026, 7 + i, 1)).toISOString().slice(0, 7);
+    const statement = 'statement-f-' + ym;
+    insert('statements', {
+      id: statement,
+      account_id: 'seed-f-card',
+      period_start: prev + '-21',
+      closing_date: ym + '-20',
+      due_date: ym + '-27',
+      status: 'open',
+    });
+    if (i < 2) {
+      sql.push(
+        `UPDATE statements SET status='closed',bank_amount_cents=0,closed_at='2026-10-20T12:00:00Z' WHERE id=${literal(statement)} AND bank_amount_cents IS NULL AND NOT EXISTS(SELECT 1 FROM seed_fixtures WHERE id='session-f');`,
+      );
+      insert('statement_checks', {
+        id: 'seed-f-check-' + i,
+        statement_id: statement,
+        app_amount_cents: 0,
+        bank_amount_cents: 0,
+        action: 'close',
+      });
+    }
+    insert('transactions', {
+      id: 'seed-f-retro-' + i,
+      account_id: 'seed-f-card',
+      date: ym + '-12',
+      amount_cents: 10001,
+      payee: 'Cadeira retroativa fictícia',
+      category_id: 'entertainment',
+      note: 'Parcela retroativa fictícia: 3 de 10 em novembro.',
+      origin: 'manual',
+      kind: 'installment',
+      statement_id: statement,
+      installment_plan_id: 'seed-f-retro',
+      installment_number: i + 1,
+      retroactive: i === 0 ? 1 : 0,
+      added_to_closed: i < 2 ? 1 : 0,
+    });
+    if (i >= 2 && i <= 6)
+      insert('transactions', {
+        id: 'seed-f-anticipated-' + i,
+        account_id: 'seed-f-card',
+        date: ym + '-12',
+        amount_cents: 20000,
+        payee: 'Equipamento antecipado fictício',
+        category_id: 'entertainment',
+        note: 'Compra com antecipação fictícia.',
+        origin: 'manual',
+        kind: 'installment',
+        statement_id: statement,
+        installment_plan_id: 'seed-f-advance',
+        installment_number: i - 1,
+        advance_id: i === 3 || i === 4 ? 'seed-f-advance-history' : null,
+      });
+  }
+  insert('transactions', {
+    id: 'seed-f-payment',
+    account_id: 'seed-f-card',
+    date: '2026-11-19',
+    amount_cents: 37000,
+    payee: 'Equipamento antecipado fictício',
+    category_id: 'entertainment',
+    note: 'Antecipação de 2 parcelas, desconto de R$ 30,00.',
+    origin: 'manual',
+    kind: 'installment',
+    statement_id: 'statement-f-2026-11',
+    installment_plan_id: 'seed-f-advance',
+    advance_id: 'seed-f-advance-history',
+  });
+  insert('accounts', {
+    id: 'seed-f-account',
+    name: 'Conta de divisão fictícia',
+    kind: 'checking',
+    currency: 'BRL',
+    institution_id: 'horizonte',
+    cutoff_date: '2026-10-01',
+  });
+  insert('transactions', {
+    id: 'seed-f-split',
+    account_id: 'seed-f-account',
+    date: '2026-11-18',
+    amount_cents: 12345,
+    payee: 'Compra mista fictícia',
+    note: 'Original preservado ao desfazer a divisão.',
+    origin: 'manual',
+    kind: 'regular',
+    category_id: 'groceries',
+  });
+  insert('transaction_splits', {
+    id: 'seed-f-part-1',
+    transaction_id: 'seed-f-split',
+    position: 0,
+    amount_cents: 10000,
+    amount_brl_cents: 10000,
+    category_id: 'groceries',
+    note: 'Alimentos fictícios.',
+  });
+  insert('transaction_splits', {
+    id: 'seed-f-part-2',
+    transaction_id: 'seed-f-split',
+    position: 1,
+    amount_cents: 2345,
+    amount_brl_cents: 2345,
+    category_id: 'entertainment',
+    note: 'Lazer fictício.',
+  });
+  insert('split_tags', { split_id: 'seed-f-part-1', tag_id: 'planned' });
+  insert('split_tags', { split_id: 'seed-f-part-2', tag_id: 'travel' });
+  sql.push(
+    "INSERT INTO seed_fixtures(id) VALUES('session-f') ON CONFLICT DO NOTHING;",
   );
   return sql.map((line) => line.replaceAll('\n', ' ')).join('\n');
 }
