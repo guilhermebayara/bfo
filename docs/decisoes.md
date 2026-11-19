@@ -76,6 +76,11 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 
 ## Categorias e orçamento
 
+- Cada categoria tem três marcas, como no Lunch Money: tratar como renda, fora do orçamento e fora dos totais. Marcas definidas no grupo de categoria valem para as categorias dele (herdadas), e a tela mostra quando uma marca é herdada.
+- Tratar como renda: entra no total de renda dos resumos, e o sinal padrão do lançamento é [+].
+- Fora do orçamento: a categoria não aparece no orçamento nem na alocação por percentual (ex.: emergências, reembolsos).
+- Fora dos totais: a transação atualiza os saldos das contas, mas não entra nos totais de renda nem de gasto do mês (ex.: reembolsos, saques, pagamentos e transferências). Reembolso usa uma categoria com essa marca.
+
 - Duas camadas. Grupos de categoria organizam (Moradia, Alimentação). Grupos de alocação dizem o tipo de dinheiro (Essencial, Estilo de vida, Investimento), cada um com percentual previsto (ex.: 60 / 25 / 15). Cada grupo de categoria pertence a um grupo de alocação.
 - Base do percentual: renda prevista do mês, informada ao montar o orçamento, comparada depois com a renda que entrou.
 - Investimento na alocação conta só os aportes. Rendimento fica fora. Investimento fica fora do orçamento de gastos.
