@@ -2,12 +2,17 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Account, Category, Tag, Payee } from '../../shared/types';
 import { parseMoney, formatMoney } from '../../shared/money';
 import { api } from '../api';
-import { Button, CategoryOptions } from './index';
+import { Button } from './index';
+import { CategoryPicker } from './CategoryPicker';
 export function ManualTransaction({
   accounts,
   categories,
   onSaved,
+  table = false,
+  month,
 }: {
+  table?: boolean;
+  month?: string;
   accounts: Account[];
   categories: Category[];
   onSaved: () => Promise<void>;
@@ -19,7 +24,12 @@ export function ManualTransaction({
   const [account, setAccount] = useState(
     active.find((a) => a.id === requestedAccount)?.id ?? active[0]?.id ?? '',
   );
-  const [day, setDay] = useState(new Date().toISOString().slice(0, 10));
+  const [day, setDay] = useState(
+    month && month !== new Date().toISOString().slice(0, 7)
+      ? `${month}-01`
+      : new Date().toISOString().slice(0, 10),
+  );
+  const payeeInput = useRef<HTMLInputElement>(null);
   const [amount, setAmount] = useState('');
   const [income, setIncome] = useState(false);
   const [installments, setInstallments] = useState('1');
@@ -123,6 +133,10 @@ export function ManualTransaction({
       });
       await onSaved();
       setAmount('');
+      setPayee('');
+      setCategory('');
+      setSelected([]);
+      requestAnimationFrame(() => payeeInput.current?.focus());
       setInstallments('1');
       setNote('');
       setError('Lançamento salvo.');
@@ -139,151 +153,154 @@ export function ManualTransaction({
         Math.round(parseMoney(amount) * Number(rate.replace(',', '.'))),
       );
   } catch {}
-  return (
-    <details className="manual">
-      <summary>Lançar transação</summary>
-      <form onSubmit={submit}>
-        <fieldset disabled={busy}>
-          <div className="filters">
+  const form = (
+    <form aria-label="Lançar transação" onSubmit={submit}>
+      <fieldset disabled={busy}>
+        <div className="filters">
+          <label>
+            Conta
+            <select
+              required
+              value={account}
+              onChange={(e) => setAccount(e.target.value)}
+            >
+              <option value="">Escolha</option>
+              {active.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Data
+            <input
+              required
+              type="date"
+              value={day}
+              onChange={(e) => setDay(e.target.value)}
+            />
+          </label>
+          <label>
+            Beneficiário
+            <input
+              required
+              maxLength={200}
+              aria-label="Beneficiário"
+              ref={payeeInput}
+              list="payees"
+              value={payee}
+              onChange={(e) => setPayee(e.target.value)}
+            />
+            <datalist id="payees">
+              {payees.map((p) => (
+                <option key={p.id} value={p.name} />
+              ))}
+            </datalist>
+            <small>Sugere a categoria e as tags do último lançamento.</small>
+          </label>
+          <label>
+            {canInstall && Number(installments) > 1 ? 'Valor total' : 'Valor'} (
+            {code})
+            <input
+              required
+              inputMode="decimal"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+          </label>
+          <label>
+            Direção
+            <select
+              value={income ? 'income' : 'expense'}
+              onChange={(e) => setIncome(e.target.value === 'income')}
+            >
+              <option value="expense">Saída</option>
+              <option value="income">Entrada</option>
+            </select>
+          </label>
+          {canInstall && (
             <label>
-              Conta
-              <select
-                required
-                value={account}
-                onChange={(e) => setAccount(e.target.value)}
-              >
-                <option value="">Escolha</option>
-                {active.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Data
+              Parcelas
               <input
                 required
-                type="date"
-                value={day}
-                onChange={(e) => setDay(e.target.value)}
+                type="number"
+                min="1"
+                max="120"
+                value={installments}
+                onChange={(e) => setInstallments(e.target.value)}
               />
             </label>
+          )}
+          <CategoryPicker
+            categories={categories}
+            value={category}
+            onChange={setCategory}
+          />
+          {code !== 'BRL' && (
             <label>
-              Beneficiário
-              <input
-                required
-                maxLength={200}
-                aria-label="Beneficiário"
-                list="payees"
-                value={payee}
-                onChange={(e) => setPayee(e.target.value)}
-              />
-              <datalist id="payees">
-                {payees.map((p) => (
-                  <option key={p.id} value={p.name} />
-                ))}
-              </datalist>
-              <small>Sugere a categoria e as tags do último lançamento.</small>
-            </label>
-            <label>
-              {canInstall && Number(installments) > 1 ? 'Valor total' : 'Valor'}{' '}
-              ({code})
+              Cotação para BRL
               <input
                 required
                 inputMode="decimal"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                value={rate}
+                onChange={(e) => {
+                  rateEdited.current = true;
+                  setFxBusy(false);
+                  setFxMessage('Cotação manual.');
+                  setRate(e.target.value);
+                  setAutomatic(false);
+                }}
               />
+              <small role="status">
+                {fxBusy ? 'Buscando PTAX…' : fxMessage}{' '}
+                {brl && `Valor em reais: ${brl}`}
+              </small>
             </label>
-            <label>
-              Direção
-              <select
-                value={income ? 'income' : 'expense'}
-                onChange={(e) => setIncome(e.target.value === 'income')}
-              >
-                <option value="expense">Saída</option>
-                <option value="income">Entrada</option>
-              </select>
-            </label>
-            {canInstall && (
-              <label>
-                Parcelas
-                <input
-                  required
-                  type="number"
-                  min="1"
-                  max="120"
-                  value={installments}
-                  onChange={(e) => setInstallments(e.target.value)}
-                />
-              </label>
-            )}
-            <label>
-              Categoria
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-              >
-                <option value="">Sem categoria</option>
-                <CategoryOptions categories={categories} />
-              </select>
-            </label>
-            {code !== 'BRL' && (
-              <label>
-                Cotação para BRL
-                <input
-                  required
-                  inputMode="decimal"
-                  value={rate}
-                  onChange={(e) => {
-                    rateEdited.current = true;
-                    setFxBusy(false);
-                    setFxMessage('Cotação manual.');
-                    setRate(e.target.value);
-                    setAutomatic(false);
-                  }}
-                />
-                <small role="status">
-                  {fxBusy ? 'Buscando PTAX…' : fxMessage}{' '}
-                  {brl && `Valor em reais: ${brl}`}
-                </small>
-              </label>
-            )}
-            <label>
-              Nota
+          )}
+          <label>
+            Nota
+            <input
+              maxLength={2000}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+          </label>
+        </div>
+        <fieldset className="tag-list">
+          <legend>Tags</legend>
+          {tags.map((t) => (
+            <label className="tag-choice" key={t.id}>
               <input
-                maxLength={2000}
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
+                type="checkbox"
+                checked={selected.includes(t.id)}
+                onChange={(e) =>
+                  setSelected(
+                    e.target.checked
+                      ? [...selected, t.id]
+                      : selected.filter((id) => id !== t.id),
+                  )
+                }
               />
+              {t.name}
             </label>
-          </div>
-          <fieldset className="tag-list">
-            <legend>Tags</legend>
-            {tags.map((t) => (
-              <label className="tag-choice" key={t.id}>
-                <input
-                  type="checkbox"
-                  checked={selected.includes(t.id)}
-                  onChange={(e) =>
-                    setSelected(
-                      e.target.checked
-                        ? [...selected, t.id]
-                        : selected.filter((id) => id !== t.id),
-                    )
-                  }
-                />
-                {t.name}
-              </label>
-            ))}
-          </fieldset>
-          <Button type="submit" disabled={fxBusy || !active.length}>
-            Salvar lançamento
-          </Button>
+          ))}
         </fieldset>
-        <p role="status">{error}</p>
-      </form>
+        <Button type="submit" disabled={fxBusy || !active.length}>
+          Salvar lançamento
+        </Button>
+      </fieldset>
+      <p role="status">{error}</p>
+    </form>
+  );
+  return table ? (
+    <tr className="entry-row">
+      <td colSpan={9}>{form}</td>
+    </tr>
+  ) : (
+    <details className="manual">
+      <summary>Lançar transação</summary>
+      {form}
     </details>
   );
 }

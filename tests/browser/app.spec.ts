@@ -5,11 +5,12 @@ test('filtra transações, edita uma importada e mantém os dados após recarreg
 }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto('/transacoes');
+  await page.goto('/transacoes/2025-09');
   await expect(
     page.getByRole('heading', { name: 'Transações', exact: true }),
   ).toBeVisible();
   await page
+    .getByRole('region', { name: 'Filtros de transações' })
     .getByRole('combobox', { name: 'Conta', exact: true })
     .selectOption('checking');
   await page
@@ -22,27 +23,28 @@ test('filtra transações, edita uma importada e mantém os dados após recarreg
   ).toBeVisible();
   const row = page.getByRole('row').filter({ hasText: 'Renda fictícia' });
   await expect(row.getByText('Entrada (+)')).toBeVisible();
+  await row.getByRole('button', { name: 'Editar Renda fictícia' }).click();
   await row.getByRole('combobox').selectOption('groceries');
-  await row.getByRole('textbox').fill('Nota conferida no navegador');
+  await row
+    .getByRole('textbox', { name: 'Nota de Renda fictícia' })
+    .fill('Nota conferida no navegador');
   await row.getByRole('button', { name: 'Salvar', exact: true }).click();
-  await expect(row.getByRole('status')).toHaveText('Salvo.');
+  await expect(row).toContainText('Nota conferida no navegador');
   await page.reload();
   await page.getByLabel('Data inicial').fill('2025-09-01');
   await page.getByLabel('Data final').fill('2025-09-30');
   await page
+    .getByRole('region', { name: 'Filtros de transações' })
     .getByRole('combobox', { name: 'Conta', exact: true })
     .selectOption('checking');
   await page
     .getByRole('combobox', { name: 'Origem', exact: true })
     .selectOption('imported');
   await expect(
-    page
-      .getByRole('row')
-      .filter({ hasText: 'Renda fictícia' })
-      .first()
-      .getByRole('textbox'),
-  ).toHaveValue('Nota conferida no navegador');
+    page.getByRole('row').filter({ hasText: 'Renda fictícia' }),
+  ).toContainText('Nota conferida no navegador');
   await page
+    .getByRole('region', { name: 'Filtros de transações' })
     .getByRole('combobox', { name: 'Categoria', exact: true })
     .selectOption('groceries');
   await expect(
@@ -50,12 +52,13 @@ test('filtra transações, edita uma importada e mantém os dados após recarreg
   ).toBeVisible();
   await page.getByRole('button', { name: 'Limpar filtros' }).click();
   const { total, page_size } = await (
-    await request.get('/api/transactions')
+    await request.get('/api/transactions?month=2025-09')
   ).json();
   const pages = Math.ceil(total / page_size);
   await expect(page.getByText(`Página 1 de ${pages}`)).toBeVisible();
-  await page.getByRole('button', { name: 'Próxima', exact: true }).click();
-  await expect(page.getByText(`Página 2 de ${pages}`)).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Próxima', exact: true }),
+  ).toBeDisabled();
   expect(errors).toEqual([]);
 });
 test('prévia, correção e confirmação de ativação com ajuste visível', async ({
@@ -82,8 +85,9 @@ test('prévia, correção e confirmação de ativação com ajuste visível', as
   await expect(row).toContainText('150,00');
   await page.reload();
   await expect(row).toContainText('Ativa desde 31/10/2026');
-  await page.getByRole('link', { name: 'Transações', exact: true }).click();
+  await page.goto('/transacoes/2026-10');
   await page
+    .getByRole('region', { name: 'Filtros de transações' })
     .getByRole('combobox', { name: 'Conta', exact: true })
     .selectOption('cash');
   await page
@@ -118,26 +122,28 @@ test('modal cancela sem ativar e interface cabe em tela pequena', async ({
     ),
   ).toBe(true);
 });
-test('reclassificação retira a linha do filtro de categoria atual', async ({
+test('reclassificação retira a linha do filtro de categoria atual no mês', async ({
   page,
 }) => {
-  await page.goto('/transacoes');
+  await page.goto('/transacoes/2026-10');
   await page
+    .getByRole('region', { name: 'Filtros de transações' })
     .getByRole('combobox', { name: 'Categoria', exact: true })
     .selectOption('restaurant');
   await expect(
-    page.getByText('14 transações ·', { exact: false }),
+    page.getByText('1 transações ·', { exact: false }),
   ).toBeVisible();
-  const row = page
-    .getByRole('row')
-    .filter({ hasText: 'Cozinha da Praça' })
-    .first();
-  await row.getByRole('combobox').selectOption('entertainment');
+  const row = page.getByRole('row').filter({ hasText: 'Cozinha da Praça' });
+  await row.getByRole('button', { name: 'Editar Cozinha da Praça' }).click();
+  await row
+    .getByRole('combobox', {
+      name: 'Categoria de Cozinha da Praça',
+      exact: true,
+    })
+    .selectOption('entertainment');
   await row.getByRole('button', { name: 'Salvar', exact: true }).click();
   await expect(
-    page.getByText('13 transações ·', { exact: false }),
+    page.getByText('0 transações ·', { exact: false }),
   ).toBeVisible();
-  await expect(
-    page.getByRole('row').filter({ hasText: 'Cozinha da Praça' }),
-  ).toHaveCount(13);
+  await expect(row).toHaveCount(0);
 });

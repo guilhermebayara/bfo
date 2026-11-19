@@ -97,7 +97,7 @@ function StatementAction({
         });
       }
       if (search) {
-        location.href = `/transacoes?${new URLSearchParams({ account: card.id, from: statement.period_start, to: statement.closing_date })}`;
+        location.href = `/transacoes/${statement.closing_date.slice(0, 7)}?${new URLSearchParams({ account: card.id, from: statement.period_start, to: statement.closing_date })}`;
         return;
       }
       await onSaved();

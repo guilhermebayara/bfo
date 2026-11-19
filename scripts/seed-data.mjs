@@ -351,6 +351,78 @@ export function seedSql() {
       renewal_date,
       active: 1,
     });
+  // Casos da Sessão E, isolados dos registros de conferência e das faturas.
+  insert('accounts', {
+    id: 'seed-recurring-account',
+    name: 'Conta de recorrentes fictícia',
+    kind: 'checking',
+    currency: 'BRL',
+    institution_id: 'horizonte',
+    cutoff_date: '2026-10-31',
+    opening_balance_cents: 0,
+  });
+  for (const row of [
+    {
+      id: 'seed-e-income',
+      payee: 'Renda recorrente fictícia',
+      amount_cents: -500000,
+      category_id: 'salary',
+      cadence: 'monthly',
+      next_date: '2026-11-05',
+      is_subscription: 0,
+      subscription_type_id: null,
+      renewal_date: null,
+    },
+    {
+      id: 'seed-e-storage',
+      payee: 'Nuvem fictícia',
+      amount_cents: 1990,
+      category_id: 'entertainment',
+      cadence: 'monthly',
+      next_date: '2026-11-12',
+      is_subscription: 1,
+      subscription_type_id: 'daily',
+      renewal_date: '2026-11-28',
+    },
+    {
+      id: 'seed-e-annual',
+      payee: 'Ferramenta anual fictícia',
+      amount_cents: 35990,
+      category_id: 'entertainment',
+      cadence: 'yearly',
+      next_date: '2026-12-02',
+      is_subscription: 1,
+      subscription_type_id: 'occasional',
+      renewal_date: '2026-12-02',
+    },
+  ])
+    insert('recurring', {
+      account_id: 'seed-recurring-account',
+      active: 1,
+      ...row,
+    });
+  for (const row of [
+    {
+      id: 'seed-e-income-arrived',
+      date: '2026-11-05',
+      amount_cents: -500000,
+      payee: 'Renda recorrente fictícia',
+      category_id: 'salary',
+    },
+    {
+      id: 'seed-e-storage-arrived',
+      date: '2026-11-12',
+      amount_cents: 2190,
+      payee: 'Nuvem fictícia',
+      category_id: 'entertainment',
+    },
+  ])
+    insert('transactions', {
+      account_id: 'seed-recurring-account',
+      origin: 'manual',
+      kind: 'regular',
+      ...row,
+    });
   // Só complementa vínculos vazios dos IDs fictícios já instalados na sessão A.
   sql.push(
     "UPDATE accounts SET institution_id=CASE WHEN id IN ('checking','card-a') THEN 'horizonte' ELSE 'brisa' END WHERE id IN ('checking','card-a','card-b','cash') AND institution_id IS NULL;",

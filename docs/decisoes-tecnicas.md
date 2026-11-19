@@ -75,3 +75,19 @@ Contas encerradas aparecem somente no bloco recolhido ao final de Contas. Não e
 `preview:homologacao` usa `wrangler preview --env homologacao`. O bloco `previews` declara o D1 de homologação explicitamente; todos os testes usam D1 local isolado. Publicação remota, migração e seed remotos continuam dependendo do login do dono e dos passos em `docs/cloudflare.md`.
 
 Os testes cobrem sugestão por beneficiário, cache PTAX, arredondamento e fallback manual, conferência com ajuste e rollback, conta encerrada fora das opções, unificação com preservação do registro importado e atualização de uma base da sessão A. Testes de navegador exercitam o fluxo manual com tags e moeda estrangeira, agrupamento e conferência, configuração e unificação de beneficiários. Chamadas externas controladas nos testes não comprovam acesso ao serviço PTAX real.
+
+## Sessão E: meses, recorrentes e assinaturas
+
+Transações usa `/transacoes/AAAA-MM`. Entradas sem mês são substituídas no histórico do navegador pelo mês atual em São Paulo. A API intersecta `month` com os filtros de período, conta, categoria, origem e tags. Setas preservam os filtros e reiniciam a paginação.
+
+A primeira linha da tabela contém o formulário completo. Enter envia, mantém conta e data e limpa os campos do lançamento anterior. O foco volta ao beneficiário. A busca de categorias preserva os grupos. A edição acontece nas células da linha. Transações manuais comuns aceitam data, conta, beneficiário, valor, câmbio, tags, categoria e nota. Importadas aceitam somente categoria e nota. Parcelas e ajustes mantêm seus vínculos de sistema e permitem categoria e nota, com as categorias protegidas da sessão D preservadas. Dados financeiros de compras em faturas fechadas ficam protegidos também por trigger. Mudar conta ou data de compra numa fatura aberta recalcula o ciclo e a moeda.
+
+`next_date` é a âncora inicial do calendário da recorrente. Não é avançada ao consultar ou reconhecer um lançamento, preservando a previsão de meses anteriores. Mensais e anuais mantêm o dia original, limitado ao último dia de meses menores. Semanal usa sete dias; personalizada usa `interval_days`. O modo de todos os cadastros permite editar também inativos e cobranças fora do mês selecionado.
+
+Para o estado no mês, a consulta considera transações comuns, sem ajustes, na mesma conta e com o mesmo beneficiário, sem distinguir maiúsculas e minúsculas. Valores podem variar, mas a direção precisa coincidir. Cada transação atende uma ocorrência, pela proximidade da data prevista. Criar a partir de uma transação guarda o vínculo em `recurring_sources`, sem alterar uma importada. Esse vínculo tem preferência sobre a comparação do nome. O resumo separa entradas e saídas, esperado e realizado, por moeda, sem somar moedas distintas. O reconhecimento apenas informa o estado, sem criar lançamentos nem aplicar regras às transações.
+
+Assinaturas continuam na categoria original. A tela agrupa por tipo ou alocação e mostra o total do equivalente mensal por grupo e moeda. Anuais são previstas pelo valor integral somente no mês da cobrança. A divisão por 12, arredondada em centavos, é informativa. Para semanais e personalizadas, o equivalente usa 52 semanas ou 365 dias por ano.
+
+A janela inicial do aviso é de 30 dias corridos, incluindo hoje e o limite. Fica centralizada em `RENEWAL_NOTICE_DAYS`. A faixa mostra apenas assinaturas ativas com renovação nessa janela e é atualizada após salvar e a cada minuto. Datas vencidas deixam a faixa. A data de renovação é explícita e editável; não é avançada automaticamente. Janela e critério de reconhecimento são escolhas iniciais de implementação para o dono avaliar.
+
+O seed acrescenta uma conta fictícia isolada, renda e despesa já realizadas em novembro, assinaturas mensais e anuais, incluindo uma renovação próxima em novembro de 2026. Mantém IDs estáveis e preserva edições existentes. Nenhum dado de produção é usado nos testes.

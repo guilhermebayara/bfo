@@ -101,3 +101,31 @@ export interface InstallmentPlan {
   first_date: string;
   currency: string;
 }
+
+export interface Recurring {
+  id: string;
+  account_id: string;
+  account_name: string;
+  currency: string;
+  payee: string;
+  amount_cents: number;
+  category_id: string | null;
+  category_name: string | null;
+  allocation_name: string | null;
+  cadence: string;
+  next_date: string;
+  interval_days: number | null;
+  description: string;
+  is_subscription: number;
+  subscription_type_id: string | null;
+  type_name: string | null;
+  renewal_date: string | null;
+  active: number;
+  due_date: string;
+  arrived: boolean;
+  actual_cents: number;
+  transaction_id: string | null;
+  next_charge: string;
+  monthly_cents: number;
+  renewal_soon: boolean;
+}

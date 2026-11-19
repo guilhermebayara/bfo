@@ -21,3 +21,16 @@ Na conta BFO, o Worker `bfo` usa a zona ativa `bayara.design` e os três D1 exis
    No Workers Builds, o `postbuild` usa `WORKERS_CI_BRANCH` para aplicar as migrações pendentes antes do comando de publicação. Se a migração falhar, o build falha. O token de build precisa de **Account > D1 > Edit** na conta BFO. O build local pode rodar sem credenciais Cloudflare.
 3. Depois das migrações, rode o seed manualmente se precisar de dados fictícios. Na raiz do checkout, rode `npm ci`, autentique-se com `npx wrangler login` e confirme a conta BFO com `npx wrangler whoami`. Use `npm run db:seed:teste` ou `npm run db:seed:homologacao`. O seed usa IDs estáveis e preserva edições existentes. O script bloqueia produção.
 4. Confira o domínio próprio e as prévias no painel após a publicação. Até o fast-forward aprovado para `main`, uma falha no build de produção por falta do código é esperada. Após o primeiro deploy de produção e a confirmação de que `homologacao.bfo.bayara.design` responde com Access e o D1 de homologação, apague o Worker antigo `bfo-homologacao`. Preserve o D1 de mesmo nome.
+
+## Seed da Sessão E
+
+Na branch `tst-recorrentes`, após autenticar o Wrangler na conta BFO, aplique as migrações e o seed nos dois bancos autorizados, nesta ordem:
+
+```sh
+WORKERS_CI_BRANCH=tst-recorrentes node scripts/migrate-build.mjs
+npm run db:seed:teste
+WORKERS_CI_BRANCH=homologacao node scripts/migrate-build.mjs
+npm run db:seed:homologacao
+```
+
+Os comandos escolhem os bindings de prévia e bloqueiam o uso do banco de produção no seed. Repetir o seed preserva edições dos IDs existentes. A migração 0004 é aditiva e pode ser aplicada na homologação antes do merge. Nesta sessão, os comandos remotos dependem da conexão com a conta BFO; o seed foi validado localmente.

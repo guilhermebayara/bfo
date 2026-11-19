@@ -378,3 +378,20 @@ fieldset {
   background: var(--hover);
   border-color: var(--focus);
 }
+
+.entry-row {
+  background: var(--surface);
+}
+.entry-row .filters {
+  margin: var(--space-2) var(--space-0);
+}
+.entry-row fieldset {
+  gap: var(--space-2);
+}
+.entry-row label {
+  flex-basis: var(--field-width);
+}
+td input,
+td select {
+  min-width: var(--field-width);
+}

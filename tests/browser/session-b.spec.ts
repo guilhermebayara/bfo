@@ -48,12 +48,11 @@ test('lançamento sugere beneficiário, usa fallback manual de câmbio e filtra 
   const filters = page.getByRole('region', { name: 'Filtros de transações' }); // section com nome acessível
   await expect(
     page
-      .locator('section.filters select')
+      .locator('section[aria-label="Filtros de transações"] select')
       .first()
       .locator('option[value="closed"]'),
   ).toHaveCount(0);
-  await page.getByText('Lançar transação', { exact: true }).click();
-  const manual = page.locator('details.manual');
+  const manual = page.getByRole('form', { name: 'Lançar transação' });
   await manual
     .getByRole('combobox', { name: 'Conta', exact: true })
     .selectOption(id);
@@ -81,11 +80,11 @@ test('lançamento sugere beneficiário, usa fallback manual de câmbio e filtra 
     'Lançamento salvo.',
   );
   await page
-    .locator('section.filters')
+    .locator('section[aria-label="Filtros de transações"]')
     .getByRole('combobox', { name: 'Conta', exact: true })
     .selectOption(id);
   await page
-    .locator('section.filters')
+    .locator('section[aria-label="Filtros de transações"]')
     .getByRole('combobox', { name: 'Tag', exact: true })
     .selectOption('planned');
   await expect(
@@ -99,7 +98,9 @@ test('lançamento sugere beneficiário, usa fallback manual de câmbio e filtra 
     'Valor',
     'Categoria',
     'Alocação',
+    'Notas / Tags',
     'Origem',
+    'Ações',
   ]);
   const data = await (
     await request.get(`/api/transactions?account=${id}`)
@@ -244,7 +245,9 @@ test('edita categorias e tags e unifica beneficiários em lote', async ({
   await page
     .getByRole('button', { name: 'Unificar nomes selecionados' })
     .click();
-  await expect(page.getByRole('status')).toContainText('Nomes unificados');
+  await expect(page.locator('main').getByRole('status')).toContainText(
+    'Nomes unificados',
+  );
   await expect(
     page.getByRole('cell', { name: 'Loja B nome antigo', exact: true }),
   ).toHaveCount(0);
@@ -297,8 +300,7 @@ test('cotação manual não é sobrescrita por resposta automática atrasada', a
     });
   });
   await page.goto('/transacoes');
-  await page.getByText('Lançar transação', { exact: true }).click();
-  const manual = page.locator('details.manual');
+  const manual = page.getByRole('form', { name: 'Lançar transação' });
   await manual
     .getByRole('combobox', { name: 'Conta', exact: true })
     .selectOption(id);

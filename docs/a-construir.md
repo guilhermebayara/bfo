@@ -21,6 +21,11 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
   - Linha de lançamento no topo da tabela, com data (calendário), categoria (busca agrupada), beneficiário, valor com moeda, notas, conta e tags, e um botão de adicionar. Enter salva e deixa a linha pronta para o próximo lançamento.
   - Edição na própria linha de qualquer campo permitido, respeitando a trava das importadas.
   - Referência: prints do Lunch Money enviados pelo dono em 19/11.
+  - [x] Navegação mensal no endereço, filtros dentro do mês, lançamento completo no topo da tabela com Enter e edição nas células, preservando importadas e faturas fechadas.
+  - [x] Recorrentes por mês e categoria, esperado e realizado, criação a partir de transação e edição dos cadastros.
+  - [x] Assinaturas por tipo ou alocação, equivalente mensal, tipos editáveis e faixa de renovação.
+  - [x] Migração 0004 e seed fictício ampliado, validados em D1 local isolado. Testes de API e navegador implementados.
+  - [ ] Aplicar migração e seed em `bfo-teste` e `bfo-homologacao` e validar a prévia remota. Pendente de acesso à conta BFO: a conexão Cloudflare da sessão não encontra esses bancos e o Wrangler local não está autenticado.
 - [ ] Sessão F: script de importação do Lunch Money (API v2), apagar e refazer importação.
 
 - [ ] Conceito visual: feito no Claude depois que a estrutura da fase 1 estiver redonda. Duas propostas numa prévia, o dono escolhe olhando a tela, e só então o visual é aplicado.

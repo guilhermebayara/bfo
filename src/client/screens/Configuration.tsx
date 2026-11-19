@@ -4,7 +4,7 @@ import { api, humanDate } from '../api';
 import { Button, Table } from '../components';
 const EMPTY: Named[] = [];
 type Row = Named & Partial<Category> & Partial<Tag>;
-function Editor({
+export function Editor({
   title,
   route,
   parents = EMPTY,
