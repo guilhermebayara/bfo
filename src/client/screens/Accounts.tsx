@@ -5,6 +5,7 @@ import { formatMoney, parseMoney, convert } from '../../shared/money';
 import { Button, MoneyField, Modal, Table } from '../components';
 import { api, humanDate } from '../api';
 import { Reconcile } from '../components/Reconcile';
+import { CurrencyPicker } from '../components/CurrencyPicker';
 import { CreateAccount } from '../components/CreateAccount';
 function Activate({
   account,
@@ -149,6 +150,11 @@ export function Accounts({
   accounts: Account[];
   onActivated: () => Promise<void>;
 }) {
+  const [editing, setEditing] = useState<Account | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editCurrency, setEditCurrency] = useState('BRL');
+  const [editError, setEditError] = useState('');
+  const [editBusy, setEditBusy] = useState(false);
   const [selected, setSelected] = useState<Account | null>(null);
   const [reconcile, setReconcile] = useState<Account | null>(null);
   const [grouping, setGrouping] = useState('institution');
@@ -208,6 +214,16 @@ export function Accounts({
                 : 'Ainda não conferida'}
             </td>
             <td>
+              <Button
+                onClick={() => {
+                  setEditing(a);
+                  setEditName(a.name);
+                  setEditCurrency(a.currency);
+                  setEditError('');
+                }}
+              >
+                Editar conta
+              </Button>
               {a.kind === 'credit_card' && (
                 <p>
                   <a href={`/cartao?account=${encodeURIComponent(a.id)}`}>
@@ -273,6 +289,59 @@ export function Accounts({
         <summary>Encerradas ({closed.length})</summary>
         {rows(closed)}
       </details>
+      {editing && (
+        <Modal
+          title={`Editar ${editing.name}`}
+          onClose={() => setEditing(null)}
+          busy={editBusy}
+        >
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setEditBusy(true);
+              setEditError('');
+              try {
+                await api(`/accounts/${editing.id}`, {
+                  method: 'PATCH',
+                  body: JSON.stringify({
+                    name: editName,
+                    currency: editCurrency,
+                  }),
+                });
+                await onActivated();
+                setEditing(null);
+              } catch (e) {
+                setEditError((e as Error).message);
+              } finally {
+                setEditBusy(false);
+              }
+            }}
+          >
+            <fieldset disabled={editBusy}>
+              <label>
+                Nome da conta
+                <input
+                  required
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                />
+              </label>
+              <label>
+                Moeda
+                <CurrencyPicker
+                  value={editCurrency}
+                  onChange={setEditCurrency}
+                />
+              </label>
+              <small>
+                Conta com saldo ou histórico mantém a moeda original.
+              </small>
+              <Button type="submit">Salvar conta</Button>
+            </fieldset>
+            <p role="alert">{editError}</p>
+          </form>
+        </Modal>
+      )}
       {selected && (
         <Activate
           account={selected}

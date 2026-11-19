@@ -28,7 +28,7 @@ beforeEach(async () => {
     `DELETE FROM reconciliations; DELETE FROM transaction_tags; DELETE FROM tags; DELETE FROM fx_rates; DELETE FROM transactions; UPDATE payees SET merged_into_id=NULL; DELETE FROM payees; DELETE FROM recurring; DELETE FROM installment_advances; DELETE FROM installment_plans; DELETE FROM statements; DELETE FROM accounts; DELETE FROM institutions; DELETE FROM categories; DELETE FROM category_groups; DELETE FROM allocation_groups; DELETE FROM subscription_types;`,
   );
   await db.exec(
-    `INSERT INTO accounts(id,name,kind) VALUES ('a','Conta fictícia','checking'); INSERT INTO allocation_groups VALUES('g','Essencial',60,0); INSERT INTO category_groups VALUES('cg','Grupo','g',0); INSERT INTO categories VALUES('c','Categoria','cg',0,0);`,
+    `INSERT INTO accounts(id,name,kind) VALUES ('a','Conta fictícia','checking'); INSERT INTO allocation_groups VALUES('g','Essencial',60,0); INSERT INTO category_groups(id,name,allocation_group_id,sort) VALUES('cg','Grupo','g',0); INSERT INTO categories(id,name,category_group_id,is_income,sort) VALUES('c','Categoria','cg',0,0);`,
   );
   await db.batch([
     db.prepare(

@@ -2,7 +2,9 @@ import { Hono } from 'hono';
 import { convertBetween } from '../shared/money';
 import { splitAmounts } from '../shared/splits';
 import {
+  matchRecurring,
   currentMonth,
+  shiftMonth,
   validMonth,
   monthBounds,
   datesInMonth,
@@ -135,7 +137,7 @@ app.get('/api/categories', async (c) =>
   c.json(
     (
       await c.var.DB.prepare(
-        'SELECT c.*, g.name AS group_name, ag.name AS allocation_name FROM categories c JOIN category_groups g ON g.id=c.category_group_id JOIN allocation_groups ag ON ag.id=g.allocation_group_id ORDER BY g.sort,c.sort,c.name',
+        'SELECT c.*, g.name AS group_name, ag.name AS allocation_name FROM effective_categories c JOIN category_groups g ON g.id=c.category_group_id JOIN allocation_groups ag ON ag.id=g.allocation_group_id ORDER BY g.sort,c.sort,c.name',
       ).all()
     ).results,
   ),
@@ -144,6 +146,7 @@ app.get('/api/transactions', async (c) => {
   const query = c.req.query();
   const conditions: string[] = [
     '(t.advance_id IS NULL OR t.installment_number IS NULL)',
+    "(t.kind<>'transfer' OR t.transfer_pair_id IS NULL OR t.amount_cents>0)",
   ];
   const params: string[] = [];
   if (query.month) {
@@ -161,10 +164,12 @@ app.get('/api/transactions', async (c) => {
       conditions.push(
         key === 'category'
           ? '(CASE WHEN EXISTS(SELECT 1 FROM transaction_splits WHERE transaction_id=t.id) THEN EXISTS(SELECT 1 FROM transaction_splits WHERE transaction_id=t.id AND category_id=?) ELSE t.category_id=? END)'
-          : `t.${column}=?`,
+          : key === 'account'
+            ? "(t.account_id=? OR (t.kind='transfer' AND EXISTS(SELECT 1 FROM transactions pair WHERE pair.id=t.transfer_pair_id AND pair.account_id=?)))"
+            : `t.${column}=?`,
       );
       params.push(query[key]);
-      if (key === 'category') params.push(query[key]);
+      if (key === 'category' || key === 'account') params.push(query[key]);
     }
   if (
     query.origin &&
@@ -176,6 +181,12 @@ app.get('/api/transactions', async (c) => {
       '(CASE WHEN EXISTS(SELECT 1 FROM transaction_splits WHERE transaction_id=t.id) THEN EXISTS(SELECT 1 FROM transaction_splits p JOIN split_tags st ON st.split_id=p.id WHERE p.transaction_id=t.id AND st.tag_id=?) ELSE EXISTS (SELECT 1 FROM transaction_tags tt WHERE tt.transaction_id=t.id AND tt.tag_id=?) END)',
     );
     params.push(query.tag, query.tag);
+  }
+  if (query.search) {
+    conditions.push(
+      '(t.payee LIKE ? OR t.note LIKE ? OR EXISTS(SELECT 1 FROM payees p LEFT JOIN payees canonical ON canonical.id=p.merged_into_id WHERE p.id=t.payee_id AND COALESCE(canonical.name,p.name) LIKE ?))',
+    );
+    params.push(...Array(3).fill(`%${query.search.slice(0, 200)}%`));
   }
   if (query.from) {
     conditions.push('t.date>=?');
@@ -197,7 +208,7 @@ app.get('/api/transactions', async (c) => {
     .bind(...params)
     .first<{ count: number }>();
   const { results } = await c.var.DB.prepare(
-    `SELECT t.*, (SELECT status FROM statements WHERE id=t.statement_id OR (t.statement_id IS NULL AND t.kind='regular' AND t.origin<>'adjustment' AND account_id=t.account_id AND t.date BETWEEN period_start AND closing_date) LIMIT 1) AS statement_status, (SELECT COUNT(*) FROM transaction_splits WHERE transaction_id=t.id) AS split_count, ip.count AS installment_count, CASE WHEN t.origin='imported' THEN t.payee ELSE COALESCE(canonical.name,p.name,t.payee) END AS payee, COALESCE(p.merged_into_id,p.id) AS payee_id, a.name AS account_name, ag.name AS allocation_name, (SELECT json_group_array(json_object('id',tags.id,'name',tags.name,'color',tags.color)) FROM transaction_tags tt JOIN tags ON tags.id=tt.tag_id WHERE tt.transaction_id=t.id) AS tags_json FROM transactions t JOIN accounts a ON a.id=t.account_id LEFT JOIN installment_plans ip ON ip.id=t.installment_plan_id LEFT JOIN payees p ON p.id=t.payee_id LEFT JOIN payees canonical ON canonical.id=p.merged_into_id LEFT JOIN categories cat ON cat.id=t.category_id LEFT JOIN category_groups cg ON cg.id=cat.category_group_id LEFT JOIN allocation_groups ag ON ag.id=cg.allocation_group_id ${where} ORDER BY t.date DESC,t.id LIMIT 50 OFFSET ?`,
+    `SELECT t.*, (SELECT a.name FROM transactions pair JOIN accounts a ON a.id=pair.account_id WHERE pair.id=t.transfer_pair_id) AS destination_name, (SELECT pair.account_id FROM transactions pair WHERE pair.id=t.transfer_pair_id) AS destination_account_id, (SELECT pair.amount_cents FROM transactions pair WHERE pair.id=t.transfer_pair_id) AS destination_amount_cents, (SELECT pair.currency FROM transactions pair WHERE pair.id=t.transfer_pair_id) AS destination_currency, (SELECT status FROM statements WHERE id=t.statement_id OR (t.statement_id IS NULL AND t.kind='regular' AND t.origin<>'adjustment' AND account_id=t.account_id AND t.date BETWEEN period_start AND closing_date) LIMIT 1) AS statement_status, (SELECT COUNT(*) FROM transaction_splits WHERE transaction_id=t.id) AS split_count, ip.count AS installment_count, CASE WHEN t.origin='imported' THEN t.payee ELSE COALESCE(canonical.name,p.name,t.payee) END AS payee, COALESCE(p.merged_into_id,p.id) AS payee_id, a.name AS account_name, ag.name AS allocation_name, (SELECT json_group_array(json_object('id',tags.id,'name',tags.name,'color',tags.color)) FROM transaction_tags tt JOIN tags ON tags.id=tt.tag_id WHERE tt.transaction_id=t.id) AS tags_json FROM transactions t JOIN accounts a ON a.id=t.account_id LEFT JOIN installment_plans ip ON ip.id=t.installment_plan_id LEFT JOIN payees p ON p.id=t.payee_id LEFT JOIN payees canonical ON canonical.id=p.merged_into_id LEFT JOIN categories cat ON cat.id=t.category_id LEFT JOIN category_groups cg ON cg.id=cat.category_group_id LEFT JOIN allocation_groups ag ON ag.id=cg.allocation_group_id ${where} ORDER BY t.date DESC,t.id LIMIT 50 OFFSET ?`,
   )
     .bind(...params, (page - 1) * 50)
     .all();
@@ -207,12 +218,243 @@ app.get('/api/transactions', async (c) => {
   }));
   return c.json({ items: tagged, total: total!.count, page, page_size: 50 });
 });
-app.patch('/api/transactions/:id', async (c) => {
-  const body = object(await c.req.json());
-  const db = c.var.DB;
+app.get('/api/preferences', async (c) =>
+  c.json(
+    await c.var.DB.prepare(
+      'SELECT default_account_id FROM preferences WHERE id=1',
+    ).first(),
+  ),
+);
+app.patch('/api/preferences', async (c) => {
+  const b = object(await c.req.json());
+  keys(b, ['default_account_id']);
+  if (!('default_account_id' in b)) fail('Informe a conta padrão.');
+  if (b.default_account_id !== null) {
+    const a = await c.var.DB.prepare(
+      "SELECT id FROM accounts WHERE id=? AND kind IN ('checking','credit_card','cash') AND closed_at IS NULL AND archived=0 AND cutoff_date IS NOT NULL",
+    )
+      .bind(b.default_account_id)
+      .first();
+    if (!a) fail('Escolha uma conta de movimento ativa.');
+  }
+  await c.var.DB.prepare(
+    'UPDATE preferences SET default_account_id=? WHERE id=1',
+  )
+    .bind(b.default_account_id)
+    .run();
+  return c.json({ ok: true });
+});
+app.patch('/api/accounts/:id', async (c) => {
+  const b = object(await c.req.json()),
+    db = c.var.DB;
+  keys(b, ['name', 'currency']);
+  await exists(db, 'accounts', c.req.param('id'));
+  const writes: D1PreparedStatement[] = [];
+  if ('name' in b)
+    writes.push(
+      db
+        .prepare('UPDATE accounts SET name=? WHERE id=?')
+        .bind(text(b.name), c.req.param('id')),
+    );
+  if ('currency' in b) {
+    const code = currency(b.currency);
+    const a = await db
+      .prepare('SELECT currency,opening_balance_cents FROM accounts WHERE id=?')
+      .bind(c.req.param('id'))
+      .first();
+    if (
+      code !== a!.currency &&
+      (a!.opening_balance_cents !== 0 ||
+        (await db
+          .prepare('SELECT 1 FROM transactions WHERE account_id=? LIMIT 1')
+          .bind(c.req.param('id'))
+          .first()))
+    )
+      fail('Conta com saldo ou histórico mantém a moeda original.', 409);
+    writes.push(
+      db
+        .prepare('UPDATE accounts SET currency=? WHERE id=?')
+        .bind(code, c.req.param('id')),
+    );
+  }
+  if (!writes.length) fail('Informe os campos.');
+  await db.batch(writes);
+  return c.json({ ok: true });
+});
+app.get('/api/month-summary', async (c) => {
+  const month = c.req.query('month') ?? currentMonth();
+  if (!validMonth(month)) fail('Mês inválido.');
+  const rows = await c.var.DB.prepare(
+    `SELECT t.category_id,COALESCE(cat.name,'Sem categoria') AS category_name,COALESCE(g.name,'Sem grupo') AS group_name,t.is_income,t.exclude_budget,
+    SUM(CASE WHEN t.is_income=1 THEN -t.amount_brl_cents ELSE t.amount_brl_cents END) AS amount_cents
+    FROM monthly_totals t LEFT JOIN categories cat ON cat.id=t.category_id LEFT JOIN category_groups g ON g.id=cat.category_group_id
+    WHERE t.spending_month=? GROUP BY t.category_id,t.is_income,t.exclude_budget ORDER BY t.is_income DESC,g.sort,g.name,cat.name`,
+  )
+    .bind(month)
+    .all();
+  return c.json(rows.results);
+});
+app.post('/api/transactions/batch', async (c) => {
+  const db = c.var.DB,
+    b = object(await c.req.json());
+  keys(b, [
+    'ids',
+    'changes',
+    'add_tag_ids',
+    'remove_tag_ids',
+    'recurring_id',
+    'delete',
+  ]);
+  if (
+    !Array.isArray(b.ids) ||
+    !b.ids.length ||
+    b.ids.length > 50 ||
+    b.ids.some((id) => typeof id !== 'string')
+  )
+    fail('Selecione de 1 a 50 transações.');
+  const ids = [...new Set(b.ids as string[])];
+  const changes = b.changes === undefined ? {} : object(b.changes);
+  keys(changes, ['date', 'payee', 'category_id', 'note']);
+  if (b.delete !== undefined && b.delete !== true) fail('Exclusão inválida.');
+  if (
+    !b.delete &&
+    !Object.keys(changes).length &&
+    !b.add_tag_ids &&
+    !b.remove_tag_ids &&
+    !('recurring_id' in b)
+  )
+    fail('Escolha uma alteração.');
+  if (
+    b.delete &&
+    (Object.keys(changes).length ||
+      b.add_tag_ids ||
+      b.remove_tag_ids ||
+      'recurring_id' in b)
+  )
+    fail('Exclusão deve ser feita separadamente.');
+  const tagLists: Record<string, string[]> = {};
+  for (const key of ['add_tag_ids', 'remove_tag_ids']) {
+    const list = b[key] ?? [];
+    if (!Array.isArray(list) || list.length > 50) fail('Tags inválidas.');
+    for (const tag of list as string[]) await exists(db, 'tags', tag);
+    tagLists[key] = list as string[];
+  }
+  const writes: D1PreparedStatement[] = [];
+  for (const id of ids) {
+    const t = await db
+      .prepare('SELECT * FROM transactions WHERE id=?')
+      .bind(id)
+      .first<import('../shared/types').Transaction>();
+    if (!t) fail('Transação não encontrada.', 404);
+    if (b.delete) {
+      if (t!.origin !== 'manual' || t!.kind !== 'regular')
+        fail('Só lançamentos manuais comuns podem ser excluídos.', 409);
+      const closed = await db
+        .prepare(
+          "SELECT 1 FROM statements WHERE status<>'open' AND (id=? OR (account_id=? AND ? BETWEEN period_start AND closing_date))",
+        )
+        .bind(t!.statement_id, t!.account_id, t!.date)
+        .first();
+      if (closed) fail('Fatura fechada: exclusão protegida.', 409);
+      writes.push(
+        db
+          .prepare(
+            "UPDATE transactions SET amount_cents=CASE WHEN origin='manual' AND kind='regular' AND date IS ? AND amount_cents IS ? AND NOT EXISTS(SELECT 1 FROM statements WHERE status<>'open' AND (id=transactions.statement_id OR (account_id=transactions.account_id AND transactions.date BETWEEN period_start AND closing_date))) THEN amount_cents ELSE NULL END WHERE id=?",
+          )
+          .bind(t!.date, t!.amount_cents, id),
+      );
+      writes.push(db.prepare('DELETE FROM transactions WHERE id=?').bind(id));
+      continue;
+    }
+    const parts = await db
+      .prepare(
+        'SELECT id FROM transaction_splits WHERE transaction_id=? ORDER BY position',
+      )
+      .bind(id)
+      .all<{ id: string }>();
+    const patch = { ...changes };
+    if (parts.results.length && 'category_id' in patch) {
+      if (patch.category_id !== null)
+        await exists(db, 'categories', patch.category_id);
+      writes.push(
+        db
+          .prepare(
+            'UPDATE transaction_splits SET category_id=? WHERE transaction_id=?',
+          )
+          .bind(patch.category_id, id),
+      );
+      delete patch.category_id;
+    }
+    const targets = parts.results.length
+      ? parts.results.map((p) => p.id)
+      : [id];
+    if (b.add_tag_ids || b.remove_tag_ids) {
+      if (!parts.results.length) {
+        const tags = await db
+          .prepare('SELECT tag_id FROM transaction_tags WHERE transaction_id=?')
+          .bind(id)
+          .all<{ tag_id: string }>();
+        patch.tag_ids = [
+          ...new Set([
+            ...tags.results.map((t) => t.tag_id),
+            ...tagLists.add_tag_ids,
+          ]),
+        ].filter((t) => !tagLists.remove_tag_ids.includes(t));
+      } else
+        for (const target of targets) {
+          for (const tag of tagLists.remove_tag_ids)
+            writes.push(
+              db
+                .prepare('DELETE FROM split_tags WHERE split_id=? AND tag_id=?')
+                .bind(target, tag),
+            );
+          for (const tag of tagLists.add_tag_ids)
+            writes.push(
+              db
+                .prepare('INSERT OR IGNORE INTO split_tags VALUES(?,?)')
+                .bind(target, tag),
+            );
+        }
+    }
+    if (Object.keys(patch).length)
+      writes.push(...(await prepareTransactionPatch(db, id, patch)));
+    if ('recurring_id' in b) {
+      if (t!.kind !== 'regular' || t!.origin === 'adjustment')
+        fail('Escolha uma transação comum para ligar ao recorrente.');
+      if (b.recurring_id !== null) {
+        if (typeof b.recurring_id !== 'string') fail('Recorrente inválido.');
+        const r = await db
+          .prepare('SELECT account_id FROM recurring WHERE id=?')
+          .bind(b.recurring_id)
+          .first();
+        if (!r || r.account_id !== t!.account_id)
+          fail('O recorrente deve pertencer à mesma conta.');
+      }
+      writes.push(
+        db
+          .prepare('DELETE FROM recurring_sources WHERE transaction_id=?')
+          .bind(id),
+      );
+      if (b.recurring_id !== null)
+        writes.push(
+          db
+            .prepare('INSERT INTO recurring_sources VALUES(?,?)')
+            .bind(b.recurring_id, id),
+        );
+    }
+  }
+  if (writes.length) await db.batch(writes);
+  return c.json({ ok: true, count: ids.length });
+});
+
+async function prepareTransactionPatch(
+  db: D1Database,
+  id: string,
+  body: Record<string, unknown>,
+) {
   const t = await db
     .prepare('SELECT * FROM transactions WHERE id=?')
-    .bind(c.req.param('id'))
+    .bind(id)
     .first<import('../shared/types').Transaction>();
   if (!t) return fail('Transação não encontrada.', 404);
   const split = await db
@@ -425,8 +667,16 @@ app.patch('/api/transactions/:id', async (c) => {
         )
         .bind(...snapshot.map((key) => t[key]), t.id),
     );
-    await db.batch(writes);
   }
+  return writes;
+}
+app.patch('/api/transactions/:id', async (c) => {
+  const writes = await prepareTransactionPatch(
+    c.var.DB,
+    c.req.param('id'),
+    object(await c.req.json()),
+  );
+  if (writes.length) await c.var.DB.batch(writes);
   return c.json({ ok: true });
 });
 
@@ -889,12 +1139,17 @@ app.post('/api/installment-plans/:id/advance', async (c) => {
   );
   const future = await db
     .prepare(
-      `SELECT t.id,t.amount_cents FROM transactions t JOIN statements s ON s.id=t.statement_id
+      `SELECT t.id,t.amount_cents,t.category_id,t.note FROM transactions t JOIN statements s ON s.id=t.statement_id
     WHERE t.installment_plan_id=? AND t.installment_number IS NOT NULL AND t.advance_id IS NULL AND s.status='open' AND s.closing_date>?
     ORDER BY t.installment_number LIMIT ?`,
     )
     .bind(plan.id, cycle.closingDate, count)
-    .all<{ id: string; amount_cents: number }>();
+    .all<{
+      id: string;
+      amount_cents: number;
+      category_id: string | null;
+      note: string;
+    }>();
   const face = future.results.reduce((sum, t) => sum + t.amount_cents, 0);
   if (future.results.length !== count)
     fail('Não há essa quantidade de parcelas futuras abertas.', 409);
@@ -905,6 +1160,92 @@ app.post('/api/installment-plans/:id/advance', async (c) => {
   const advanceId = crypto.randomUUID(),
     transactionId = crypto.randomUUID();
   const ids = JSON.stringify(future.results.map((t) => t.id));
+  const classifications: {
+    amount: number;
+    category: string | null;
+    note: string;
+    tags: string[];
+  }[] = [];
+  for (const t of future.results) {
+    const parts = await db
+      .prepare(
+        'SELECT id,amount_cents,category_id,note FROM transaction_splits WHERE transaction_id=? ORDER BY position',
+      )
+      .bind(t.id)
+      .all<{
+        id: string;
+        amount_cents: number;
+        category_id: string | null;
+        note: string;
+      }>();
+    for (const part of parts.results.length ? parts.results : [t]) {
+      const tags = await db
+        .prepare(
+          parts.results.length
+            ? 'SELECT tag_id FROM split_tags WHERE split_id=? ORDER BY tag_id'
+            : 'SELECT tag_id FROM transaction_tags WHERE transaction_id=? ORDER BY tag_id',
+        )
+        .bind(part.id)
+        .all<{ tag_id: string }>();
+      classifications.push({
+        amount: part.amount_cents,
+        category: part.category_id,
+        note: part.note,
+        tags: tags.results.map((t) => t.tag_id),
+      });
+    }
+  }
+  const splitWrites: D1PreparedStatement[] = [];
+  let accumulated = 0,
+    allocated = 0,
+    allocatedBrl = 0;
+  const totalBrl = converted(paid, q.rate);
+  const allocatedParts = classifications.flatMap((part, index) => {
+    accumulated += part.amount;
+    const through =
+      index === classifications.length - 1
+        ? paid
+        : Number((BigInt(paid) * BigInt(accumulated)) / BigInt(face));
+    const amount = through - allocated;
+    allocated = through;
+    const throughBrl =
+      index === classifications.length - 1
+        ? totalBrl
+        : paid
+          ? Number((BigInt(totalBrl) * BigInt(through)) / BigInt(paid))
+          : 0;
+    const brl = throughBrl - allocatedBrl;
+    allocatedBrl = throughBrl;
+    return amount ? [{ ...part, amount, brl }] : [];
+  });
+  if (allocatedParts.length > 1)
+    for (const [index, part] of allocatedParts.entries()) {
+      const id = crypto.randomUUID();
+      splitWrites.push(
+        db
+          .prepare(
+            'INSERT INTO transaction_splits(id,transaction_id,position,amount_cents,amount_brl_cents,category_id,note) SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM transactions WHERE id=?)',
+          )
+          .bind(
+            id,
+            transactionId,
+            index,
+            part.amount,
+            part.brl,
+            part.category,
+            part.note,
+            transactionId,
+          ),
+      );
+      for (const tag of part.tags)
+        splitWrites.push(
+          db
+            .prepare(
+              'INSERT INTO split_tags SELECT ?,? WHERE EXISTS(SELECT 1 FROM transaction_splits WHERE id=?)',
+            )
+            .bind(id, tag, id),
+        );
+    }
   const results = await db.batch([
     db
       .prepare(
@@ -955,7 +1296,7 @@ app.post('/api/installment-plans/:id/advance', async (c) => {
         converted(paid, q.rate),
         q.source,
         plan.description,
-        plan.category_id,
+        allocatedParts[0]?.category ?? plan.category_id,
         `Antecipação de ${count} parcelas.`,
         plan.id,
         advanceId,
@@ -963,6 +1304,16 @@ app.post('/api/installment-plans/:id/advance', async (c) => {
         cycle.closingDate,
         advanceId,
       ),
+    ...splitWrites,
+    ...(allocatedParts.length === 1
+      ? allocatedParts[0].tags.map((tag) =>
+          db
+            .prepare(
+              'INSERT INTO transaction_tags SELECT ?,? WHERE EXISTS(SELECT 1 FROM transactions WHERE id=?)',
+            )
+            .bind(transactionId, tag, transactionId),
+        )
+      : []),
   ]);
   if (!results[1].meta.changes)
     fail('As parcelas ou a fatura atual mudaram. Atualize a compra.', 409);
@@ -1003,7 +1354,7 @@ app.put('/api/transactions/:id/splits', async (c) => {
   if (
     !['regular', 'installment'].includes(t.kind) ||
     t.origin === 'adjustment' ||
-    t.advance_id
+    (t.advance_id && t.installment_number !== null)
   )
     fail('Este lançamento não permite divisão.', 409);
   const b = object(await c.req.json());
@@ -1484,8 +1835,20 @@ const configTables = {
   'subscription-types': ['name'],
   tags: ['name', 'color'],
   'allocation-groups': ['name', 'target_percent'],
-  'category-groups': ['name', 'allocation_group_id'],
-  categories: ['name', 'category_group_id', 'is_income'],
+  'category-groups': [
+    'name',
+    'allocation_group_id',
+    'is_income',
+    'exclude_budget',
+    'exclude_totals',
+  ],
+  categories: [
+    'name',
+    'category_group_id',
+    'is_income',
+    'exclude_budget',
+    'exclude_totals',
+  ],
 } as const;
 for (const [route, fields] of Object.entries(configTables)) {
   const table = route.replaceAll('-', '_');
@@ -1523,6 +1886,11 @@ for (const [route, fields] of Object.entries(configTables)) {
           (method === 'post' || 'allocation_group_id' in b)
         )
           await exists(c.var.DB, 'allocation_groups', b.allocation_group_id);
+        if (route === 'categories' || route === 'category-groups') {
+          for (const flag of ['is_income', 'exclude_budget', 'exclude_totals'])
+            if (flag in b && ![0, 1].includes(b[flag] as number))
+              fail('Marca de categoria inválida.');
+        }
         if (route === 'categories') {
           if (method === 'post' || 'category_group_id' in b)
             await exists(c.var.DB, 'category_groups', b.category_group_id);
@@ -1570,7 +1938,6 @@ app.get('/api/recurring', async (c) => {
       })),
       summary: {},
     });
-  const bounds = monthBounds(month);
   const { results: transactions } = await db
     .prepare(
       `SELECT t.id,t.account_id,t.amount_cents,t.date,CASE WHEN t.origin='imported' THEN t.payee ELSE COALESCE(canonical.name,p.name,t.payee) END AS payee,
@@ -1578,7 +1945,16 @@ app.get('/api/recurring', async (c) => {
     FROM transactions t LEFT JOIN payees p ON p.id=t.payee_id LEFT JOIN payees canonical ON canonical.id=p.merged_into_id
     WHERE t.date>=? AND t.date<=? AND t.kind='regular' AND t.origin<>'adjustment' ORDER BY t.date,t.id`,
     )
-    .bind(bounds.from, bounds.to)
+    .bind(
+      new Date(
+        Date.parse(monthBounds(shiftMonth(month, -1)).from) - 7 * 86400000,
+      )
+        .toISOString()
+        .slice(0, 10),
+      new Date(Date.parse(monthBounds(shiftMonth(month, 1)).to) + 7 * 86400000)
+        .toISOString()
+        .slice(0, 10),
+    )
     .all<{
       id: string;
       account_id: string;
@@ -1587,37 +1963,15 @@ app.get('/api/recurring', async (c) => {
       payee: string;
       source_id: string | null;
     }>();
-  const used = new Set<string>();
-  const items = rows
-    .filter((r) => r.active)
-    .flatMap((r) =>
-      datesInMonth(r, month).map((due) => {
-        const match = transactions
-          .filter(
-            (t) =>
-              !used.has(t.id) &&
-              t.account_id === r.account_id &&
-              Math.sign(t.amount_cents) === Math.sign(r.amount_cents) &&
-              (t.source_id === r.id ||
-                (!t.source_id &&
-                  t.payee.toLocaleLowerCase('pt-BR') ===
-                    r.payee.toLocaleLowerCase('pt-BR'))),
-          )
-          .sort(
-            (a, b) =>
-              Math.abs(Date.parse(a.date) - Date.parse(due)) -
-              Math.abs(Date.parse(b.date) - Date.parse(due)),
-          )[0];
-        if (match) used.add(match.id);
-        return {
-          ...r,
-          due_date: due,
-          arrived: !!match,
-          transaction_id: match?.id ?? null,
-          actual_cents: match?.amount_cents ?? 0,
-        };
-      }),
-    );
+  const items = matchRecurring(rows, transactions, month).map(
+    ({ r, due, match }) => ({
+      ...r,
+      due_date: due,
+      arrived: !!match,
+      transaction_id: match?.id ?? null,
+      actual_cents: match?.amount_cents ?? 0,
+    }),
+  );
   const summary: Record<
     string,
     Record<string, { expected: number; actual: number }>

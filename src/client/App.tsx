@@ -7,7 +7,7 @@ import { RecurringScreen, SubscriptionTypes } from './screens/Recurring';
 import { Cards } from './screens/Cards';
 import { InstallmentPurchase } from './screens/InstallmentPurchase';
 import { Accounts } from './screens/Accounts';
-import { Categories, Tags, Payees } from './screens/Configuration';
+import { Categories, Tags, Payees, Preferences } from './screens/Configuration';
 export function App() {
   const [path, setPath] = useState(location.pathname);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -95,6 +95,7 @@ export function App() {
             ['/assinaturas', 'Assinaturas'],
             ['/tipos-assinatura', 'Tipos de assinatura'],
             ['/categorias', 'Categorias'],
+            ['/configuracoes', 'Configurações'],
             ['/tags', 'Tags'],
             ['/beneficiarios', 'Beneficiários'],
           ].map(([url, label]) => (
@@ -108,7 +109,7 @@ export function App() {
             </a>
           ))}
         </nav>
-        <p className="environment">Dados fictícios · Sessão G</p>
+        <p className="environment">Dados fictícios · Sessão H</p>
       </aside>
       <div className="workspace">
         {renewals.length > 0 && (
@@ -156,6 +157,8 @@ export function App() {
               onSaved={load}
               accounts={accounts}
             />
+          ) : path === '/configuracoes' ? (
+            <Preferences accounts={accounts} onSaved={load} />
           ) : path === '/categorias' ? (
             <Categories onSaved={load} />
           ) : path === '/tags' ? (
