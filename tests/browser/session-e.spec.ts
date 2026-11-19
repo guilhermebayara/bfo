@@ -51,18 +51,32 @@ test('Enter lança pela linha, prepara o próximo e edita campos na linha', asyn
   );
   await expect(form.getByLabel('Valor (BRL)', { exact: true })).toHaveValue('');
   await expect(form.getByLabel('Beneficiário', { exact: true })).toBeFocused();
-  const row = page
+  const rowId = await page
     .getByRole('row')
-    .filter({ hasText: 'Lançamento fictício E' });
-  await row
-    .getByRole('button', { name: 'Editar Lançamento fictício E' })
-    .click();
-  await row
-    .getByLabel('Beneficiário de Lançamento fictício E')
-    .fill('Beneficiário corrigido E');
+    .filter({ hasText: 'Lançamento fictício E' })
+    .getAttribute('data-transaction-id');
+  const row = page.locator(`tr[data-transaction-id="${rowId}"]`);
+  await row.locator('[data-sheet-cell="3"]').click();
   await row.getByLabel('Valor (BRL)').fill('25,99');
+  await row.getByLabel('Valor (BRL)').press('Tab');
+  await expect(row).toContainText('25,99');
+  await row.locator('[data-sheet-cell="6"]').click();
   await row.getByLabel('Nota de Lançamento fictício E').fill('Nota nova');
-  await row.getByRole('button', { name: 'Salvar', exact: true }).click();
+  await row.getByLabel('Nota de Lançamento fictício E').press('Tab');
+  await expect(row).toContainText('Nota nova');
+  await row.locator('[data-sheet-cell="2"]').click();
+  await row
+    .getByRole('textbox', {
+      name: 'Beneficiário de Lançamento fictício E',
+      exact: true,
+    })
+    .fill('Beneficiário corrigido E');
+  await row
+    .getByRole('textbox', {
+      name: 'Beneficiário de Lançamento fictício E',
+      exact: true,
+    })
+    .press('Tab');
   await expect(
     page.getByRole('row').filter({ hasText: 'Beneficiário corrigido E' }),
   ).toContainText('25,99');

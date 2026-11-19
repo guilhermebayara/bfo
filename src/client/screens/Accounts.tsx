@@ -1,6 +1,7 @@
+import { today } from '../../shared/dates';
 import { useEffect, useState, type FormEvent } from 'react';
 import type { Account, ActivationPreview } from '../../shared/types';
-import { formatMoney, parseMoney } from '../../shared/money';
+import { formatMoney, parseMoney, convert } from '../../shared/money';
 import { Button, MoneyField, Modal, Table } from '../components';
 import { api, humanDate } from '../api';
 import { Reconcile } from '../components/Reconcile';
@@ -14,7 +15,7 @@ function Activate({
   onClose: () => void;
   onActivated: () => Promise<void>;
 }) {
-  const [cutoff, setCutoff] = useState(new Date().toISOString().slice(0, 10));
+  const [cutoff, setCutoff] = useState(today());
   const [fxRate, setFxRate] = useState('');
   const [opening, setOpening] = useState('0,00');
   const [preview, setPreview] = useState<ActivationPreview | null>(null);
@@ -156,10 +157,9 @@ export function Accounts({
     const abort = new AbortController();
     for (const code of new Set(accounts.map((a) => a.currency)))
       if (code !== 'BRL')
-        api<{ rate: number }>(
-          `/fx?currency=${code}&date=${new Date().toISOString().slice(0, 10)}`,
-          { signal: abort.signal },
-        )
+        api<{ rate: number }>(`/fx?currency=${code}&date=${today()}`, {
+          signal: abort.signal,
+        })
           .then((q) => setRates((r) => ({ ...r, [code]: q.rate })))
           .catch(() => {});
     return () => abort.abort();
@@ -197,9 +197,7 @@ export function Accounts({
               {a.currency !== 'BRL' && (
                 <small>
                   {rates[a.currency]
-                    ? formatMoney(
-                        Math.round(a.balance_cents * rates[a.currency]),
-                      )
+                    ? formatMoney(convert(a.balance_cents, rates[a.currency]))
                     : 'Conversão em reais indisponível'}
                 </small>
               )}
@@ -251,7 +249,11 @@ export function Accounts({
         const list = active.filter((a) => group(a) === name);
         const complete = list.every((a) => rates[a.currency]);
         const total = list.reduce(
-          (n, a) => n + Math.round(a.balance_cents * (rates[a.currency] ?? 0)),
+          (n, a) =>
+            n +
+            (rates[a.currency]
+              ? convert(a.balance_cents, rates[a.currency])
+              : 0),
           0,
         );
         return (

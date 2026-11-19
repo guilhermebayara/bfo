@@ -49,7 +49,7 @@ export function SplitTransaction({
         if (rows.length)
           setParts(
             rows.map((p) => ({
-              value: String(Math.abs(p.amount_cents) / 100),
+              value: String(Math.abs(p.amount_cents) / 100).replace('.', ','),
               category_id: p.category_id ?? '',
               note: p.note,
               tag_ids: p.tags.map((t) => t.id),
@@ -227,10 +227,12 @@ export function SplitDetails({
   id,
   categories,
   currency,
+  refresh,
 }: {
   id: string;
   categories: Category[];
   currency: string;
+  refresh?: unknown;
 }) {
   const [parts, setParts] = useState<TransactionSplit[]>([]),
     [error, setError] = useState('');
@@ -244,7 +246,7 @@ export function SplitDetails({
         if (!abort.signal.aborted) setError(e.message);
       });
     return () => abort.abort();
-  }, [id]);
+  }, [id, refresh]);
   return (
     <>
       <small role="alert">{error}</small>

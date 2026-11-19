@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { Account, Category, Recurring } from '../shared/types';
 import { Button } from './components';
 import { api } from './api';
@@ -16,7 +16,9 @@ export function App() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
   const [revision, setRevision] = useState(0);
+  const loadSequence = useRef(0);
   async function load() {
+    const sequence = ++loadSequence.current;
     try {
       setError('');
       const [a, c, subscriptions] = await Promise.all([
@@ -24,13 +26,14 @@ export function App() {
         api<Category[]>('/categories'),
         api<Recurring[]>('/subscriptions'),
       ]);
+      if (sequence !== loadSequence.current) return;
       setRenewals(subscriptions.filter((r) => r.renewal_soon));
       setAccounts(a);
       setCategories(c);
       setReady(true);
       setRevision((v) => v + 1);
     } catch (e) {
-      setError((e as Error).message);
+      if (sequence === loadSequence.current) setError((e as Error).message);
     }
   }
   useEffect(() => {
@@ -105,7 +108,7 @@ export function App() {
             </a>
           ))}
         </nav>
-        <p className="environment">Dados fictícios · Sessão F</p>
+        <p className="environment">Dados fictícios · Sessão G</p>
       </aside>
       <div className="workspace">
         {renewals.length > 0 && (

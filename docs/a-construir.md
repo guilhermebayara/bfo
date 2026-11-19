@@ -33,8 +33,13 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
   - [x] Prazo de aviso por assinatura, padrão de 30 dias, editável no cadastro e usado na faixa de renovação.
   - [x] Migração 0005 e seed fictício aplicados e conferidos em `bfo-teste` e `bfo-homologacao`, sem alterações em produção. Exemplos isolados: Cartão de parcelas fictício e Conta de divisão fictícia.
   - [x] Build, 83 testes de API/regras e 18 testes de navegador aprovados. Interface neutra mantida, com os tokens existentes.
-- [ ] Ajuste de clareza (revisão da Sessão F pelo dono): o caminho para lançar uma compra parcelada que já começou não está claro. No lançamento, a escolha "parcelado" deve mostrar o campo "parcela atual" com uma explicação curta (a parcela que aparece na fatura deste mês) e uma prévia das parcelas que serão criadas, com as passadas marcadas como retroativas, antes de salvar.
-- [ ] Sessão G: script de importação do Lunch Money (API v2), apagar e refazer importação. Construída e testada só com dados simulados; a importação real espera o repositório privado.
+- [x] Ajuste de clareza (concluído na Sessão G, revisão da Sessão F pelo dono): o caminho para lançar uma compra parcelada que já começou não está claro. No lançamento, a escolha "parcelado" deve mostrar o campo "parcela atual" com uma explicação curta (a parcela que aparece na fatura deste mês) e uma prévia das parcelas que serão criadas, com as passadas marcadas como retroativas, antes de salvar.
+- [x] Sessão G: revisão de código das sessões A a F, antes da importação real.
+  - [x] Revisão das regras financeiras, validação da API, datas em America/Sao_Paulo, índices e migrações, com achados e exemplos em [docs/revisao-codigo.md](revisao-codigo.md).
+  - [x] 17 defeitos corrigidos (7 altos, 9 médios, 1 baixo), 97 testes de API/regras/migrações e 28 testes de navegador aprovados. Edição como planilha em Transações, salvamento automático, teclado e atualização das telas dependentes cobertos no navegador.
+  - [x] Esclarecimento do dono aplicado: importadas permitem categoria, nota, tags e divisão; valor total e data permanecem travados.
+  - [x] Lançamento parcelado com explicação da parcela atual e prévia completa, incluindo as retroativas antes de salvar.
+- [ ] Sessão H: script de importação do Lunch Money (API v2), apagar e refazer importação. Construída e testada só com dados simulados; a importação real espera o repositório privado.
 
 - [ ] Conceito visual: feito no Claude depois que a estrutura da fase 1 estiver redonda. Duas propostas numa prévia, o dono escolhe olhando a tela, e só então o visual é aplicado.
 

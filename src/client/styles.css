@@ -395,3 +395,31 @@ td input,
 td select {
   min-width: var(--field-width);
 }
+
+.sheet-cell {
+  cursor: text;
+  min-width: 7rem;
+}
+.sheet-cell:focus {
+  outline: var(--focus-line) solid var(--focus);
+  outline-offset: -2px;
+}
+.sheet-locked {
+  cursor: default;
+  background: var(--bg);
+}
+.sheet-locked::after {
+  content: ' 🔒';
+  font-size: var(--text-small);
+  opacity: 0.6;
+}
+.cell-editor {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.cell-editor input,
+.cell-editor select {
+  max-width: 100%;
+}

@@ -1,3 +1,4 @@
+import { roundRatio } from './money';
 export const RENEWAL_NOTICE_DAYS = 30;
 export function currentMonth() {
   return new Intl.DateTimeFormat('sv-SE', {
@@ -99,14 +100,16 @@ export function monthlyEquivalent(
   cadence: string,
   intervalDays?: number | null,
 ) {
-  return Math.round(
-    cadence === 'yearly'
-      ? amount / 12
-      : cadence === 'weekly'
-        ? (amount * 52) / 12
+  return roundRatio(
+    BigInt(amount) *
+      BigInt(cadence === 'weekly' ? 52 : cadence === 'custom' ? 365 : 1),
+    BigInt(
+      cadence === 'monthly'
+        ? 1
         : cadence === 'custom'
-          ? (amount * 365) / (12 * (intervalDays || 1))
-          : amount,
+          ? 12 * (intervalDays || 1)
+          : 12,
+    ),
   );
 }
 export function renewalSoon(
