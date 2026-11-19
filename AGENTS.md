@@ -45,7 +45,7 @@ Mesmo modelo do acervo da família (repo bayaranascimento): um Worker só, com p
 
 - Worker `bfo`. Branch de produção: `main`, publicada em bfo.bayara.design.
 - Toda outra branch vira uma prévia em `<branch>.bfo.bayara.design` (rota com `previews_enabled`). A homologação é a prévia da branch `homologacao`: homologacao.bfo.bayara.design.
-- Produção usa o D1 `bfo-producao`. As prévias, incluindo a homologação, usam o D1 `bfo-homologacao` (bloco `previews` do wrangler).
+- Produção usa o D1 `bfo-producao`. A homologação usa o `bfo-homologacao`. As prévias `tst-` usam o `bfo-teste`, só com dados fictícios. Detalhe em `docs/briefs/infra-dominio.md`.
 - Cada sessão trabalha numa branch `tst-<assunto>` criada a partir de `homologacao` e envia a branch ao terminar.
 - O chat de gestão abre o PR, confere build e testes e faz o merge com squash na `homologacao`, depois que o dono olha.
 - Produção recebe `homologacao` por fast-forward, em rodadas, só quando o dono aprova.
