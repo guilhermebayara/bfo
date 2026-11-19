@@ -21,6 +21,8 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
 
 - [x] Ajuste técnico (Sessão B): a Cloudflare trocou as prévias por versão com alias pelo recurso Previews, com comando padrão `npx wrangler preview`. Migrar a configuração (bloco `previews` no ambiente homologacao do wrangler, comando de prévia com o ambiente) e atualizar docs/cloudflare.md com os nomes atuais do painel (Settings > Build, preview builds, Preview command).
 
+- [ ] Ajuste de fluxo (próxima sessão): migração automática no deploy da homologação (comando de deploy aplica `wrangler d1 migrations apply DB --remote --env homologacao` antes do `wrangler deploy --env homologacao`), remover a configuração de prévias por branch e reescrever docs/cloudflare.md para o fluxo simples. Se o token do Workers Builds não tiver permissão no D1, documentar o passo para o dono liberar.
+
 ## Fase 2: Patrimônio
 
 - [ ] Contas de saldo, atualização mensal, investimentos por tipo, aporte e rendimento, empréstimos, patrimônio líquido ao longo do tempo. Brief a escrever quando a fase 1 estiver redonda.

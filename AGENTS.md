@@ -42,10 +42,12 @@ Este arquivo vale para qualquer agente (Codex, Claude Code). O CLAUDE.md aponta 
 ## Branches e deploy
 
 - `main` é produção. `homologacao` é homologação.
-- Cada sessão trabalha numa branch `tst-<assunto>` criada a partir de `homologacao` e abre PR para `homologacao`. O merge é feito com squash, depois que o dono olha.
-- Produção recebe `homologacao` por fast-forward, em rodadas, quando o dono aprova.
+- Cada sessão trabalha numa branch `tst-<assunto>` criada a partir de `homologacao` e envia a branch ao terminar.
+- O chat de gestão abre o PR, confere build e testes e faz o merge com squash na `homologacao`. A homologação é o ambiente de revisão do dono.
+- Produção recebe `homologacao` por fast-forward, em rodadas, só quando o dono aprova.
 - Nunca force push.
-- Homologação roda no endereço gratuito do Workers, protegido pelo Access. Domínio próprio só na produção.
+- O deploy da homologação aplica as migrações do D1 sozinho. Seed e importação são manuais, só quando pedidos.
+- Sem prévias por branch. Homologação roda no endereço gratuito do Workers, protegido pelo Access. Domínio próprio só na produção.
 
 ## Fim de toda sessão
 
