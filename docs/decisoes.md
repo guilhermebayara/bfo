@@ -88,6 +88,7 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 
 - Transações tem um resumo lateral do mês: renda e despesas por grupo e categoria, com barra por categoria, como no Lunch Money.
 - Com orçamento (fase 3), no mês corrente a barra mostra uma marca de ritmo: onde o gasto deveria estar naquele dia do mês. Passar da marca é um sinal visual leve de que o mês está no ritmo de estourar.
+- Cálculo da marca de ritmo: nas categorias com recorrentes, cada conta fixa entra na marca no dia previsto dela. O resto do orçado da categoria segue uma linha reta ao longo do mês. Assim, o aluguel pago no dia 5 não vira alerta.
 - Gastar exatamente o orçado conta como dentro do orçamento, sem cor de alerta. O dono acha o amarelo do Lunch Money ambíguo justamente por isso. As cores em si ficam para o conceito visual.
 
 ## Recorrentes e assinaturas
