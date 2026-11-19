@@ -13,15 +13,14 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
   - Moedas: moeda por conta, valor original e em reais, cotação PTAX automática com correção manual.
   - Front separado em componentes e telas.
   - Migração nova, seed ampliado, testes e configuração de Previews implementados. Migração/seed remotos e configuração do painel seguem os passos em `docs/cloudflare.md`.
-- [ ] Sessão C: cartão, fatura, parceladas, pagar fatura, conferência.
-- [ ] Sessão D: recorrentes, assinaturas, aviso de renovação.
-- [ ] Sessão E: script de importação do Lunch Money (API v2), apagar e refazer importação.
+- [x] Sessão C: infraestrutura no modelo do acervo da família. Configuração do painel e publicação em [Cloudflare](cloudflare.md).
+- [ ] Sessão D: cartão, fatura, parceladas, pagar fatura, conferência.
+- [ ] Sessão E: recorrentes, assinaturas, aviso de renovação.
+- [ ] Sessão F: script de importação do Lunch Money (API v2), apagar e refazer importação.
 
 - [ ] Conceito visual: feito no Claude depois que a estrutura da fase 1 estiver redonda. Duas propostas numa prévia, o dono escolhe olhando a tela, e só então o visual é aplicado.
 
 - [x] Ajuste técnico (Sessão B): a Cloudflare trocou as prévias por versão com alias pelo recurso Previews, com comando padrão `npx wrangler preview`. Migrar a configuração (bloco `previews` no ambiente homologacao do wrangler, comando de prévia com o ambiente) e atualizar docs/cloudflare.md com os nomes atuais do painel (Settings > Build, preview builds, Preview command).
-
-- [ ] Infraestrutura igual à do acervo da família: brief em docs/briefs/infra-dominio.md. Espera o bayara.design ativo na conta BFO.
 
 ## Fase 2: Patrimônio
 

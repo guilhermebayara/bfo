@@ -1,8 +1,12 @@
 import { Hono } from 'hono';
 import { ptax, convert } from './fx';
 import type { Account } from '../shared/types';
-type Bindings = { DB: D1Database; ASSETS: Fetcher };
-const app = new Hono<{ Bindings: Bindings }>();
+type Bindings = {
+  DB: D1Database;
+  DB_HOMOLOGACAO?: D1Database;
+  ASSETS: Fetcher;
+};
+const app = new Hono<{ Bindings: Bindings; Variables: { DB: D1Database } }>();
 class InputError extends Error {
   constructor(
     message: string,
@@ -54,9 +58,10 @@ app.onError((error, c) => {
   );
 });
 app.use('/api/*', async (c, next) => {
+  const url = new URL(c.req.url);
   if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(c.req.method)) {
     const origin = c.req.header('Origin');
-    if (origin && origin !== new URL(c.req.url).origin)
+    if (origin && origin !== url.origin)
       return c.json({ error: 'Origem não permitida.' }, 403);
     if (
       !c.req
@@ -68,17 +73,23 @@ app.use('/api/*', async (c, next) => {
   }
   c.header('Cache-Control', 'no-store');
   c.header('X-Content-Type-Options', 'nosniff');
+  const db =
+    url.hostname === 'homologacao.bfo.bayara.design'
+      ? c.env.DB_HOMOLOGACAO
+      : c.env.DB;
+  if (!db) throw new Error('Binding D1 ausente para este endereço.');
+  c.set('DB', db);
   await next();
 });
 app.get('/api/health', async (c) => {
-  await c.env.DB.prepare('SELECT 1').first();
+  await c.var.DB.prepare('SELECT 1').first();
   return c.json({ ok: true });
 });
 const balanceSql = `CASE WHEN a.cutoff_date IS NULL THEN
  -COALESCE((SELECT SUM(t.amount_cents) FROM transactions t WHERE t.account_id=a.id AND t.date<=date('now')),0)
  ELSE a.opening_balance_cents-COALESCE((SELECT SUM(t.amount_cents) FROM transactions t WHERE t.account_id=a.id AND t.date>a.cutoff_date AND t.date<=date('now')),0) END`;
 app.get('/api/accounts', async (c) => {
-  const { results } = await c.env.DB.prepare(
+  const { results } = await c.var.DB.prepare(
     `SELECT a.*, i.name AS institution_name, ${balanceSql} AS balance_cents FROM accounts a LEFT JOIN institutions i ON i.id=a.institution_id ORDER BY i.sort,i.name,a.name`,
   ).all<Account>();
   return c.json(results);
@@ -86,7 +97,7 @@ app.get('/api/accounts', async (c) => {
 app.get('/api/account-options', async (c) =>
   c.json(
     (
-      await c.env.DB.prepare(
+      await c.var.DB.prepare(
         'SELECT id,name,currency FROM accounts WHERE closed_at IS NULL AND archived=0 ORDER BY name',
       ).all()
     ).results,
@@ -95,7 +106,7 @@ app.get('/api/account-options', async (c) =>
 app.get('/api/categories', async (c) =>
   c.json(
     (
-      await c.env.DB.prepare(
+      await c.var.DB.prepare(
         'SELECT c.*, g.name AS group_name, ag.name AS allocation_name FROM categories c JOIN category_groups g ON g.id=c.category_group_id JOIN allocation_groups ag ON ag.id=g.allocation_group_id ORDER BY g.sort,c.sort,c.name',
       ).all()
     ).results,
@@ -139,12 +150,12 @@ app.get('/api/transactions', async (c) => {
   if (!Number.isSafeInteger(page) || page < 1 || page > 1000000)
     fail('Página inválida.');
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-  const total = await c.env.DB.prepare(
+  const total = await c.var.DB.prepare(
     `SELECT COUNT(*) AS count FROM transactions t ${where}`,
   )
     .bind(...params)
     .first<{ count: number }>();
-  const { results } = await c.env.DB.prepare(
+  const { results } = await c.var.DB.prepare(
     `SELECT t.*, COALESCE(canonical.name,p.name,t.payee) AS payee, COALESCE(p.merged_into_id,p.id) AS payee_id, a.name AS account_name, ag.name AS allocation_name, (SELECT json_group_array(json_object('id',tags.id,'name',tags.name,'color',tags.color)) FROM transaction_tags tt JOIN tags ON tags.id=tt.tag_id WHERE tt.transaction_id=t.id) AS tags_json FROM transactions t JOIN accounts a ON a.id=t.account_id LEFT JOIN payees p ON p.id=t.payee_id LEFT JOIN payees canonical ON canonical.id=p.merged_into_id LEFT JOIN categories cat ON cat.id=t.category_id LEFT JOIN category_groups cg ON cg.id=cat.category_group_id LEFT JOIN allocation_groups ag ON ag.id=cg.allocation_group_id ${where} ORDER BY t.date DESC,t.id LIMIT 50 OFFSET ?`,
   )
     .bind(...params, (page - 1) * 50)
@@ -159,7 +170,7 @@ app.patch('/api/transactions/:id', async (c) => {
   const body = object(await c.req.json());
   keys(body, ['category_id', 'note']);
   if (!Object.keys(body).length) fail('Informe categoria ou nota.');
-  const transaction = await c.env.DB.prepare(
+  const transaction = await c.var.DB.prepare(
     'SELECT id FROM transactions WHERE id=?',
   )
     .bind(c.req.param('id'))
@@ -172,7 +183,7 @@ app.patch('/api/transactions/:id', async (c) => {
       fail('Categoria inválida.');
     if (
       body.category_id !== null &&
-      !(await c.env.DB.prepare('SELECT id FROM categories WHERE id=?')
+      !(await c.var.DB.prepare('SELECT id FROM categories WHERE id=?')
         .bind(body.category_id)
         .first())
     )
@@ -186,7 +197,7 @@ app.patch('/api/transactions/:id', async (c) => {
     fields.push('note=?');
     values.push(body.note as string);
   }
-  await c.env.DB.prepare(
+  await c.var.DB.prepare(
     `UPDATE transactions SET ${fields.join(',')} WHERE id=?`,
   )
     .bind(...values, c.req.param('id'))
@@ -224,7 +235,7 @@ async function activation(
 }
 app.post('/api/accounts/:id/activation-preview', async (c) => {
   const a = await activation(
-    c.env.DB,
+    c.var.DB,
     c.req.param('id'),
     object(await c.req.json()),
   );
@@ -237,11 +248,11 @@ app.post('/api/accounts/:id/activation-preview', async (c) => {
 app.post('/api/accounts/:id/activate', async (c) => {
   const body = object(await c.req.json());
   const accountId = c.req.param('id');
-  const a = await activation(c.env.DB, accountId, body);
+  const a = await activation(c.var.DB, accountId, body);
   const id = crypto.randomUUID();
   // D1 batch is transactional. Compute the adjustment again inside the write transaction.
-  const result = await c.env.DB.batch([
-    c.env.DB.prepare(
+  const result = await c.var.DB.batch([
+    c.var.DB.prepare(
       `INSERT INTO transactions (id,account_id,date,amount_cents,payee,note,origin,kind,activation_account_id,currency,fx_rate,amount_brl_cents,fx_source)
    SELECT ?,a.id,?,(SELECT -COALESCE(SUM(amount_cents),0) FROM transactions WHERE account_id=a.id AND date<=?)-?,
    'Ajuste de abertura','Diferença entre o arquivo e o saldo de abertura informado.','adjustment','regular',a.id,a.currency,?,round(((SELECT -COALESCE(SUM(amount_cents),0) FROM transactions WHERE account_id=a.id AND date<=?)-?)*?),?
@@ -258,7 +269,7 @@ app.post('/api/accounts/:id/activate', async (c) => {
       a.q.source,
       accountId,
     ),
-    c.env.DB.prepare(
+    c.var.DB.prepare(
       `UPDATE accounts SET cutoff_date=?,opening_balance_cents=? WHERE id=? AND cutoff_date IS NULL AND EXISTS (SELECT 1 FROM transactions WHERE id=?)`,
     ).bind(a.cutoff, a.opening, accountId, id),
   ]);
@@ -328,7 +339,7 @@ app.get('/api/fx', async (c) => {
   const code = currency(c.req.query('currency'));
   const day = date(c.req.query('date'));
   try {
-    return c.json({ rate: await quote(c.env.DB, code, day), source: 'ptax' });
+    return c.json({ rate: await quote(c.var.DB, code, day), source: 'ptax' });
   } catch {
     return c.json(
       {
@@ -342,7 +353,7 @@ app.get('/api/fx', async (c) => {
 app.get('/api/institutions', async (c) =>
   c.json(
     (
-      await c.env.DB.prepare(
+      await c.var.DB.prepare(
         'SELECT * FROM institutions ORDER BY sort,name',
       ).all()
     ).results,
@@ -363,7 +374,7 @@ app.post('/api/accounts', async (c) => {
   const code = currency(b.currency ?? 'BRL');
   if (!['checking', 'credit_card', 'cash'].includes(String(b.kind)))
     fail('Tipo inválido.');
-  await exists(c.env.DB, 'institutions', b.institution_id);
+  await exists(c.var.DB, 'institutions', b.institution_id);
   const opening = cents(b.opening_balance_cents ?? 0);
   for (const field of ['closing_day', 'due_day'])
     if (
@@ -375,7 +386,7 @@ app.post('/api/accounts', async (c) => {
       fail('Dia inválido.');
   const id = crypto.randomUUID();
   // Corte no dia anterior permite lançamentos no próprio dia da criação.
-  await c.env.DB.prepare(
+  await c.var.DB.prepare(
     "INSERT INTO accounts(id,name,kind,currency,institution_id,opening_balance_cents,cutoff_date,closing_day,due_day) VALUES(?,?,?,?,?,?,date('now','-1 day'),?,?)",
   )
     .bind(
@@ -408,7 +419,7 @@ app.post('/api/transactions', async (c) => {
   const amount = cents(b.amount_cents);
   if (!amount) fail('Informe valor diferente de zero.');
   const name = text(b.payee, 'Beneficiário');
-  const account = await c.env.DB.prepare('SELECT * FROM accounts WHERE id=?')
+  const account = await c.var.DB.prepare('SELECT * FROM accounts WHERE id=?')
     .bind(b.account_id)
     .first<Account>();
   if (!account) fail('Conta não encontrada.', 404);
@@ -417,7 +428,7 @@ app.post('/api/transactions', async (c) => {
   if (day <= account!.cutoff_date!)
     fail('O lançamento deve ser posterior ao corte.');
   if (b.category_id != null)
-    await exists(c.env.DB, 'categories', b.category_id);
+    await exists(c.var.DB, 'categories', b.category_id);
   if (
     b.note !== undefined &&
     (typeof b.note !== 'string' || b.note.length > 2000)
@@ -429,16 +440,16 @@ app.post('/api/transactions', async (c) => {
   )
     fail('Tags inválidas.');
   const tags = [...new Set((b.tag_ids ?? []) as string[])];
-  for (const id of tags) await exists(c.env.DB, 'tags', id);
-  const q = await fx(c.env.DB, account!.currency, day, b.fx_rate);
+  for (const id of tags) await exists(c.var.DB, 'tags', id);
+  const q = await fx(c.var.DB, account!.currency, day, b.fx_rate);
   const brl = converted(amount, q.rate);
   const id = crypto.randomUUID();
   const payeeId = crypto.randomUUID();
-  await c.env.DB.batch([
-    c.env.DB.prepare(
+  await c.var.DB.batch([
+    c.var.DB.prepare(
       'INSERT INTO payees(id,name) VALUES(?,?) ON CONFLICT(name) DO NOTHING',
     ).bind(payeeId, name),
-    c.env.DB.prepare(
+    c.var.DB.prepare(
       "INSERT INTO transactions(id,account_id,date,amount_cents,currency,fx_rate,amount_brl_cents,fx_source,payee,payee_id,category_id,note,origin,kind) SELECT ?,?,?,?,?,?,?,?,?,COALESCE(merged_into_id,id),?,?,'manual','regular' FROM payees WHERE name=? COLLATE NOCASE",
     ).bind(
       id,
@@ -455,7 +466,7 @@ app.post('/api/transactions', async (c) => {
       name,
     ),
     ...tags.map((tag) =>
-      c.env.DB.prepare('INSERT INTO transaction_tags VALUES(?,?)').bind(
+      c.var.DB.prepare('INSERT INTO transaction_tags VALUES(?,?)').bind(
         id,
         tag,
       ),
@@ -469,7 +480,7 @@ app.post('/api/transactions', async (c) => {
 app.get('/api/payees', async (c) =>
   c.json(
     (
-      await c.env.DB.prepare(
+      await c.var.DB.prepare(
         `SELECT p.id,p.name,COUNT(t.id) AS count,MIN(t.date) AS first_date,MAX(t.date) AS last_date FROM payees p LEFT JOIN payees alias ON alias.id=p.id OR alias.merged_into_id=p.id LEFT JOIN transactions t ON t.payee_id=alias.id WHERE p.merged_into_id IS NULL GROUP BY p.id ORDER BY p.name`,
       ).all()
     ).results,
@@ -477,14 +488,14 @@ app.get('/api/payees', async (c) =>
 );
 app.get('/api/payees/suggestion', async (c) => {
   const name = text(c.req.query('name'), 'Beneficiário');
-  const last = await c.env.DB.prepare(
+  const last = await c.var.DB.prepare(
     `SELECT t.id,t.category_id FROM transactions t JOIN payees p ON p.id=t.payee_id WHERE COALESCE(p.merged_into_id,p.id)=(SELECT COALESCE(merged_into_id,id) FROM payees WHERE name=? COLLATE NOCASE) AND t.origin<>'adjustment' ORDER BY t.date DESC,t.created_at DESC,t.id DESC LIMIT 1`,
   )
     .bind(name)
     .first<{ id: string; category_id: string | null }>();
   const tags = last
     ? (
-        await c.env.DB.prepare(
+        await c.var.DB.prepare(
           'SELECT tag_id FROM transaction_tags WHERE transaction_id=?',
         )
           .bind(last.id)
@@ -504,7 +515,7 @@ app.post('/api/payees/merge', async (c) => {
   )
     fail('Selecione nomes distintos do destino.');
   if (typeof b.target_id !== 'string') fail('Destino inválido.');
-  const target = await c.env.DB.prepare(
+  const target = await c.var.DB.prepare(
     'SELECT id FROM payees WHERE id=? AND merged_into_id IS NULL',
   )
     .bind(b.target_id)
@@ -512,17 +523,17 @@ app.post('/api/payees/merge', async (c) => {
   if (!target) fail('Destino inválido.');
   const sources = [...new Set(b.source_ids as string[])];
   for (const id of sources) {
-    await exists(c.env.DB, 'payees', id);
-    const source = await c.env.DB.prepare(
+    await exists(c.var.DB, 'payees', id);
+    const source = await c.var.DB.prepare(
       'SELECT merged_into_id FROM payees WHERE id=?',
     )
       .bind(id)
       .first();
     if (source!.merged_into_id) fail('Beneficiário já unificado.', 409);
   }
-  await c.env.DB.batch(
+  await c.var.DB.batch(
     sources.map((id) =>
-      c.env.DB.prepare(
+      c.var.DB.prepare(
         'UPDATE payees SET merged_into_id=? WHERE id=? OR merged_into_id=?',
       ).bind(b.target_id, id, id),
     ),
@@ -538,7 +549,7 @@ app.post('/api/accounts/:id/reconcile', async (c) => {
     'fx_rate',
   ]);
   const bank = cents(b.bank_balance_cents);
-  const a = await c.env.DB.prepare(
+  const a = await c.var.DB.prepare(
     `SELECT a.*,${balanceSql} AS balance_cents FROM accounts a WHERE id=?`,
   )
     .bind(c.req.param('id'))
@@ -558,21 +569,21 @@ app.post('/api/accounts/:id/reconcile', async (c) => {
   if (cents(b.expected_balance_cents) !== a!.balance_cents)
     fail('Saldo alterado. Confira novamente.', 409);
   const day = new Date().toISOString().slice(0, 10);
-  const q = await fx(c.env.DB, a!.currency, day, b.fx_rate);
+  const q = await fx(c.var.DB, a!.currency, day, b.fx_rate);
   const id = crypto.randomUUID();
   const tx = crypto.randomUUID();
   const brl = converted(adjustment, q.rate);
-  const results = await c.env.DB.batch([
-    c.env.DB.prepare(
+  const results = await c.var.DB.batch([
+    c.var.DB.prepare(
       `INSERT INTO reconciliations(id,account_id,date,bank_balance_cents,app_balance_cents) SELECT ?,a.id,?,?,? FROM accounts a WHERE a.id=? AND a.closed_at IS NULL AND a.archived=0 AND a.cutoff_date IS NOT NULL AND ${balanceSql}=?`,
     ).bind(id, day, bank, a!.balance_cents, a!.id, a!.balance_cents),
-    c.env.DB.prepare(
+    c.var.DB.prepare(
       "INSERT INTO transactions(id,account_id,date,amount_cents,currency,fx_rate,amount_brl_cents,fx_source,payee,note,origin,kind) SELECT ?,account_id,date,app_balance_cents-bank_balance_cents,?,?,?,?,'Conferência de saldo','Ajuste visível da conferência de saldo.','adjustment','regular' FROM reconciliations WHERE id=? AND app_balance_cents<>bank_balance_cents",
     ).bind(tx, a!.currency, q.rate, brl, q.source, id),
-    c.env.DB.prepare(
+    c.var.DB.prepare(
       'UPDATE reconciliations SET adjustment_transaction_id=(SELECT id FROM transactions WHERE id=?) WHERE id=?',
     ).bind(tx, id),
-    c.env.DB.prepare(
+    c.var.DB.prepare(
       'UPDATE accounts SET last_reconciled_at=? WHERE id=? AND EXISTS(SELECT 1 FROM reconciliations WHERE id=?)',
     ).bind(day, a!.id, id),
   ]);
@@ -593,7 +604,7 @@ for (const [route, fields] of Object.entries(configTables)) {
   if (route !== 'categories' && route !== 'institutions')
     app.get(`/api/${route}`, async (c) =>
       c.json(
-        (await c.env.DB.prepare(`SELECT * FROM ${table} ORDER BY name`).all())
+        (await c.var.DB.prepare(`SELECT * FROM ${table} ORDER BY name`).all())
           .results,
       ),
     );
@@ -623,24 +634,24 @@ for (const [route, fields] of Object.entries(configTables)) {
           route === 'category-groups' &&
           (method === 'post' || 'allocation_group_id' in b)
         )
-          await exists(c.env.DB, 'allocation_groups', b.allocation_group_id);
+          await exists(c.var.DB, 'allocation_groups', b.allocation_group_id);
         if (route === 'categories') {
           if (method === 'post' || 'category_group_id' in b)
-            await exists(c.env.DB, 'category_groups', b.category_group_id);
+            await exists(c.var.DB, 'category_groups', b.category_group_id);
           if ('is_income' in b && ![0, 1].includes(b.is_income as number))
             fail('Tipo de categoria inválido.');
         }
         const id = method === 'post' ? crypto.randomUUID() : c.req.param('id');
-        if (method === 'patch') await exists(c.env.DB, table, id);
+        if (method === 'patch') await exists(c.var.DB, table, id);
         const columns = Object.keys(b);
         if (method === 'post')
-          await c.env.DB.prepare(
+          await c.var.DB.prepare(
             `INSERT INTO ${table}(id,${columns.join(',')}) VALUES(?,${columns.map(() => '?').join(',')})`,
           )
             .bind(id, ...Object.values(b))
             .run();
         else
-          await c.env.DB.prepare(
+          await c.var.DB.prepare(
             `UPDATE ${table} SET ${columns.map((k) => `${k}=?`).join(',')} WHERE id=?`,
           )
             .bind(...Object.values(b), id)
