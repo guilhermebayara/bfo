@@ -48,12 +48,32 @@ it('aplica a revisão sobre banco da Sessão F e reaplica sem mudar dados nem re
       )
       .all<{ name: string }>()
   ).results.map((t) => t.name);
+  const columns = new Map(
+    await Promise.all(
+      tables.map(
+        async (name) =>
+          [
+            name,
+            (
+              await db
+                .prepare(`PRAGMA table_info(${name})`)
+                .all<{ name: string }>()
+            ).results
+              .map((c) => c.name)
+              .join(','),
+          ] as const,
+      ),
+    ),
+  );
   async function snapshot() {
     return Promise.all(
       tables.map(async (name) => [
         name,
-        (await db.prepare(`SELECT * FROM ${name} ORDER BY rowid`).all())
-          .results,
+        (
+          await db
+            .prepare(`SELECT ${columns.get(name)} FROM ${name} ORDER BY rowid`)
+            .all()
+        ).results,
       ]),
     );
   }

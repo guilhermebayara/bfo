@@ -6,6 +6,7 @@ test('filtra transações, edita uma importada e mantém os dados após recarreg
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/transacoes/2025-09');
+  await page.getByRole('button', { name: /^Filtros/ }).click();
   await expect(
     page.getByRole('heading', { name: 'Transações', exact: true }),
   ).toBeVisible();
@@ -22,7 +23,7 @@ test('filtra transações, edita uma importada e mantém os dados após recarreg
     page.getByText('2 transações ·', { exact: false }),
   ).toBeVisible();
   const row = page.getByRole('row').filter({ hasText: 'Renda fictícia' });
-  await expect(row.getByText('Entrada (+)')).toBeVisible();
+  await expect(row.locator('[data-sheet-cell="3"]')).toContainText('+');
   await row.locator('[data-sheet-cell="4"]').click();
   await row.getByRole('combobox').selectOption('groceries');
   await row.locator('[data-sheet-cell="6"]').click();
@@ -34,6 +35,7 @@ test('filtra transações, edita uma importada e mantém os dados após recarreg
     .press('Tab');
   await expect(row).toContainText('Nota conferida no navegador');
   await page.reload();
+  await page.getByRole('button', { name: /^Filtros/ }).click();
   await page.getByLabel('Data inicial').fill('2025-09-01');
   await page.getByLabel('Data final').fill('2025-09-30');
   await page
@@ -89,6 +91,7 @@ test('prévia, correção e confirmação de ativação com ajuste visível', as
   await page.reload();
   await expect(row).toContainText('Ativa desde 31/10/2026');
   await page.goto('/transacoes/2026-10');
+  await page.getByRole('button', { name: /^Filtros/ }).click();
   await page
     .getByRole('region', { name: 'Filtros de transações' })
     .getByRole('combobox', { name: 'Conta', exact: true })
@@ -116,6 +119,7 @@ test('modal cancela sem ativar e interface cabe em tela pequena', async ({
   await expect(row).toContainText('Só arquivo');
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/transacoes');
+  await page.getByRole('button', { name: /^Filtros/ }).click();
   await expect(
     page.getByRole('heading', { name: 'Transações', exact: true }),
   ).toBeVisible();
@@ -129,6 +133,7 @@ test('reclassificação retira a linha do filtro de categoria atual no mês', as
   page,
 }) => {
   await page.goto('/transacoes/2026-10');
+  await page.getByRole('button', { name: /^Filtros/ }).click();
   await page
     .getByRole('region', { name: 'Filtros de transações' })
     .getByRole('combobox', { name: 'Categoria', exact: true })

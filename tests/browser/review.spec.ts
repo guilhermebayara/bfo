@@ -55,12 +55,12 @@ test('um clique edita cada campo permitido, salva ao sair e mantém alocação e
   await row
     .getByRole('textbox', { name: 'Nota de Planilha fictícia G', exact: true })
     .fill('Nota salva automaticamente');
+  await row.getByRole('textbox', { name: /^Nota de / }).press('Tab');
+  await row.locator('[data-sheet-cell="7"]').click();
   await row.getByRole('checkbox', { name: 'Planejado', exact: true }).check();
   await page.getByRole('heading', { name: 'Transações', exact: true }).click();
   await expect(row).toContainText('Nota salva automaticamente');
-  await expect(row.locator('[data-sheet-cell="6"] .badge')).toHaveText(
-    'Planejado',
-  );
+  await expect(row.locator('[data-sheet-cell="7"]')).toHaveText('Planejado');
   await row.locator('[data-sheet-cell="1"]').click();
   await row
     .getByRole('combobox', {
@@ -84,11 +84,11 @@ test('Enter e Tab salvam e avançam, Esc cancela e setas movem a seleção', asy
 }) => {
   const a = await create(request, {
     payee: 'Teclado A fictício G',
-    date: '2026-11-19',
+    date: '2026-11-30',
   });
   const b = await create(request, {
     payee: 'Teclado B fictício G',
-    date: '2026-11-18',
+    date: '2026-11-29',
   });
   await page.goto('/transacoes/2026-11?account=seed-f-account');
   const rowA = page.locator(`tr[data-transaction-id="${a}"]`),
@@ -226,7 +226,7 @@ test('importadas mostram campos financeiros travados e deixam classificar tags e
 }) => {
   await page.goto('/transacoes/2025-09?account=checking');
   const row = page.locator('tr[data-transaction-id="seed-2025-09-rent"]');
-  for (const column of [0, 1, 2, 3, 7]) {
+  for (const column of [0, 1, 2, 3, 8]) {
     await expect(row.locator(`[data-sheet-cell="${column}"]`)).toHaveAttribute(
       'aria-readonly',
       'true',
@@ -235,11 +235,11 @@ test('importadas mostram campos financeiros travados e deixam classificar tags e
     await expect(row.locator('input[type="date"]')).toHaveCount(0);
   }
   await row.locator('[data-sheet-cell="6"]').click();
+  await row.getByRole('textbox', { name: /^Nota de / }).press('Tab');
+  await row.locator('[data-sheet-cell="7"]').click();
   await row.getByRole('checkbox', { name: 'Planejado', exact: true }).check();
-  await row
-    .getByRole('textbox', { name: 'Nota de Aluguel fictício', exact: true })
-    .press('Tab');
-  await expect(row.locator('[data-sheet-cell="6"]')).toContainText('Planejado');
+  await page.getByRole('heading', { name: 'Transações', exact: true }).click();
+  await expect(row.locator('[data-sheet-cell="7"]')).toContainText('Planejado');
   const data = await (
     await request.get('/api/transactions?month=2025-09&account=checking')
   ).json();
@@ -255,6 +255,8 @@ test('parcelado explica a parcela atual e mostra prévia completa das retroativa
   page,
 }) => {
   await page.goto('/transacoes/2026-11');
+  await page.getByText('Mais opções', { exact: true }).click();
+  await page.getByRole('button', { name: 'Lançar compra parcelada' }).click();
   const form = page.getByRole('form', { name: 'Lançar transação' });
   await form
     .getByRole('combobox', { name: 'Conta', exact: true })
@@ -301,6 +303,9 @@ test('reabrir divisão com centavos permite salvar sem redigitar as partes', asy
   ).toBe(200);
   await page.goto('/transacoes/2026-11?account=seed-f-account');
   await page
+    .locator(`tr[data-transaction-id="${id}"] details.row-menu > summary`)
+    .click();
+  await page
     .locator(`tr[data-transaction-id="${id}"]`)
     .getByRole('button', { name: 'Editar divisão', exact: true })
     .click();
@@ -320,9 +325,10 @@ test('lançamento abre no dia de São Paulo mesmo depois da virada UTC', async (
   await page.clock.install({ time: new Date('2026-12-01T01:30:00Z') });
   await page.goto('/transacoes');
   await expect(page).toHaveURL('/transacoes/2026-11');
+  await page.getByRole('button', { name: /^Adicionar em / }).click();
   await expect(
     page
-      .getByRole('form', { name: 'Lançar transação' })
+      .locator('tr[data-new-transaction]')
       .getByLabel('Data', { exact: true }),
   ).toHaveValue('2026-11-30');
 });
@@ -373,6 +379,7 @@ test('resposta antiga de saldos não substitui a atualização mais recente de o
   const gate = new Promise<void>((resolve) => {
     release = resolve;
   });
+  await expect(page.locator(`tr[data-transaction-id="${a}"]`)).toBeVisible();
   let count = 0;
   await page.route('**/api/accounts', async (route) => {
     const first = ++count === 1;

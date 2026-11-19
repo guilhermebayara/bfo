@@ -102,6 +102,9 @@ export function ManualTransaction({
       )
         .then((s) => {
           setCategory(s.category_id ?? '');
+          setIncome(
+            !!categories.find((c) => c.id === s.category_id)?.effective_income,
+          );
           setSelected(s.tag_ids);
         })
         .catch((e) => {
@@ -375,7 +378,12 @@ export function ManualTransaction({
           <CategoryPicker
             categories={categories}
             value={category}
-            onChange={setCategory}
+            onChange={(value) => {
+              setCategory(value);
+              setIncome(
+                !!categories.find((c) => c.id === value)?.effective_income,
+              );
+            }}
           />
           {code !== 'BRL' && (
             <label>
@@ -438,7 +446,7 @@ export function ManualTransaction({
       <td colSpan={9}>{form}</td>
     </tr>
   ) : (
-    <details className="manual">
+    <details className="manual" open>
       <summary>Lançar transação</summary>
       {form}
     </details>

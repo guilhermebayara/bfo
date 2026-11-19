@@ -45,6 +45,7 @@ test('lançamento sugere beneficiário, usa fallback manual de câmbio e filtra 
     }),
   );
   await page.goto('/transacoes');
+  await page.getByRole('button', { name: /^Filtros/ }).click();
   const filters = page.getByRole('region', { name: 'Filtros de transações' }); // section com nome acessível
   await expect(
     page
@@ -52,9 +53,10 @@ test('lançamento sugere beneficiário, usa fallback manual de câmbio e filtra 
       .first()
       .locator('option[value="closed"]'),
   ).toHaveCount(0);
-  const manual = page.getByRole('form', { name: 'Lançar transação' });
+  await page.getByRole('button', { name: /^Adicionar em / }).click();
+  const manual = page.locator('tr[data-new-transaction]');
   await manual
-    .getByRole('combobox', { name: 'Conta', exact: true })
+    .getByRole('combobox', { name: 'Conta do novo lançamento', exact: true })
     .selectOption(id);
   await manual
     .getByLabel('Beneficiário', { exact: true })
@@ -62,9 +64,11 @@ test('lançamento sugere beneficiário, usa fallback manual de câmbio e filtra 
   await expect(
     manual.getByRole('combobox', { name: 'Categoria', exact: true }),
   ).toHaveValue('groceries');
+  await manual.getByText('1 tags', { exact: true }).click();
   await expect(
     manual.getByRole('checkbox', { name: 'Planejado' }),
   ).toBeChecked();
+  await manual.getByText('Cotação', { exact: true }).click();
   await expect(
     manual.getByText('PTAX indisponível. Preencha a cotação manualmente.', {
       exact: false,
@@ -92,13 +96,15 @@ test('lançamento sugere beneficiário, usa fallback manual de câmbio e filtra 
   ).toBeVisible();
   const headers = await page.locator('table thead th').allTextContents();
   expect(headers).toEqual([
+    '',
     'Data',
     'Conta',
     'Beneficiário',
     'Valor',
     'Categoria',
     'Alocação',
-    'Notas / Tags',
+    'Notas',
+    'Tags',
     'Origem',
     'Ações',
   ]);
@@ -300,11 +306,14 @@ test('cotação manual não é sobrescrita por resposta automática atrasada', a
     });
   });
   await page.goto('/transacoes');
-  const manual = page.getByRole('form', { name: 'Lançar transação' });
+  await page.getByRole('button', { name: /^Filtros/ }).click();
+  await page.getByRole('button', { name: /^Adicionar em / }).click();
+  const manual = page.locator('tr[data-new-transaction]');
   await manual
-    .getByRole('combobox', { name: 'Conta', exact: true })
+    .getByRole('combobox', { name: 'Conta do novo lançamento', exact: true })
     .selectOption(id);
   await started;
+  await manual.getByText('Cotação', { exact: true }).click();
   await manual.getByLabel('Cotação para BRL', { exact: false }).fill('5,25');
   await expect(
     manual.getByRole('button', { name: 'Salvar lançamento' }),

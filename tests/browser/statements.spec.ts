@@ -17,11 +17,12 @@ test('abre o parcelamento original e paga uma fatura em uma linha', async ({
   const { id } = await source.json();
 
   await page.goto('/transacoes/2026-08?account=card-a');
-  const installment = page.getByRole('link', {
-    name: 'Compra original, parcela 3 de 12',
-  });
-  await expect(installment).toHaveText('3/12');
-  await installment.click();
+  const row = page
+    .locator('tr[data-transaction-id]')
+    .filter({ hasText: 'Mesa de trabalho' });
+  await expect(row).toContainText('3/12');
+  await row.locator('details.row-menu > summary').click();
+  await row.getByRole('link', { name: 'Ver compra original' }).click();
   await expect(
     page.getByRole('heading', { name: 'Compra parcelada' }),
   ).toBeVisible();

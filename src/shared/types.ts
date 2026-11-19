@@ -21,11 +21,23 @@ export interface Category {
   category_group_id: string;
   allocation_name: string;
   is_income: number;
+  exclude_budget: number;
+  exclude_totals: number;
+  effective_income: number;
+  effective_exclude_budget: number;
+  effective_exclude_totals: number;
+  inherited_income: number;
+  inherited_exclude_budget: number;
+  inherited_exclude_totals: number;
 }
 export interface Transaction {
   id: string;
   account_id: string;
   account_name: string;
+  destination_name?: string | null;
+  destination_account_id?: string | null;
+  destination_amount_cents?: number | null;
+  destination_currency?: string | null;
   date: string;
   amount_cents: number;
   payee: string;

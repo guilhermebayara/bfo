@@ -637,5 +637,37 @@ export function seedSql() {
   sql.push(
     "INSERT INTO seed_fixtures(id) VALUES('session-f') ON CONFLICT DO NOTHING;",
   );
+  sessionF = false;
+  insert('accounts', {
+    id: 'seed-h-destination',
+    name: 'Dinheiro fictício H',
+    kind: 'cash',
+    currency: 'BRL',
+    institution_id: 'horizonte',
+    cutoff_date: '2026-01-01',
+    opening_balance_cents: 0,
+  });
+  insert('transactions', {
+    id: 'seed-h-transfer-out',
+    account_id: 'seed-f-account',
+    date: '2026-11-19',
+    amount_cents: 15000,
+    payee: 'Transferência fictícia',
+    origin: 'manual',
+    kind: 'transfer',
+  });
+  insert('transactions', {
+    id: 'seed-h-transfer-in',
+    account_id: 'seed-h-destination',
+    date: '2026-11-19',
+    amount_cents: -15000,
+    payee: 'Transferência fictícia',
+    origin: 'manual',
+    kind: 'transfer',
+    transfer_pair_id: 'seed-h-transfer-out',
+  });
+  sql.push(
+    "UPDATE transactions SET transfer_pair_id='seed-h-transfer-in' WHERE id='seed-h-transfer-out' AND transfer_pair_id IS NULL;",
+  );
   return sql.map((line) => line.replaceAll('\n', ' ')).join('\n');
 }
