@@ -84,6 +84,12 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 - Exceção: parcela entra no orçamento no mês da fatura dela.
 - Parcelas futuras aparecem como valor já comprometido no orçamento de cada mês seguinte, antes da distribuição do resto.
 
+## Resumo lateral do mês
+
+- Transações tem um resumo lateral do mês: renda e despesas por grupo e categoria, com barra por categoria, como no Lunch Money.
+- Com orçamento (fase 3), no mês corrente a barra mostra uma marca de ritmo: onde o gasto deveria estar naquele dia do mês. Passar da marca é um sinal visual leve de que o mês está no ritmo de estourar.
+- Gastar exatamente o orçado conta como dentro do orçamento, sem cor de alerta. O dono acha o amarelo do Lunch Money ambíguo justamente por isso. As cores em si ficam para o conceito visual.
+
 ## Recorrentes e assinaturas
 
 - Recorrente é reconhecido pela conta, pelo beneficiário e pela data próxima. O valor pode variar (ex.: conta de luz), sem faixa de valor para configurar.
