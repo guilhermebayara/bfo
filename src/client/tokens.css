@@ -36,5 +36,6 @@
   --field-width: 10rem;
   --edit-width: 15rem;
   --table-width: 58rem;
+  --cell-width: 7rem;
   --dialog-max: 90vh;
 }

@@ -166,8 +166,8 @@ A revisão leu servidor, cliente, regras compartilhadas, SQL, scripts de seed e 
 - Navegador: 28 testes aprovados em Chromium, em suíte completa com banco D1 local isolado, incluindo dez cenários novos da Sessão G.
 - Build inclui checagem TypeScript e Vite; o preparo do navegador aplica migrações e seed fictício somente em `.wrangler/e2e`.
 - A PTAX foi validada com respostas simuladas no teste da integração e do cache. O ambiente local apresentou falhas de DNS ao buscar o serviço externo; o fallback manual foi testado. Isso não valida a disponibilidade do Banco Central em produção.
-- A configuração não explicita logs/traces em `wrangler.jsonc`; o estado efetivo de observabilidade depende também do painel, que não foi alterado nesta sessão.
-- A publicação segue o fluxo existente: push da branch e build da prévia. O seed e a importação remotos permanecem manuais.
+- A configuração não explicita logs/traces em `wrangler.jsonc`. A API da Cloudflare confirmou ambos desativados na prévia. O painel e a observabilidade não foram alterados nesta revisão funcional.
+- Publicação confirmada pela API da Cloudflare: build `e40a1a4c-6ec1-496e-9c6d-f80c81c9ea56` da branch `tst-revisao`, commit de implementação `b65d9f5`, concluído com sucesso em 19/11/2026. A prévia foi publicada no endereço abaixo. O proxy do ambiente recusou a abertura HTTP direta, por isso a validação funcional foi local, e a validação remota confirmou build e deployment pela API. O seed e a importação remotos permanecem manuais.
 
 ## Perguntas para o dono, sem alteração automática de produto
 
