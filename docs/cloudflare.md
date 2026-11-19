@@ -33,4 +33,4 @@ WORKERS_CI_BRANCH=homologacao node scripts/migrate-build.mjs
 npm run db:seed:homologacao
 ```
 
-Os comandos escolhem os bindings de prévia e bloqueiam o uso do banco de produção no seed. Repetir o seed preserva edições dos IDs existentes. A migração 0004 é aditiva e pode ser aplicada na homologação antes do merge. Nesta sessão, os comandos remotos dependem da conexão com a conta BFO; o seed foi validado localmente.
+Os comandos escolhem os bindings de prévia e bloqueiam o uso do banco de produção no seed. Repetir o seed preserva edições dos IDs existentes. A migração 0004 é aditiva e pode ser aplicada na homologação antes do merge. Nesta sessão, o seed foi validado localmente. A aplicação remota ficou pendente: a integração Cloudflare tornou-se indisponível após a reconexão e a alternativa autorizada pelo navegador falhou antes de abrir o painel. O Wrangler local não está autenticado. A prévia remota não foi validada.

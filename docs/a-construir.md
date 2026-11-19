@@ -24,8 +24,8 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
   - [x] Navegação mensal no endereço, filtros dentro do mês, lançamento completo no topo da tabela com Enter e edição nas células, preservando importadas e faturas fechadas.
   - [x] Recorrentes por mês e categoria, esperado e realizado, criação a partir de transação e edição dos cadastros.
   - [x] Assinaturas por tipo ou alocação, equivalente mensal, tipos editáveis e faixa de renovação.
-  - [x] Migração 0004 e seed fictício ampliado, validados em D1 local isolado. Testes de API e navegador implementados.
-  - [ ] Aplicar migração e seed em `bfo-teste` e `bfo-homologacao` e validar a prévia remota. Pendente de acesso à conta BFO: a conexão Cloudflare da sessão não encontra esses bancos e o Wrangler local não está autenticado.
+  - [x] Migração 0004 e seed fictício ampliado, validados em D1 local isolado. Build e 74 testes de API/regras e 14 testes de navegador aprovados.
+  - [ ] Aplicar migração e seed em `bfo-teste` e `bfo-homologacao` e validar a prévia remota. Pendente de acesso remoto. A conexão inicial não encontrou os bancos da conta BFO; após a reconexão, a integração ficou indisponível nesta conversa. A alternativa pelo navegador falhou ao abrir o painel. O Wrangler local não está autenticado. Comandos em [Cloudflare](cloudflare.md#seed-da-sessão-e).
 - [ ] Sessão F: script de importação do Lunch Money (API v2), apagar e refazer importação.
 
 - [ ] Conceito visual: feito no Claude depois que a estrutura da fase 1 estiver redonda. Duas propostas numa prévia, o dono escolhe olhando a tela, e só então o visual é aplicado.
