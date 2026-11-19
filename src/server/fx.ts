@@ -32,10 +32,4 @@ export async function ptax(
     throw new Error('PTAX indisponível.');
   return rate;
 }
-export function convert(amount: number, rate: number): number {
-  if (!Number.isFinite(rate) || rate <= 0) throw new Error('Cotação inválida.');
-  const result = Math.sign(amount) * Math.round(Math.abs(amount) * rate);
-  if (!Number.isSafeInteger(result))
-    throw new Error('Valor convertido fora do limite.');
-  return result;
-}
+export { convert } from '../shared/money';

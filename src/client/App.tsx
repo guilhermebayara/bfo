@@ -1,6 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { Account, Category, Recurring } from '../shared/types';
-import { RENEWAL_NOTICE_DAYS } from '../shared/recurring';
 import { Button } from './components';
 import { api } from './api';
 import { Transactions } from './screens/Transactions';
@@ -8,7 +7,7 @@ import { RecurringScreen, SubscriptionTypes } from './screens/Recurring';
 import { Cards } from './screens/Cards';
 import { InstallmentPurchase } from './screens/InstallmentPurchase';
 import { Accounts } from './screens/Accounts';
-import { Categories, Tags, Payees } from './screens/Configuration';
+import { Categories, Tags, Payees, Preferences } from './screens/Configuration';
 export function App() {
   const [path, setPath] = useState(location.pathname);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -17,7 +16,9 @@ export function App() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
   const [revision, setRevision] = useState(0);
+  const loadSequence = useRef(0);
   async function load() {
+    const sequence = ++loadSequence.current;
     try {
       setError('');
       const [a, c, subscriptions] = await Promise.all([
@@ -25,13 +26,14 @@ export function App() {
         api<Category[]>('/categories'),
         api<Recurring[]>('/subscriptions'),
       ]);
+      if (sequence !== loadSequence.current) return;
       setRenewals(subscriptions.filter((r) => r.renewal_soon));
       setAccounts(a);
       setCategories(c);
       setReady(true);
       setRevision((v) => v + 1);
     } catch (e) {
-      setError((e as Error).message);
+      if (sequence === loadSequence.current) setError((e as Error).message);
     }
   }
   useEffect(() => {
@@ -93,6 +95,7 @@ export function App() {
             ['/assinaturas', 'Assinaturas'],
             ['/tipos-assinatura', 'Tipos de assinatura'],
             ['/categorias', 'Categorias'],
+            ['/configuracoes', 'Configurações'],
             ['/tags', 'Tags'],
             ['/beneficiarios', 'Beneficiários'],
           ].map(([url, label]) => (
@@ -106,7 +109,7 @@ export function App() {
             </a>
           ))}
         </nav>
-        <p className="environment">Dados fictícios · Sessão E</p>
+        <p className="environment">Dados fictícios · Sessão H</p>
       </aside>
       <div className="workspace">
         {renewals.length > 0 && (
@@ -115,11 +118,11 @@ export function App() {
             role="status"
             aria-label="Aviso de renovação"
           >
-            Renovações nos próximos {RENEWAL_NOTICE_DAYS} dias:{' '}
+            Renovações próximas:{' '}
             {renewals.map((r) => (
               <span key={r.id}>
-                {r.payee} ({r.renewal_date?.split('-').reverse().join('/')}
-                ){' '}
+                {r.payee} ({r.renewal_date?.split('-').reverse().join('/')}) ·
+                aviso com {r.notice_days} dias{' '}
               </span>
             ))}
             <a href="/assinaturas" onClick={(e) => navigate(e, '/assinaturas')}>
@@ -151,8 +154,11 @@ export function App() {
             <InstallmentPurchase
               key={path}
               id={path.slice('/parceladas/'.length)}
+              onSaved={load}
               accounts={accounts}
             />
+          ) : path === '/configuracoes' ? (
+            <Preferences accounts={accounts} onSaved={load} />
           ) : path === '/categorias' ? (
             <Categories onSaved={load} />
           ) : path === '/tags' ? (

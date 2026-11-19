@@ -15,7 +15,17 @@ import {
   Table,
 } from '../components';
 
-type Detail = { items: Transaction[]; checks: StatementCheck[] };
+type Detail = {
+  items: Transaction[];
+  checks: StatementCheck[];
+  revisions: {
+    id: string;
+    previous_cents: number;
+    current_cents: number;
+    bank_amount_cents: number | null;
+    created_at: string;
+  }[];
+};
 type Preview = {
   app_amount_cents: number;
   bank_amount_cents: number;
@@ -408,6 +418,12 @@ export function Cards({
                       <td>
                         {item.payee}
                         <InstallmentLink item={item} />
+                        {!!item.retroactive && (
+                          <small>Retroativa: antes do corte</small>
+                        )}
+                        {!!item.added_to_closed && (
+                          <small>Incluída após o fechamento</small>
+                        )}
                       </td>
                       <td className="numeric">
                         {money(item.amount_cents)}
@@ -420,6 +436,44 @@ export function Cards({
                 </Table>
               ) : (
                 <p>Nenhuma compra neste ciclo.</p>
+              )}
+              {detail.revisions.length > 0 && (
+                <>
+                  <h3>Alterações após o fechamento</h3>
+                  <p>
+                    Conferência recalculada. A inclusão das parcelas alterou o
+                    total desta fatura. Os valores do banco e os ajustes
+                    originais foram preservados.
+                  </p>
+                  <Table
+                    label="Alterações após o fechamento"
+                    headers={[
+                      'Data',
+                      'Total anterior',
+                      'Total após inclusão',
+                      'Valor do banco',
+                      'Diferença após inclusão',
+                    ]}
+                  >
+                    {detail.revisions.map((r) => (
+                      <tr key={r.id}>
+                        <td>{humanDate(r.created_at.slice(0, 10))}</td>
+                        <td>{money(r.previous_cents)}</td>
+                        <td>{money(r.current_cents)}</td>
+                        <td>
+                          {r.bank_amount_cents === null
+                            ? 'Sem conferência'
+                            : money(r.bank_amount_cents)}
+                        </td>
+                        <td>
+                          {r.bank_amount_cents === null
+                            ? 'Sem conferência'
+                            : money(r.bank_amount_cents - r.current_cents)}
+                        </td>
+                      </tr>
+                    ))}
+                  </Table>
+                </>
               )}
               <h3>Histórico de conferência</h3>
               {detail.checks.length ? (

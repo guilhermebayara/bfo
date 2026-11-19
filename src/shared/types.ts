@@ -21,11 +21,23 @@ export interface Category {
   category_group_id: string;
   allocation_name: string;
   is_income: number;
+  exclude_budget: number;
+  exclude_totals: number;
+  effective_income: number;
+  effective_exclude_budget: number;
+  effective_exclude_totals: number;
+  inherited_income: number;
+  inherited_exclude_budget: number;
+  inherited_exclude_totals: number;
 }
 export interface Transaction {
   id: string;
   account_id: string;
   account_name: string;
+  destination_name?: string | null;
+  destination_account_id?: string | null;
+  destination_amount_cents?: number | null;
+  destination_currency?: string | null;
   date: string;
   amount_cents: number;
   payee: string;
@@ -41,7 +53,12 @@ export interface Transaction {
   origin: 'imported' | 'manual' | 'adjustment';
   kind: string;
   statement_id: string | null;
+  statement_status?: string | null;
   installment_plan_id: string | null;
+  retroactive: number;
+  added_to_closed: number;
+  advance_id: string | null;
+  split_count: number;
   installment_number: number | null;
   installment_count: number | null;
 }
@@ -119,6 +136,7 @@ export interface Recurring {
   is_subscription: number;
   subscription_type_id: string | null;
   type_name: string | null;
+  notice_days: number;
   renewal_date: string | null;
   active: number;
   due_date: string;
@@ -128,4 +146,20 @@ export interface Recurring {
   next_charge: string;
   monthly_cents: number;
   renewal_soon: boolean;
+}
+
+export interface TransactionSplit {
+  id: string;
+  amount_cents: number;
+  amount_brl_cents: number;
+  category_id: string | null;
+  note: string;
+  tags: Tag[];
+}
+export interface InstallmentAdvance {
+  id: string;
+  count: number;
+  face_cents: number;
+  paid_cents: number;
+  created_at: string;
 }

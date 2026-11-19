@@ -70,7 +70,7 @@ it('inclui o dia do fechamento, limita dias ao fim do mês e calcula o venciment
   });
 });
 
-it('gera uma compra, distribui o resto em centavos e vincula cada parcela ao seu ciclo', async () => {
+it('gera uma compra, ajusta o resto na última parcela e vincula cada parcela ao seu ciclo', async () => {
   const saved = await purchase({
     installment_count: 3,
     note: 'Nota da compra',
@@ -92,9 +92,9 @@ it('gera uma compra, distribui o resto em centavos e vincula cada parcela ao seu
       part.due_date,
     ]),
   ).toEqual([
-    [1, 334, '2026-03-05'],
+    [1, 333, '2026-03-05'],
     [2, 333, '2026-04-05'],
-    [3, 333, '2026-05-05'],
+    [3, 334, '2026-05-05'],
   ]);
   expect(new Set(installments.map((part) => part.statement_id)).size).toBe(3);
   for (const part of installments) {

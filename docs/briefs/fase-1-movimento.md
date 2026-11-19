@@ -27,7 +27,7 @@ Nomes em inglês no código e no banco, interface em português.
 
 Regras que o modelo precisa garantir:
 
-- Transação com origin `imported` só aceita mudança de category_id e note. A API recusa o resto.
+- Transação com origin `imported` aceita mudança da classificação: categoria, nota, tags e divisão. Valor total, data e demais campos originais ficam travados. Esclarecimento do dono na Sessão G.
 - Saldo da conta = saldo de abertura + lançamentos depois do corte. Antes de ativar, a conta mostra o saldo do arquivo.
 - Ao ativar a conta, o app calcula a diferença entre o saldo do arquivo na data de corte e o saldo de abertura informado, e cria uma transação origin `adjustment` visível.
 - Pagamento de fatura (`card_payment`) nunca conta como gasto em nenhuma soma de orçamento ou categoria.
@@ -48,7 +48,7 @@ Desktop primeiro, modo escuro. Estrutura de produto financeiro sério, com densi
 
 Dados inventados e plausíveis para um usuário brasileiro, cobrindo pelo menos 14 meses: uma conta corrente, dois cartões, uma conta de dinheiro, categorias agrupadas, uma compra parcelada em andamento, uma fatura com divergência, recorrentes com assinaturas mensais e uma anual. Metade do período marcada como importada, para testar os dois momentos. Nenhum nome de banco real.
 
-## Importação (sessão E)
+## Importação (sessão H)
 
 - Script em `scripts/import-lunchmoney/`, rodado localmente. Lê o token de variável de ambiente digitada pelo dono na hora.
 - Busca contas, categorias, grupos de categoria, tags, recorrentes e transações pela API v2.

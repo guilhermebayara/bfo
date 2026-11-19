@@ -4,6 +4,7 @@ test('mês no endereço, setas, escolha, recarga, histórico e filtros dentro do
   page,
 }) => {
   await page.goto('/transacoes');
+  await page.getByRole('button', { name: /^Filtros/ }).click();
   await expect(page).toHaveURL(`/transacoes/${currentMonth()}`);
   await page.getByLabel('Ir para o mês').fill('2026-11');
   await page
@@ -35,9 +36,11 @@ test('Enter lança pela linha, prepara o próximo e edita campos na linha', asyn
   request,
 }) => {
   await page.goto('/transacoes/2026-11');
-  const form = page.getByRole('form', { name: 'Lançar transação' });
+  await page.getByRole('button', { name: /^Filtros/ }).click();
+  await page.getByRole('button', { name: /^Adicionar em / }).click();
+  const form = page.locator('tr[data-new-transaction]');
   await form
-    .getByRole('combobox', { name: 'Conta', exact: true })
+    .getByRole('combobox', { name: 'Conta do novo lançamento', exact: true })
     .selectOption('seed-recurring-account');
   await form.getByLabel('Data', { exact: true }).fill('2026-11-19');
   await form
@@ -51,18 +54,32 @@ test('Enter lança pela linha, prepara o próximo e edita campos na linha', asyn
   );
   await expect(form.getByLabel('Valor (BRL)', { exact: true })).toHaveValue('');
   await expect(form.getByLabel('Beneficiário', { exact: true })).toBeFocused();
-  const row = page
+  const rowId = await page
     .getByRole('row')
-    .filter({ hasText: 'Lançamento fictício E' });
-  await row
-    .getByRole('button', { name: 'Editar Lançamento fictício E' })
-    .click();
-  await row
-    .getByLabel('Beneficiário de Lançamento fictício E')
-    .fill('Beneficiário corrigido E');
+    .filter({ hasText: 'Lançamento fictício E' })
+    .getAttribute('data-transaction-id');
+  const row = page.locator(`tr[data-transaction-id="${rowId}"]`);
+  await row.locator('[data-sheet-cell="3"]').click();
   await row.getByLabel('Valor (BRL)').fill('25,99');
-  await row.getByLabel('Nota de Lançamento fictício E').fill('Nota nova');
-  await row.getByRole('button', { name: 'Salvar', exact: true }).click();
+  await row.getByLabel('Valor (BRL)').press('Tab');
+  await expect(row).toContainText('25,99');
+  await row.locator('[data-sheet-cell="6"]').click();
+  await row.getByRole('textbox',{name:'Nota de Lançamento fictício E',exact:true}).fill('Nota nova');
+  await row.getByRole('textbox',{name:'Nota de Lançamento fictício E',exact:true}).press('Tab');
+  await expect(row).toContainText('Nota nova');
+  await row.locator('[data-sheet-cell="2"]').click();
+  await row
+    .getByRole('textbox', {
+      name: 'Beneficiário de Lançamento fictício E',
+      exact: true,
+    })
+    .fill('Beneficiário corrigido E');
+  await row
+    .getByRole('textbox', {
+      name: 'Beneficiário de Lançamento fictício E',
+      exact: true,
+    })
+    .press('Tab');
   await expect(
     page.getByRole('row').filter({ hasText: 'Beneficiário corrigido E' }),
   ).toContainText('25,99');
@@ -93,7 +110,9 @@ test('recorrentes têm estado mensal, criação pela transação e assinatura co
     page.getByRole('row').filter({ hasText: 'Ferramenta anual fictícia' }),
   ).toContainText('359,90');
   await page.goto('/transacoes/2026-11');
+  await page.getByRole('button', { name: /^Filtros/ }).click();
   const row = page.getByRole('row').filter({ hasText: 'Nuvem fictícia' });
+  await row.locator('details.row-menu > summary').click();
   await row.getByRole('button', { name: 'Criar recorrente' }).click();
   const modal = page.getByRole('dialog');
   await expect(modal.getByLabel('Beneficiário', { exact: true })).toHaveValue(

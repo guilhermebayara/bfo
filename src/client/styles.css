@@ -395,3 +395,310 @@ td input,
 td select {
   min-width: var(--field-width);
 }
+
+.sheet-cell {
+  cursor: text;
+  min-width: var(--cell-width);
+}
+.sheet-cell:focus {
+  outline: var(--focus-line) solid var(--focus);
+  outline-offset: calc(-1 * var(--focus-line));
+}
+.sheet-locked {
+  cursor: default;
+  background: var(--bg);
+}
+.sheet-locked::after {
+  content: ' 🔒';
+  font-size: var(--text-small);
+  opacity: 0.6;
+}
+.cell-editor {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.cell-editor input,
+.cell-editor select {
+  max-width: 100%;
+}
+
+.transactions-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--summary-width);
+  gap: var(--space-5);
+  align-items: start;
+}
+.transactions-main {
+  min-width: 0;
+}
+.toolbar {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+  margin: var(--space-3) 0;
+}
+.quick-search {
+  flex: 1;
+  min-width: var(--field-width);
+}
+.add-control {
+  display: inline-flex;
+}
+.add-control select {
+  width: var(--sheet-action-width);
+  color: var(--transparent);
+  cursor: pointer;
+}
+.add-control option,
+.add-control optgroup {
+  color: var(--text);
+}
+.month-navigation {
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-4) 0;
+}
+.month-navigation label {
+  flex: 0 1 auto;
+}
+.month-summary {
+  border: var(--line) solid var(--border);
+  background: var(--surface);
+  padding: var(--space-3);
+  border-radius: var(--radius);
+}
+.summary-section {
+  margin-top: var(--space-5);
+}
+.summary-section h3,
+.summary-group,
+.summary-category > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.summary-group {
+  margin-top: var(--space-4);
+}
+.summary-category {
+  margin-top: var(--space-2);
+  font-size: var(--text-small);
+}
+.summary-category progress {
+  width: 100%;
+  height: var(--space-1);
+  accent-color: var(--muted);
+}
+.select-page {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+  color: var(--muted);
+  font-size: var(--text-small);
+}
+.sheet-table table {
+  table-layout: fixed;
+  min-width: var(--sheet-width);
+}
+.sheet-table th,
+.sheet-table td {
+  height: var(--sheet-row-height);
+  padding: var(--space-1) var(--space-2);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.sheet-table th:nth-child(1) {
+  width: var(--sheet-check-width);
+}
+.sheet-table th:nth-child(2) {
+  width: var(--sheet-date-width);
+}
+.sheet-table th:nth-child(3) {
+  width: var(--sheet-account-width);
+}
+.sheet-table th:nth-child(4) {
+  width: var(--sheet-payee-width);
+}
+.sheet-table th:nth-child(5) {
+  width: var(--sheet-money-width);
+}
+.sheet-table th:nth-child(6) {
+  width: var(--sheet-category-width);
+}
+.sheet-table th:nth-child(7) {
+  width: var(--sheet-allocation-width);
+}
+.sheet-table th:nth-child(8) {
+  width: var(--sheet-note-width);
+}
+.sheet-table th:nth-child(9) {
+  width: var(--sheet-tags-width);
+}
+.sheet-table th:nth-child(10) {
+  width: var(--sheet-origin-width);
+}
+.sheet-table th:nth-child(11) {
+  width: var(--sheet-action-width);
+}
+.cell-value {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sheet-table .sheet-cell {
+  min-width: 0;
+  position: relative;
+}
+.sheet-locked::after {
+  content: none;
+}
+.sheet-locked {
+  background: var(--transparent);
+  color: var(--muted);
+}
+.sheet-table tr[aria-selected='true'] {
+  background: var(--hover);
+}
+.row-lock {
+  font-size: var(--text-small);
+  color: var(--muted);
+}
+.sheet-table .badge {
+  border: 0;
+  padding: 0;
+  font-size: var(--text-small);
+}
+.sheet-table input,
+.sheet-table select {
+  min-width: 0;
+  padding: var(--space-1);
+}
+.sheet-table .button {
+  padding: var(--space-1);
+}
+.cell-editor {
+  position: fixed;
+  left: var(--editor-left);
+  top: var(--editor-top);
+  width: var(--editor-width);
+  min-width: var(--edit-width);
+  max-height: var(--popover-max-height);
+  overflow: auto;
+  background: var(--field);
+  border: var(--line) solid var(--focus);
+  padding: var(--space-2);
+  z-index: var(--layer-editor);
+  white-space: normal;
+}
+.cell-message {
+  position: fixed;
+  left: var(--editor-left);
+  top: var(--editor-top);
+  max-width: var(--modal-width);
+  padding: var(--space-2);
+  background: var(--surface);
+  border: var(--line) solid var(--border);
+  white-space: normal;
+  z-index: var(--layer-menu);
+}
+.cell-editor ~ .cell-message {
+  top: var(--message-top);
+}
+.signed-value {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.signed-value input {
+  flex: 1;
+  min-width: 0;
+}
+.row-menu {
+  position: relative;
+}
+.row-menu > summary {
+  padding: var(--space-1);
+  list-style: none;
+  white-space: nowrap;
+}
+.row-menu:not([open]) > .menu-panel {
+  display: none;
+}
+.menu-panel {
+  display: grid;
+  gap: var(--space-2);
+  position: fixed;
+  left: var(--menu-left);
+  top: var(--menu-top);
+  z-index: var(--layer-menu);
+  background: var(--surface);
+  border: var(--line) solid var(--border);
+  padding: var(--space-3);
+  width: var(--edit-width);
+  max-height: var(--popover-max-height);
+  overflow: auto;
+  white-space: normal;
+}
+.entry-row td {
+  position: relative;
+}
+.entry-row .cell-message {
+  left: var(--space-6);
+  top: var(--space-6);
+}
+.fx-menu {
+  position: absolute;
+  right: var(--space-2);
+  top: calc(var(--sheet-row-height) - var(--space-1));
+  z-index: var(--layer-editor);
+  font-size: var(--text-small);
+}
+@media (max-width: 1100px) {
+  .transactions-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .month-summary {
+    width: 100%;
+  }
+}
+.cell-message {
+  pointer-events: none;
+}
+
+.entry-row input,
+.entry-row select,
+.entry-row .button {
+  height: calc(var(--sheet-row-height) - var(--space-1) * 2 - var(--line));
+}
+.add-control {
+  position: relative;
+}
+.add-control::after {
+  content: '▾';
+  position: absolute;
+  right: var(--space-3);
+  top: var(--space-2);
+  pointer-events: none;
+}
+.add-control select {
+  appearance: none;
+}
+.summary-category progress {
+  appearance: none;
+  border: 0;
+  background: var(--field);
+}
+.summary-category progress::-webkit-progress-bar {
+  background: var(--field);
+}
+.summary-category progress::-webkit-progress-value {
+  background: var(--muted);
+}
+.summary-category progress::-moz-progress-bar {
+  background: var(--muted);
+}

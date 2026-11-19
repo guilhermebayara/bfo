@@ -34,3 +34,20 @@ npm run db:seed:homologacao
 ```
 
 Os comandos escolhem os bindings de prévia e bloqueiam o uso do banco de produção no seed. Repetir o seed preserva edições dos IDs existentes. A migração 0004 é aditiva e pode ser aplicada na homologação antes do merge. Nesta sessão, o seed foi validado localmente. A aplicação remota ficou pendente: a integração Cloudflare tornou-se indisponível após a reconexão e a alternativa autorizada pelo navegador falhou antes de abrir o painel. O Wrangler local não está autenticado. A prévia remota não foi validada.
+
+## Sessão F
+
+Em 19/11/2026, a migração `0005_session_f.sql` e o seed fictício foram aplicados nos D1 `bfo-teste` e `bfo-homologacao` pela integração Cloudflare, na conta BFO. O registro em `d1_migrations` foi atualizado junto com a migração. A verificação remota confirmou os dois planos, a antecipação com desconto, as duas partes da transação e as revisões de conferência, com `PRAGMA foreign_key_check` sem erros. Produção permaneceu fora dessas operações.
+
+Para repetir pela CLI autenticada, os comandos continuam os mesmos:
+
+```sh
+WORKERS_CI_BRANCH=tst-parcelas node scripts/migrate-build.mjs
+npm run db:seed:teste
+WORKERS_CI_BRANCH=homologacao node scripts/migrate-build.mjs
+npm run db:seed:homologacao
+```
+
+O seed inclui o Cartão de parcelas fictício, com a compra Cadeira retroativa fictícia (3 de 10 em novembro/2026) e Equipamento antecipado fictício (desconto de R$ 30,00). A Compra mista fictícia fica na Conta de divisão fictícia, em novembro/2026. Os exemplos da sessão F são inicializados uma vez, com marcador em `seed_fixtures`, preservando inclusive divisões editadas ou desfeitas ao repetir o seed.
+
+Validação local: build, 83 testes de API/regras e 18 testes de navegador aprovados. Os testes incluem fatura paga com histórico preservado, entradas importadas, divisão em moeda estrangeira sem perder centavos em reais e prazo de aviso editável. O fluxo autenticado da prévia remota depende do acesso do dono pelo Cloudflare Access.

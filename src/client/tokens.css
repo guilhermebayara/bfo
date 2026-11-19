@@ -36,5 +36,26 @@
   --field-width: 10rem;
   --edit-width: 15rem;
   --table-width: 58rem;
+  --cell-width: 7rem;
   --dialog-max: 90vh;
+}
+
+:root {
+  --sheet-row-height: 2.5rem;
+  --sheet-width: 76.5rem;
+  --summary-width: 16rem;
+  --sheet-check-width: 2rem;
+  --sheet-date-width: 6.5rem;
+  --sheet-account-width: 9rem;
+  --sheet-payee-width: 10rem;
+  --sheet-money-width: 9rem;
+  --sheet-category-width: 8rem;
+  --sheet-allocation-width: 7rem;
+  --sheet-note-width: 8rem;
+  --sheet-tags-width: 7rem;
+  --sheet-origin-width: 7rem;
+  --sheet-action-width: 2.5rem;
+  --layer-editor: 10;
+  --layer-menu: 20;
+  --popover-max-height: 20rem;
 }

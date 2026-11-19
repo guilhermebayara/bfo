@@ -1,3 +1,4 @@
+import { roundRatio } from './money';
 export const RENEWAL_NOTICE_DAYS = 30;
 export function currentMonth() {
   return new Intl.DateTimeFormat('sv-SE', {
@@ -99,18 +100,89 @@ export function monthlyEquivalent(
   cadence: string,
   intervalDays?: number | null,
 ) {
-  return Math.round(
-    cadence === 'yearly'
-      ? amount / 12
-      : cadence === 'weekly'
-        ? (amount * 52) / 12
+  return roundRatio(
+    BigInt(amount) *
+      BigInt(cadence === 'weekly' ? 52 : cadence === 'custom' ? 365 : 1),
+    BigInt(
+      cadence === 'monthly'
+        ? 1
         : cadence === 'custom'
-          ? (amount * 365) / (12 * (intervalDays || 1))
-          : amount,
+          ? 12 * (intervalDays || 1)
+          : 12,
+    ),
   );
 }
-export function renewalSoon(renewal: string | null, day: string) {
+export function renewalSoon(
+  renewal: string | null,
+  day: string,
+  noticeDays = RENEWAL_NOTICE_DAYS,
+) {
   if (!renewal) return false;
   const days = (Date.parse(renewal) - Date.parse(day)) / 86400000;
-  return days >= 0 && days <= RENEWAL_NOTICE_DAYS;
+  return days >= 0 && days <= noticeDays;
+}
+
+// O pareamento inclui os meses vizinhos para que uma cobrança nunca realize dois meses.
+export function matchRecurring<
+  R extends Schedule & {
+    id: string;
+    account_id: string;
+    payee: string;
+    amount_cents: number;
+    active: number;
+  },
+  T extends {
+    id: string;
+    account_id: string;
+    payee: string;
+    date: string;
+    amount_cents: number;
+    source_id: string | null;
+  },
+>(rows: R[], transactions: T[], month: string) {
+  const occurrences = rows
+    .filter((r) => r.active)
+    .flatMap((r) =>
+      [-1, 0, 1].flatMap((offset) =>
+        datesInMonth(r, shiftMonth(month, offset)).map((due) => ({
+          r,
+          due,
+          match: undefined as T | undefined,
+        })),
+      ),
+    );
+  const candidates = occurrences.flatMap((o, index) =>
+    transactions
+      .filter(
+        (t) =>
+          t.account_id === o.r.account_id &&
+          Math.sign(t.amount_cents) === Math.sign(o.r.amount_cents) &&
+          Math.abs(Date.parse(t.date) - Date.parse(o.due)) <= 7 * 86400000 &&
+          (t.source_id === o.r.id ||
+            (!t.source_id &&
+              t.payee.toLocaleLowerCase('pt-BR') ===
+                o.r.payee.toLocaleLowerCase('pt-BR'))),
+      )
+      .map((t) => ({
+        index,
+        t,
+        distance: Math.abs(Date.parse(t.date) - Date.parse(o.due)),
+        explicit: t.source_id === o.r.id,
+      })),
+  );
+  candidates.sort(
+    (a, b) =>
+      Number(b.explicit) - Number(a.explicit) ||
+      a.distance - b.distance ||
+      occurrences[a.index].due.localeCompare(occurrences[b.index].due) ||
+      a.t.id.localeCompare(b.t.id) ||
+      occurrences[a.index].r.id.localeCompare(occurrences[b.index].r.id),
+  );
+  const used = new Set<string>();
+  for (const candidate of candidates)
+    if (!used.has(candidate.t.id) && !occurrences[candidate.index].match) {
+      occurrences[candidate.index].match = candidate.t;
+      used.add(candidate.t.id);
+    }
+  return occurrences.filter((o) => o.due.startsWith(month));
 }

@@ -26,8 +26,29 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
   - [x] Assinaturas por tipo ou alocação, equivalente mensal, tipos editáveis e faixa de renovação.
   - [x] Migração 0004 e seed fictício ampliado, validados em D1 local isolado. Build e 74 testes de API/regras e 14 testes de navegador aprovados.
   - [x] Migração e seed remotos aplicados pelo dono.
-- [ ] Sessão F: parcelada retroativa, antecipação no cartão com desconto, divisão de transação, prazo de aviso por assinatura (padrão 30 dias). Regras em docs/decisoes.md (Cartão e fatura, Divisão de transação, Recorrentes e assinaturas). A antecipação de empréstimo fica na fase 2.
-- [ ] Sessão G: script de importação do Lunch Money (API v2), apagar e refazer importação. Construída e testada só com dados simulados; a importação real espera o repositório privado.
+- [x] Sessão F: parcelada retroativa, antecipação no cartão com desconto, divisão de transação, prazo de aviso por assinatura (padrão 30 dias). Regras em docs/decisoes.md (Cartão e fatura, Divisão de transação, Recorrentes e assinaturas). A antecipação de empréstimo fica na fase 2.
+  - [x] Lançamento pelo valor da parcela, total de parcelas e parcela atual. Todas as parcelas são geradas nos ciclos correspondentes, com resto de centavos na última, marcação antes do corte e histórico de recálculo quando a fatura já está fechada ou paga.
+  - [x] Antecipação das próximas parcelas futuras abertas, com uma linha na fatura atual, valor cheio, valor cobrado, desconto e custo real da compra. Parcelas antecipadas ficam no histórico e saem das somas futuras.
+  - [x] Divisão por valor ou percentual com categorias, tags e notas próprias; soma obrigatoriamente fechada, filtros pelas partes e opção de desfazer. Valor e data da importada são preservados.
+  - [x] Prazo de aviso por assinatura, padrão de 30 dias, editável no cadastro e usado na faixa de renovação.
+  - [x] Migração 0005 e seed fictício aplicados e conferidos em `bfo-teste` e `bfo-homologacao`, sem alterações em produção. Exemplos isolados: Cartão de parcelas fictício e Conta de divisão fictícia.
+  - [x] Build, 83 testes de API/regras e 18 testes de navegador aprovados. Interface neutra mantida, com os tokens existentes.
+- [x] Ajuste de clareza (concluído na Sessão G, revisão da Sessão F pelo dono): o caminho para lançar uma compra parcelada que já começou não está claro. No lançamento, a escolha "parcelado" deve mostrar o campo "parcela atual" com uma explicação curta (a parcela que aparece na fatura deste mês) e uma prévia das parcelas que serão criadas, com as passadas marcadas como retroativas, antes de salvar.
+- [x] Sessão G: revisão de código das sessões A a F, antes da importação real.
+  - [x] Revisão das regras financeiras, validação da API, datas em America/Sao_Paulo, índices e migrações, com achados e exemplos em [docs/revisao-codigo.md](revisao-codigo.md).
+  - [x] 17 defeitos corrigidos (7 altos, 9 médios, 1 baixo), 97 testes de API/regras/migrações e 28 testes de navegador aprovados. Edição como planilha em Transações, salvamento automático, teclado e atualização das telas dependentes cobertos no navegador.
+  - [x] Esclarecimento do dono aplicado: importadas permitem categoria, nota, tags e divisão; valor total e data permanecem travados.
+  - [x] Lançamento parcelado com explicação da parcela atual e prévia completa, incluindo as retroativas antes de salvar.
+- [x] Sessão H (ajustes): refazer a tabela de Transações como planilha de verdade (uma linha por transação, lançamento como linha no topo com as mesmas colunas, setas de mês), seletor de moeda em vez de texto ao criar conta, janela de recorrentes e antecipação reclassificada (decisões, seções Recorrentes e assinaturas e Cartão e fatura), botão de adicionar com conta padrão e seta com contas de movimento agrupadas por tipo, conta padrão nas configurações, botão de sinal no valor automático pela categoria (decisões, seção Tabela de transações), marcas de categoria com herança do grupo (decisões, seção Categorias e orçamento) resumo lateral do mês sem orçamento (decisões, seção Resumo lateral do mês), transferência em uma linha e seleção múltipla com edição em lote (decisões, seção Tabela de transações).
+  - [x] Tabela com nove colunas de conteúdo, linhas de 40 px, reticências, notas e tags separadas, menus de linha e filtros recolhidos. Setas de mês junto ao nome, busca rápida e resumo lateral em reais por grupo e categoria, sem marca de ritmo.
+  - [x] Botão de adicionar com conta padrão persistida nas configurações, seletor de contas de movimento por tipo e instituição e linha nova no topo. Enter salva e prepara o próximo lançamento; edição por clique, salvamento ao sair e navegação de teclado preservados. Sinal automático pela categoria, com inversão manual.
+  - [x] Transferências agrupadas numa linha com origem e destino, valor neutro e perspectiva da conta filtrada. Seleção por linha ou página com total, média, valor transferido, edição de data, beneficiário e classificação, vínculo com recorrente e exclusão em lote, respeitando campos protegidos.
+  - [x] Marcas de renda, fora do orçamento e fora dos totais com herança do grupo, indicação da herança na configuração e aplicação no resumo mensal e na alocação. Saldos continuam considerando toda movimentação.
+  - [x] Lista de moedas ao criar e editar contas. Contas com saldo ou histórico preservam a moeda; conta vazia permite a troca. Reconhecimento de recorrentes em até sete dias antes ou depois, no mês previsto e sem duplicar meses. Antecipação distribui o valor pago proporcionalmente entre classificações e tags das parcelas, fechando centavos.
+  - [x] Build, 106 testes de API/regras/migrações e 36 testes de navegador aprovados. Print local de Transações com dados fictícios gerado para o relatório.
+  - [x] Migração 0007, exemplo fictício de transferência no seed e testes de API e navegador. Seed remoto permanece manual; a migração da prévia é aplicada pelo build da branch.
+- [ ] Sessão I (cartão e parcelas): editar só esta ou esta e as futuras, cancelar futuras, mover para outra fatura, reabrir fatura, antecipar fechamento, pagamento parcial com saldo anterior, limite do cartão com comprometido e disponível, painel Próximos. Regras em docs/decisoes.md, seção Cartão e fatura. Referência: docs/referencia-brasileiros.md.
+- [ ] Sessão J: script de importação do Lunch Money (API v2), apagar e refazer importação. Construída e testada só com dados simulados; a importação real espera o repositório privado.
 
 - [ ] Conceito visual: feito no Claude depois que a estrutura da fase 1 estiver redonda. Duas propostas numa prévia, o dono escolhe olhando a tela, e só então o visual é aplicado.
 
@@ -47,3 +68,7 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
 - [ ] Ligar bfo.bayara.design ao Worker de produção, com Access.
 - [ ] Repositório privado antes do primeiro uso do token real.
 - [ ] Importação definitiva e datas de corte de cada conta.
+
+## Ideias para depois das três fases (sem decisão)
+
+- Importação pontual de extrato ou fatura (OFX ou CSV, quando o banco oferecer), separada da importação do histórico do Lunch Money. Diferenças: as transações entram como manuais e editáveis, passam por uma tela de revisão antes de salvar e são cruzadas com o que já foi lançado para não duplicar. Uso principal: achar a compra que faltou numa conferência de fatura. Baixa prioridade, porque o lançamento manual dá a melhor visão dos dados e os bancos não têm um padrão de exportação confiável.

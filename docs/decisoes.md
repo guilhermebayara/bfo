@@ -16,7 +16,7 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 - Cada conta tem dois momentos: arquivo (importado) e daqui pra frente (lançamento manual).
 - Cada conta tem a própria data de corte e um saldo de abertura nessa data, conferido com o extrato. As contas são ativadas uma a uma.
 - A diferença entre o saldo do arquivo e o saldo de abertura aparece como um ajuste visível na conta.
-- Transação importada aceita correção de categoria e nota. Valor e data ficam travados.
+- Transação importada: valor total e data ficam travados. A classificação pode ser editada: categoria, nota, tags e divisão em partes (a soma das partes sempre igual ao valor original). Decidido em 19/11/2026, resolvendo a ambiguidade levantada na Sessão G.
 - Durante as fases, a importação precisa poder ser apagada e refeita. A importação definitiva e as datas de corte acontecem quando o dono começar a usar.
 - Dados de teste: as sessões usam dados fictícios do repositório (seed). Na homologação, o dono roda a importação real.
 
@@ -33,6 +33,16 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 - Investimentos: uma conta por corretora, com saldo separado por tipo (renda variável, renda fixa, fundos). Atualização mensal numa tela só. Sem acompanhar ativo individual.
 - Aporte e rendimento separados. Aporte vem das transferências lançadas da conta corrente para a conta de investimento. Rendimento é a variação do saldo menos os aportes do mês.
 - Empréstimos: saldo devedor atualizado no mês. A parcela entra como recorrente na conta corrente.
+
+## Tabela de transações
+
+- A tabela de Transações funciona como uma planilha. Toda célula visível é editável com um clique, salva sozinha e atualiza na hora tudo que depende dela (saldos, faturas, resumos). Teclado como numa planilha: Enter e Tab salvam e avançam, Esc cancela, setas movem entre células. Campos travados das importadas ficam visivelmente não editáveis.
+- Isso é comportamento da interface e vale desde já, antes do conceito visual.
+- Campo de valor com um botão de sinal ao lado: [-] para saída e [+] para entrada. O valor é digitado sempre sem sinal. O sinal muda sozinho conforme a categoria (categoria de renda deixa [+], as demais deixam [-]) e o dono pode inverter com um clique.
+- Transferência entre contas aparece como uma linha só, com origem e destino na coluna da conta ("Conta A → Conta B") e o valor movido em cor neutra, sem sinal de gasto ou renda. Com filtro por uma das contas, a linha mostra o sinal do ponto de vista dela (saída na origem, entrada no destino). Sem a soma zerada do Lunch Money.
+- Seleção múltipla abre um painel com total e média dos selecionados, edição em lote (data, beneficiário, categoria, nota, adicionar e remover tags, ligar a um recorrente) e exclusão em lote. Importadas selecionadas aceitam só a classificação. Ficam de fora: marcar como revisado (tudo é lançado pelo dono), trocar moeda e mover de conta em lote.
+- Novo lançamento entra como uma linha extra no topo da tabela. O botão de adicionar já traz a conta padrão do dono (definida nas configurações) e tem uma seta para escolher outra.
+- A lista de contas dessa seta mostra só contas de movimento, agrupadas por tipo (cartões, contas correntes, dinheiro), com a instituição em cada uma e em ordem alfabética dentro do grupo. Contas de saldo (investimento, imóvel, empréstimo) e contas encerradas ficam de fora, porque não recebem lançamentos.
 
 ## Moedas
 
@@ -59,6 +69,13 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 - Parcelas retroativas que caem antes da data de corte da conta ficam marcadas como retroativas, porque os meses entre o fim do Lunch Money e o início do BFO não são fidedignos. Parcela retroativa que cai numa fatura já fechada entra na fatura, aparece marcada e a conferência daquela fatura é recalculada.
 - A quantidade é sempre em número de parcelas, nunca em meses.
 - Antecipação no cartão: ação na compra parcelada. O dono escolhe quantas parcelas antecipa, o app mostra o valor cheio e ele digita o valor cobrado pelo banco. Entra uma linha só na fatura atual com o valor pago, as parcelas antecipadas saem dos meses seguintes e o desconto fica no histórico da compra, reduzindo o custo real dela.
+- Editar parcela: escolher entre "só esta" e "esta e as futuras". Cancelar as parcelas futuras de uma compra (ex.: devolução). Mover uma compra para a fatura anterior ou seguinte.
+- Reabrir fatura fechada, registrando o motivo e a data. Ao fechar de novo, a conferência é refeita. O histórico mostra o que mudou.
+- Antecipar o fechamento da fatura (como o "vira fatura" do Itaú): o dono escolhe a data de fechamento antecipado; compras depois dela vão para a próxima fatura, e as datas de fechamento e vencimento dos ciclos seguintes não mudam.
+- Pagamento parcial de fatura: o restante aparece como "saldo anterior" na fatura seguinte. Juros e encargos do banco entram como lançamento próprio, na categoria de tarifas.
+- Limite do cartão: campo opcional no cartão. A tela de Cartão mostra o limite, quanto das próximas faturas já está comprometido (parcelas e recorrentes) e o limite disponível. Cartão sem limite definido (ex.: alguns Amex) mostra só o comprometido, sem limite nem disponível.
+- Painel "Próximos" já na fase 1: o que vence no resto do mês e no mês seguinte, juntando recorrentes, parcelas e faturas.
+- Antecipação de parcelas que foram reclassificadas: a linha da antecipação sai dividida automaticamente, cada parte com a classificação da sua parcela.
 - Antecipação de empréstimo (fase 2): o pagamento sai da corrente, o saldo devedor cai pelo valor cheio das parcelas antecipadas e o desconto fica registrado no empréstimo.
 
 ## Divisão de transação
@@ -67,6 +84,11 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 - Sem "dividir ao longo do tempo": o parcelamento por número de parcelas cobre isso.
 
 ## Categorias e orçamento
+
+- Cada categoria tem três marcas, como no Lunch Money: tratar como renda, fora do orçamento e fora dos totais. Marcas definidas no grupo de categoria valem para as categorias dele (herdadas), e a tela mostra quando uma marca é herdada.
+- Tratar como renda: entra no total de renda dos resumos, e o sinal padrão do lançamento é [+].
+- Fora do orçamento: a categoria não aparece no orçamento nem na alocação por percentual (ex.: emergências, reembolsos).
+- Fora dos totais: a transação atualiza os saldos das contas, mas não entra nos totais de renda nem de gasto do mês (ex.: reembolsos, saques, pagamentos e transferências). Reembolso usa uma categoria com essa marca.
 
 - Duas camadas. Grupos de categoria organizam (Moradia, Alimentação). Grupos de alocação dizem o tipo de dinheiro (Essencial, Estilo de vida, Investimento), cada um com percentual previsto (ex.: 60 / 25 / 15). Cada grupo de categoria pertence a um grupo de alocação.
 - Base do percentual: renda prevista do mês, informada ao montar o orçamento, comparada depois com a renda que entrou.
@@ -77,7 +99,16 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 - Exceção: parcela entra no orçamento no mês da fatura dela.
 - Parcelas futuras aparecem como valor já comprometido no orçamento de cada mês seguinte, antes da distribuição do resto.
 
+## Resumo lateral do mês
+
+- Transações tem um resumo lateral do mês: renda e despesas por grupo e categoria, com barra por categoria, como no Lunch Money.
+- Com orçamento (fase 3), no mês corrente a barra mostra uma marca de ritmo: onde o gasto deveria estar naquele dia do mês. Passar da marca é um sinal visual leve de que o mês está no ritmo de estourar.
+- Cálculo da marca de ritmo: nas categorias com recorrentes, cada conta fixa entra na marca no dia previsto dela. O resto do orçado da categoria segue uma linha reta ao longo do mês. Assim, o aluguel pago no dia 5 não vira alerta.
+- Gastar exatamente o orçado conta como dentro do orçamento, sem cor de alerta. O dono acha o amarelo do Lunch Money ambíguo justamente por isso. As cores em si ficam para o conceito visual.
+
 ## Recorrentes e assinaturas
+
+- Janela de reconhecimento do recorrente: 7 dias antes ou depois da data prevista. Conta no mês previsto mesmo quando a transação cai no mês seguinte.
 
 - Recorrente é reconhecido pela conta, pelo beneficiário e pela data próxima. O valor pode variar (ex.: conta de luz), sem faixa de valor para configurar.
 

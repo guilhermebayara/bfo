@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import type { Named, Payee, Category, Tag } from '../../shared/types';
 import { api, humanDate } from '../api';
+import { AccountOptions } from '../components/AccountOptions';
+import type { Account } from '../../shared/types';
 import { Button, Table } from '../components';
 const EMPTY: Named[] = [];
 type Row = Named & Partial<Category> & Partial<Tag>;
@@ -26,6 +28,18 @@ export function Editor({
   const [percent, setPercent] = useState('0');
   const [color, setColor] = useState('#888888');
   const [income, setIncome] = useState(false);
+  const [excludeBudget, setExcludeBudget] = useState(false);
+  const [excludeTotals, setExcludeTotals] = useState(false);
+  const flags = route === 'categories' || route === 'category-groups';
+  const parentFlags = parents.find((p) => p.id === parent) as Row | undefined;
+  const inherited =
+    route === 'categories'
+      ? {
+          inherited_income: parentFlags?.is_income,
+          inherited_exclude_budget: parentFlags?.exclude_budget,
+          inherited_exclude_totals: parentFlags?.exclude_totals,
+        }
+      : undefined;
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   async function load() {
@@ -45,6 +59,8 @@ export function Editor({
     setPercent('0');
     setColor('#888888');
     setIncome(false);
+    setExcludeBudget(false);
+    setExcludeTotals(false);
   }
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -58,7 +74,13 @@ export function Editor({
         ...(route === 'allocation-groups'
           ? { target_percent: Number(percent) }
           : {}),
-        ...(route === 'categories' ? { is_income: income ? 1 : 0 } : {}),
+        ...(flags
+          ? {
+              is_income: income ? 1 : 0,
+              exclude_budget: excludeBudget ? 1 : 0,
+              exclude_totals: excludeTotals ? 1 : 0,
+            }
+          : {}),
       };
       await api(`/${route}${id ? `/${id}` : ''}`, {
         method: id ? 'PATCH' : 'POST',
@@ -127,15 +149,42 @@ export function Editor({
               />
             </label>
           )}
-          {route === 'categories' && (
-            <label>
-              <input
-                type="checkbox"
-                checked={income}
-                onChange={(e) => setIncome(e.target.checked)}
-              />
-              Tratar como renda
-            </label>
+          {flags && (
+            <>
+              {(
+                [
+                  [
+                    'Tratar como renda',
+                    income,
+                    setIncome,
+                    inherited?.inherited_income,
+                  ],
+                  [
+                    'Fora do orçamento',
+                    excludeBudget,
+                    setExcludeBudget,
+                    inherited?.inherited_exclude_budget,
+                  ],
+                  [
+                    'Fora dos totais',
+                    excludeTotals,
+                    setExcludeTotals,
+                    inherited?.inherited_exclude_totals,
+                  ],
+                ] as const
+              ).map(([label, checked, change, fromGroup]) => (
+                <label key={label}>
+                  <input
+                    type="checkbox"
+                    checked={checked || !!fromGroup}
+                    disabled={!!fromGroup}
+                    onChange={(e) => change(e.target.checked)}
+                  />
+                  {label}
+                  {fromGroup ? ' (herdada do grupo)' : ''}
+                </label>
+              ))}
+            </>
           )}
           <Button type="submit">
             {id ? 'Salvar alterações' : 'Adicionar'}
@@ -167,7 +216,19 @@ export function Editor({
                 : route === 'allocation-groups'
                   ? `${r.target_percent}%`
                   : r.color}
-              {route === 'categories' && r.is_income ? ' · Renda' : ''}
+              {flags && (
+                <>
+                  {(r.effective_income ?? r.is_income)
+                    ? ` · Renda${r.inherited_income ? ' (herdada)' : ''}`
+                    : ''}
+                  {(r.effective_exclude_budget ?? r.exclude_budget)
+                    ? ` · Fora do orçamento${r.inherited_exclude_budget ? ' (herdada)' : ''}`
+                    : ''}
+                  {(r.effective_exclude_totals ?? r.exclude_totals)
+                    ? ` · Fora dos totais${r.inherited_exclude_totals ? ' (herdada)' : ''}`
+                    : ''}
+                </>
+              )}
             </td>
             <td>
               <Button
@@ -182,6 +243,8 @@ export function Editor({
                   setPercent(String(r.target_percent ?? 0));
                   setColor(r.color ?? '#888888');
                   setIncome(!!r.is_income);
+                  setExcludeBudget(!!r.exclude_budget);
+                  setExcludeTotals(!!r.exclude_totals);
                 }}
               >
                 Editar {r.name}
@@ -347,6 +410,65 @@ export function Payees() {
         </fieldset>
       </form>
       <p role="status">{error}</p>
+    </>
+  );
+}
+
+export function Preferences({
+  accounts,
+  onSaved,
+}: {
+  accounts: Account[];
+  onSaved: () => Promise<void>;
+}) {
+  const [account, setAccount] = useState(''),
+    [message, setMessage] = useState(''),
+    [busy, setBusy] = useState(false),
+    [ready, setReady] = useState(false);
+  useEffect(() => {
+    api<{ default_account_id: string | null }>('/preferences')
+      .then((p) => {
+        setAccount(p.default_account_id ?? '');
+        setReady(true);
+      })
+      .catch((e) => setMessage(e.message));
+  }, []);
+  return (
+    <>
+      <h1>Configurações</h1>
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          try {
+            await api('/preferences', {
+              method: 'PATCH',
+              body: JSON.stringify({ default_account_id: account || null }),
+            });
+            await onSaved();
+            setMessage('Conta padrão salva.');
+          } catch (e) {
+            setMessage((e as Error).message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <fieldset disabled={busy || !ready}>
+          <label>
+            Conta padrão para lançamentos
+            <select
+              value={account}
+              onChange={(e) => setAccount(e.target.value)}
+            >
+              <option value="">Escolher ao lançar</option>
+              <AccountOptions accounts={accounts} />
+            </select>
+          </label>
+          <Button type="submit">Salvar configurações</Button>
+        </fieldset>
+      </form>
+      <p role="status">{message}</p>
     </>
   );
 }
