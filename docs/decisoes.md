@@ -113,6 +113,10 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 - Investimento na alocação conta só os aportes. Rendimento fica fora. Investimento fica fora do orçamento de gastos.
 - Orçamento pode ser preenchido por categoria (o grupo é a soma) ou por grupo, distribuindo depois entre as categorias.
 - Tela de orçamento por grupo de alocação: percentual previsto, valor distribuído nas categorias, valor realizado. Avisa quando as categorias passam do percentual do grupo.
+- Período do orçamento: mês do calendário.
+- Sobra: cada mês começa do zero. Categorias marcadas como reserva acumulam a sobra para os meses seguintes (ex.: IPVA, viagens, presentes de fim de ano).
+- Ajudas ao preencher: copiar do mês anterior, média dos últimos 3 meses e total dos recorrentes previstos na categoria.
+- Percentuais de alocação: padrão nas configurações, ajustável num mês específico.
 - Gasto no cartão entra no orçamento no mês da compra.
 - Exceção: parcela entra no orçamento no mês da fatura dela.
 - Parcelas futuras aparecem como valor já comprometido no orçamento de cada mês seguinte, antes da distribuição do resto.
