@@ -16,7 +16,11 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
 - [x] Sessão C: infraestrutura no modelo do acervo da família. Configuração do painel e publicação em [Cloudflare](cloudflare.md).
 - [x] Sessão D: cartão, fatura, parceladas, pagar fatura, conferência.
   - Tela de Cartão, compra original com as parcelas, baixa em uma linha e histórico de conferência. Migração e seed fictício seguem os comandos de [Cloudflare](cloudflare.md).
-- [ ] Sessão E: recorrentes, assinaturas, aviso de renovação.
+- [ ] Sessão E: navegação mês a mês em Transações e lançamento e edição na própria tabela, depois recorrentes, assinaturas e aviso de renovação.
+  - Transações abre no mês atual. Setas de mês anterior e próximo, "ir para o mês" e "voltar para este mês" sempre à mão. O mês fica no endereço (ex.: /transacoes/2026-11), para voltar e compartilhar.
+  - Linha de lançamento no topo da tabela, com data (calendário), categoria (busca agrupada), beneficiário, valor com moeda, notas, conta e tags, e um botão de adicionar. Enter salva e deixa a linha pronta para o próximo lançamento.
+  - Edição na própria linha de qualquer campo permitido, respeitando a trava das importadas.
+  - Referência: prints do Lunch Money enviados pelo dono em 19/11.
 - [ ] Sessão F: script de importação do Lunch Money (API v2), apagar e refazer importação.
 
 - [ ] Conceito visual: feito no Claude depois que a estrutura da fase 1 estiver redonda. Duas propostas numa prévia, o dono escolhe olhando a tela, e só então o visual é aplicado.
