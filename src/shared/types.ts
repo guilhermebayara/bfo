@@ -41,6 +41,7 @@ export interface Transaction {
   origin: 'imported' | 'manual' | 'adjustment';
   kind: string;
   statement_id: string | null;
+  statement_status?: string | null;
   installment_plan_id: string | null;
   retroactive: number;
   added_to_closed: number;

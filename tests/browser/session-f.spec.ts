@@ -8,6 +8,7 @@ test('lança retroativa pela parcela atual e mostra recálculo da fatura fechada
   await form
     .getByRole('combobox', { name: 'Conta', exact: true })
     .selectOption('seed-f-card');
+  await form.getByLabel('Tipo de lançamento').selectOption('installment');
   await form.getByLabel('Total de parcelas').fill('10');
   await form.getByLabel('Parcela atual', { exact: true }).fill('3');
   await form

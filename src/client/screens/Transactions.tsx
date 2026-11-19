@@ -85,7 +85,11 @@ export function Transactions({
       <div className="page-header">
         <div>
           <h1>Transações</h1>
-          <p>Histórico do mês. Lance e edite na própria tabela.</p>
+          <p>
+            Clique na célula para editar. Salva ao sair. Enter avança para
+            baixo; Tab para a próxima célula; Esc cancela. Setas movem a
+            seleção.
+          </p>
         </div>
       </div>
       {!validMonth(rawMonth) && (
@@ -221,7 +225,7 @@ export function Transactions({
                 />
                 {data.items.map((t) => (
                   <TransactionRow
-                    key={`${t.id}-${revision}`}
+                    key={t.id}
                     t={t}
                     accounts={accounts}
                     categories={categories}

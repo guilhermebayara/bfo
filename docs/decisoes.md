@@ -69,6 +69,7 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 - Parcelas retroativas que caem antes da data de corte da conta ficam marcadas como retroativas, porque os meses entre o fim do Lunch Money e o início do BFO não são fidedignos. Parcela retroativa que cai numa fatura já fechada entra na fatura, aparece marcada e a conferência daquela fatura é recalculada.
 - A quantidade é sempre em número de parcelas, nunca em meses.
 - Antecipação no cartão: ação na compra parcelada. O dono escolhe quantas parcelas antecipa, o app mostra o valor cheio e ele digita o valor cobrado pelo banco. Entra uma linha só na fatura atual com o valor pago, as parcelas antecipadas saem dos meses seguintes e o desconto fica no histórico da compra, reduzindo o custo real dela.
+- Antecipação de parcelas que foram reclassificadas: a linha da antecipação sai dividida automaticamente, cada parte com a classificação da sua parcela.
 - Antecipação de empréstimo (fase 2): o pagamento sai da corrente, o saldo devedor cai pelo valor cheio das parcelas antecipadas e o desconto fica registrado no empréstimo.
 
 ## Divisão de transação
@@ -100,6 +101,8 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 - Gastar exatamente o orçado conta como dentro do orçamento, sem cor de alerta. O dono acha o amarelo do Lunch Money ambíguo justamente por isso. As cores em si ficam para o conceito visual.
 
 ## Recorrentes e assinaturas
+
+- Janela de reconhecimento do recorrente: 7 dias antes ou depois da data prevista. Conta no mês previsto mesmo quando a transação cai no mês seguinte.
 
 - Recorrente é reconhecido pela conta, pelo beneficiário e pela data próxima. O valor pode variar (ex.: conta de luz), sem faixa de valor para configurar.
 

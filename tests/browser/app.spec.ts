@@ -23,12 +23,15 @@ test('filtra transações, edita uma importada e mantém os dados após recarreg
   ).toBeVisible();
   const row = page.getByRole('row').filter({ hasText: 'Renda fictícia' });
   await expect(row.getByText('Entrada (+)')).toBeVisible();
-  await row.getByRole('button', { name: 'Editar Renda fictícia' }).click();
+  await row.locator('[data-sheet-cell="4"]').click();
   await row.getByRole('combobox').selectOption('groceries');
+  await row.locator('[data-sheet-cell="6"]').click();
   await row
     .getByRole('textbox', { name: 'Nota de Renda fictícia' })
     .fill('Nota conferida no navegador');
-  await row.getByRole('button', { name: 'Salvar', exact: true }).click();
+  await row
+    .getByRole('textbox', { name: 'Nota de Renda fictícia' })
+    .press('Tab');
   await expect(row).toContainText('Nota conferida no navegador');
   await page.reload();
   await page.getByLabel('Data inicial').fill('2025-09-01');
@@ -134,14 +137,13 @@ test('reclassificação retira a linha do filtro de categoria atual no mês', as
     page.getByText('1 transações ·', { exact: false }),
   ).toBeVisible();
   const row = page.getByRole('row').filter({ hasText: 'Cozinha da Praça' });
-  await row.getByRole('button', { name: 'Editar Cozinha da Praça' }).click();
+  await row.locator('[data-sheet-cell="4"]').click();
   await row
     .getByRole('combobox', {
       name: 'Categoria de Cozinha da Praça',
       exact: true,
     })
     .selectOption('entertainment');
-  await row.getByRole('button', { name: 'Salvar', exact: true }).click();
   await expect(
     page.getByText('0 transações ·', { exact: false }),
   ).toBeVisible();

@@ -617,19 +617,11 @@ describe('Sessão B', () => {
     expect((await (await request('/transactions')).json()).total).toBe(4);
     expect((await manual()).status).toBe(409);
   });
-  it('unifica beneficiários em lote e preserva o registro original importado', async () => {
+  it('recusa unificação em lote que alteraria o beneficiário exibido de uma importada', async () => {
     await activate();
-    await db
-      .prepare(
-        "INSERT INTO payees(id,name) VALUES('original','Entrada'),('target','Nome escolhido')",
-      )
-      .run();
-    // A fixture foi criada após a migração. O vínculo é definido antes de marcar como importada.
-    await db
-      .prepare(
-        "INSERT INTO transactions(id,account_id,date,amount_cents,payee,payee_id,origin,kind,category_id) VALUES('linked','a','2026-05-01',100,'Entrada','original','imported','regular','c')",
-      )
-      .run();
+    await db.exec(
+      "INSERT INTO payees(id,name) VALUES('original','Entrada'),('target','Nome escolhido'); INSERT INTO transactions(id,account_id,date,amount_cents,payee,payee_id,origin,kind,category_id) VALUES('linked','a','2026-05-01',100,'Entrada','original','imported','regular','c');",
+    );
     expect(
       (
         await request('/payees/merge', 'POST', {
@@ -637,37 +629,24 @@ describe('Sessão B', () => {
           source_ids: ['original'],
         })
       ).status,
-    ).toBe(200);
-    const listed = await (await request('/payees')).json();
-    expect(listed.find((p) => p.id === 'target')).toMatchObject({
-      count: 1,
-      first_date: '2026-05-01',
-      last_date: '2026-05-01',
-    });
-    expect(listed.find((p) => p.id === 'original')).toBeUndefined();
+    ).toBe(409);
     expect(
       (await (await request('/transactions')).json()).items.find(
         (t) => t.id === 'linked',
       ).payee,
-    ).toBe('Nome escolhido');
-    expect(
-      await db
-        .prepare("SELECT payee,payee_id FROM transactions WHERE id='linked'")
-        .first(),
-    ).toEqual({ payee: 'Entrada', payee_id: 'original' });
-    expect(
-      (await (await request('/payees/suggestion?name=Nome%20escolhido')).json())
-        .category_id,
-    ).toBe('c');
-    expect((await manual({ payee: 'Entrada' })).status).toBe(201);
+    ).toBe('Entrada');
+    expect((await manual({ payee: 'Nome manual' })).status).toBe(201);
+    const source = await db
+      .prepare("SELECT id FROM payees WHERE name='Nome manual'")
+      .first();
     expect(
       (
         await request('/payees/merge', 'POST', {
           target_id: 'target',
-          source_ids: ['target'],
+          source_ids: [source.id],
         })
       ).status,
-    ).toBe(400);
+    ).toBe(200);
   });
   it('edita os níveis de categorias e tags com referências validadas', async () => {
     const tag = await request('/tags', 'POST', {

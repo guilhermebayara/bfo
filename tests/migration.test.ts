@@ -34,3 +34,35 @@ it('migra uma base da sessão A sem perder referências ou registros importados'
       .account_id,
   ).toBe('old');
 });
+
+it('aplica a revisão sobre banco da Sessão F e reaplica sem mudar dados nem relacionamentos', async () => {
+  const db = env.DB_HOMOLOGACAO as D1Database;
+  await applyD1Migrations(db, env.MIGRATIONS.slice(0, 5));
+  await db.exec(
+    "INSERT INTO accounts(id,name,kind,cutoff_date) VALUES('existing','Conta existente fictícia','checking','2026-01-01'); INSERT INTO tags(id,name) VALUES('existing-tag','Tag anterior'); INSERT INTO transactions(id,account_id,date,amount_cents,amount_brl_cents,payee,origin,kind,external_id) VALUES('existing-t','existing','2026-02-01',12345,12345,'Nome original existente','imported','regular','fixture-existing'); INSERT INTO transaction_tags VALUES('existing-t','existing-tag'); INSERT INTO transaction_splits(id,transaction_id,position,amount_cents,amount_brl_cents,note) VALUES('existing-part-1','existing-t',0,12000,12000,'Nota da parte'),('existing-part-2','existing-t',1,345,345,'Outra nota'); INSERT INTO split_tags VALUES('existing-part-1','existing-tag'); INSERT INTO recurring(id,account_id,payee,amount_cents,cadence,next_date,notice_days) VALUES('existing-r','existing','Recorrente anterior',999,'monthly','2026-02-01',45);",
+  );
+  const tables = (
+    await db
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name NOT IN ('d1_migrations') ORDER BY name",
+      )
+      .all<{ name: string }>()
+  ).results.map((t) => t.name);
+  async function snapshot() {
+    return Promise.all(
+      tables.map(async (name) => [
+        name,
+        (await db.prepare(`SELECT * FROM ${name} ORDER BY rowid`).all())
+          .results,
+      ]),
+    );
+  }
+  const before = await snapshot();
+  await applyD1Migrations(db, env.MIGRATIONS);
+  expect(await snapshot()).toEqual(before);
+  await applyD1Migrations(db, env.MIGRATIONS);
+  expect(await snapshot()).toEqual(before);
+  expect((await db.prepare('PRAGMA foreign_key_check').all()).results).toEqual(
+    [],
+  );
+});
