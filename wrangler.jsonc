@@ -1,0 +1,40 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bfo",
+  "main": "src/server/index.ts",
+  "compatibility_date": "2026-11-19",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"],
+  },
+  "env": {
+    "homologacao": {
+      "name": "bfo-homologacao",
+      "workers_dev": true,
+      "preview_urls": true,
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "bfo-homologacao",
+          "database_id": "9db4bc67-bacb-4176-8701-34d24f7c7bce",
+          "migrations_dir": "migrations",
+        },
+      ],
+    },
+    "producao": {
+      "name": "bfo-producao",
+      "workers_dev": false,
+      "preview_urls": false,
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "bfo-producao",
+          "database_id": "32c0ee02-7cdf-4fc7-b83f-e8808ba3f4de",
+          "migrations_dir": "migrations",
+        },
+      ],
+    },
+  },
+}

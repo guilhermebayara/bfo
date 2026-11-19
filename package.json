@@ -1,0 +1,42 @@
+{
+  "name": "bfo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npm run build && wrangler dev --env homologacao --ip 0.0.0.0",
+    "dev:front": "vite --host 0.0.0.0",
+    "build": "tsc --noEmit && vite build",
+    "test": "vitest run",
+    "db:migrate": "wrangler d1 migrations apply DB --local --env homologacao",
+    "db:seed": "node scripts/seed.mjs --local",
+    "db:migrate:homologacao": "wrangler d1 migrations apply DB --remote --env homologacao",
+    "db:seed:homologacao": "node scripts/seed.mjs --remote",
+    "deploy:homologacao": "npm run build && wrangler deploy --env homologacao",
+    "deploy:producao": "npm run build && wrangler deploy --env producao",
+    "preview:homologacao": "npm run build && wrangler versions upload --env homologacao",
+    "test:e2e": "playwright test",
+    "format": "prettier --write src scripts tests vite.config.ts vitest.config.ts playwright.config.ts tsconfig.json wrangler.jsonc package.json index.html"
+  },
+  "dependencies": {
+    "hono": "^4.13.19",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.8.5",
+    "@cloudflare/workers-types": "^5.20261119.1",
+    "@playwright/test": "^1.65.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "prettier": "^3.10.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1",
+    "wrangler": "^4.165.0"
+  },
+  "engines": {
+    "node": ">=24 <25"
+  }
+}
