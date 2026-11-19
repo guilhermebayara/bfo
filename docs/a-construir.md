@@ -33,6 +33,7 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
   - [x] Prazo de aviso por assinatura, padrão de 30 dias, editável no cadastro e usado na faixa de renovação.
   - [x] Migração 0005 e seed fictício aplicados e conferidos em `bfo-teste` e `bfo-homologacao`, sem alterações em produção. Exemplos isolados: Cartão de parcelas fictício e Conta de divisão fictícia.
   - [x] Build, 83 testes de API/regras e 18 testes de navegador aprovados. Interface neutra mantida, com os tokens existentes.
+- [ ] Ajuste de clareza (revisão da Sessão F pelo dono): o caminho para lançar uma compra parcelada que já começou não está claro. No lançamento, a escolha "parcelado" deve mostrar o campo "parcela atual" com uma explicação curta (a parcela que aparece na fatura deste mês) e uma prévia das parcelas que serão criadas, com as passadas marcadas como retroativas, antes de salvar.
 - [ ] Sessão G: script de importação do Lunch Money (API v2), apagar e refazer importação. Construída e testada só com dados simulados; a importação real espera o repositório privado.
 
 - [ ] Conceito visual: feito no Claude depois que a estrutura da fase 1 estiver redonda. Duas propostas numa prévia, o dono escolhe olhando a tela, e só então o visual é aplicado.
