@@ -37,6 +37,7 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 ## Tabela de transações
 
 - A tabela de Transações funciona como uma planilha. Toda célula visível é editável com um clique, salva sozinha e atualiza na hora tudo que depende dela (saldos, faturas, resumos). Teclado como numa planilha: Enter e Tab salvam e avançam, Esc cancela, setas movem entre células. Campos travados das importadas ficam visivelmente não editáveis.
+- A célula tem o mesmo tamanho em repouso, ao passar o mouse e em edição, como no Lunch Money: o campo de edição ocupa exatamente a célula, sem crescer nem encolher. Vale também para a linha de lançamento novo.
 - Isso é comportamento da interface e vale desde já, antes do conceito visual.
 - Campo de valor com um botão de sinal ao lado: [-] para saída e [+] para entrada. O valor é digitado sempre sem sinal. O sinal muda sozinho conforme a categoria (categoria de renda deixa [+], as demais deixam [-]) e o dono pode inverter com um clique.
 - Transferência entre contas aparece como uma linha só, com origem e destino na coluna da conta ("Conta A → Conta B") e o valor movido em cor neutra, sem sinal de gasto ou renda. Com filtro por uma das contas, a linha mostra o sinal do ponto de vista dela (saída na origem, entrada no destino). Sem a soma zerada do Lunch Money.
@@ -45,6 +46,8 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 - A lista de contas dessa seta mostra só contas de movimento, agrupadas por tipo (cartões, contas correntes, dinheiro), com a instituição em cada uma e em ordem alfabética dentro do grupo. Contas de saldo (investimento, imóvel, empréstimo) e contas encerradas ficam de fora, porque não recebem lançamentos.
 
 ## Moedas
+
+- Configurações: moeda principal (padrão de contas novas e base dos totais, BRL) e lista de moedas em uso. As listas de moeda do app mostram só as moedas em uso.
 
 - Cada conta tem a sua moeda. Cada lançamento guarda o valor original, a moeda e o valor em reais.
 - A cotação é buscada sozinha na data do lançamento, pela PTAX do Banco Central. O dono pode corrigir quando o banco tiver usado outra cotação.
@@ -108,7 +111,7 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 
 ## Recorrentes e assinaturas
 
-- Janela de reconhecimento do recorrente: 7 dias antes ou depois da data prevista. Conta no mês previsto mesmo quando a transação cai no mês seguinte.
+- Janela de reconhecimento do recorrente: 7 dias antes ou depois da data prevista. Conta no mês previsto mesmo quando a transação cai no mês seguinte. A regra fica visível no recorrente (ex.: "reconhece de 28/11 a 12/12").
 
 - Recorrente é reconhecido pela conta, pelo beneficiário e pela data próxima. O valor pode variar (ex.: conta de luz), sem faixa de valor para configurar.
 
