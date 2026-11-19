@@ -1,101 +1,12 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState } from 'react';
 import type { Account, Category, Transaction, Tag } from '../../shared/types';
-import { formatMoney } from '../../shared/money';
-import {
-  Badge,
-  Button,
-  Table,
-  CategoryOptions,
-  InstallmentLink,
-} from '../components';
-import { api, humanDate } from '../api';
+import { Button, Table, CategoryOptions } from '../components';
+import { api } from '../api';
+import { currentMonth, validMonth } from '../../shared/recurring';
+import { MonthNavigation } from '../components/MonthNavigation';
+import { TransactionRow } from '../components/TransactionRow';
+import { RecurringEditor } from './Recurring';
 import { ManualTransaction } from '../components/ManualTransaction';
-function InlineEdit({
-  transaction,
-  categories,
-  onSaved,
-}: {
-  transaction: Transaction;
-  categories: Category[];
-  onSaved: (category: string) => void;
-}) {
-  const [category, setCategory] = useState(transaction.category_id ?? '');
-  const [note, setNote] = useState(transaction.note);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('');
-  const [saved, setSaved] = useState({
-    category: transaction.category_id ?? '',
-    note: transaction.note,
-  });
-  const categoryLocked =
-    transaction.kind === 'card_payment' ||
-    (transaction.origin === 'adjustment' && transaction.statement_id);
-  const dirty = category !== saved.category || note !== saved.note;
-  async function save(event: FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setMessage('');
-    try {
-      await api(`/transactions/${transaction.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(
-          categoryLocked ? { note } : { category_id: category || null, note },
-        ),
-      });
-      setSaved({ category, note });
-      setMessage('Salvo.');
-      onSaved(category);
-    } catch (error) {
-      setMessage((error as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <form onSubmit={save} className="inline-edit">
-      {categoryLocked ? (
-        (categories.find((c) => c.id === category)?.name ?? 'Sem categoria')
-      ) : (
-        <>
-          <label className="sr-only" htmlFor={`category-${transaction.id}`}>
-            Categoria de {transaction.payee}
-          </label>
-          <select
-            id={`category-${transaction.id}`}
-            value={category}
-            onChange={(e) => {
-              setCategory(e.target.value);
-              setMessage('');
-            }}
-            disabled={busy}
-          >
-            <option value="">Sem categoria</option>
-            <CategoryOptions categories={categories} />
-          </select>
-        </>
-      )}
-      <label className="sr-only" htmlFor={`note-${transaction.id}`}>
-        Nota de {transaction.payee}
-      </label>
-      <input
-        id={`note-${transaction.id}`}
-        aria-label={`Nota de ${transaction.payee}`}
-        placeholder="Adicionar nota"
-        value={note}
-        maxLength={2000}
-        disabled={busy}
-        onChange={(e) => {
-          setNote(e.target.value);
-          setMessage('');
-        }}
-      />
-      <Button type="submit" disabled={!dirty || busy}>
-        {busy ? 'Salvando…' : 'Salvar'}
-      </Button>
-      <small role="status">{message}</small>
-    </form>
-  );
-}
 type Page = {
   items: Transaction[];
   total: number;
@@ -107,12 +18,24 @@ export function Transactions({
   categories,
   revision,
   onSaved,
+  path,
+  navigate,
 }: {
+  path: string;
+  navigate: (to: string, replace?: boolean) => void;
   accounts: Account[];
   categories: Category[];
   revision: number;
   onSaved: () => Promise<void>;
 }) {
+  const rawMonth = path.split('/')[2] ?? currentMonth();
+  const month = validMonth(rawMonth) ? rawMonth : currentMonth();
+  const [recurring, setRecurring] = useState<Transaction | null>(null);
+  useEffect(() => {
+    if (path === '/transacoes' || path === '/')
+      navigate(`/transacoes/${month}${location.search}`, true);
+    setPage(1);
+  }, [path]);
   const [filters, setFilters] = useState({
     tag: '',
     account: new URLSearchParams(location.search).get('account') ?? '',
@@ -134,6 +57,7 @@ export function Transactions({
   const [retry, setRetry] = useState(0);
   const query = new URLSearchParams({
     ...filters,
+    month,
     page: String(page),
   }).toString();
   useEffect(() => {
@@ -159,15 +83,15 @@ export function Transactions({
       <div className="page-header">
         <div>
           <h1>Transações</h1>
-          <p>
-            Histórico por conta. Edite a categoria e a nota na própria tabela.
-          </p>
+          <p>Histórico do mês. Lance e edite na própria tabela.</p>
         </div>
       </div>
-      <ManualTransaction
-        accounts={accounts}
-        categories={categories}
-        onSaved={onSaved}
+      {!validMonth(rawMonth) && (
+        <p role="alert">Mês inválido. Mostrando o mês atual.</p>
+      )}
+      <MonthNavigation
+        month={month}
+        onChange={(m) => navigate(`/transacoes/${m}${location.search}`)}
       />
       <section className="filters" aria-label="Filtros de transações">
         <label>
@@ -256,7 +180,7 @@ export function Transactions({
           Limpar filtros
         </Button>
       </section>
-      {loading ? (
+      {loading && !data ? (
         <p role="status">Carregando transações…</p>
       ) : error ? (
         <div role="alert" className="error">
@@ -278,88 +202,35 @@ export function Transactions({
                 'Valor',
                 'Categoria',
                 'Alocação',
+                'Notas / Tags',
                 'Origem',
+                'Ações',
               ]}
               label="Transações"
             >
               <>
+                <ManualTransaction
+                  key={month}
+                  table
+                  month={month}
+                  accounts={accounts}
+                  categories={categories}
+                  onSaved={onSaved}
+                />
                 {data.items.map((t) => (
-                  <tr key={t.id}>
-                    <td className="nowrap">{humanDate(t.date)}</td>
-                    <td>{t.account_name}</td>
-                    <td>
-                      {t.payee}
-                      <InstallmentLink item={t} />
-                      <div>
-                        {t.tags.map((tag) => (
-                          <span
-                            className="badge"
-                            key={tag.id}
-                            style={{ borderColor: tag.color }}
-                          >
-                            {tag.name}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td
-                      className={`numeric ${t.amount_cents < 0 ? 'income' : ''}`}
-                    >
-                      <span className="direction">
-                        {t.amount_cents < 0 ? 'Entrada (+)' : 'Saída (−)'}
-                      </span>
-                      {formatMoney(Math.abs(t.amount_cents), t.currency)}
-                      {t.currency !== 'BRL' && (
-                        <small>
-                          {formatMoney(Math.abs(t.amount_brl_cents))}
-                        </small>
-                      )}
-                    </td>
-                    <td>
-                      <InlineEdit
-                        key={`${t.id}-${revision}`}
-                        transaction={t}
-                        categories={categories}
-                        onSaved={(category) => {
-                          setData((current) =>
-                            current
-                              ? {
-                                  ...current,
-                                  items: current.items.map((item) =>
-                                    item.id === t.id
-                                      ? {
-                                          ...item,
-                                          category_id: category || null,
-                                          allocation_name:
-                                            categories.find(
-                                              (c) => c.id === category,
-                                            )?.allocation_name ?? null,
-                                        }
-                                      : item,
-                                  ),
-                                }
-                              : current,
-                          );
-                          if (
-                            filters.category &&
-                            filters.category !== category
-                          ) {
-                            if (data.items.length === 1 && page > 1)
-                              setPage(page - 1);
-                            else setRetry((value) => value + 1);
-                          }
-                        }}
-                      />
-                    </td>
-                    <td>{t.allocation_name ?? 'Sem alocação'}</td>
-                    <td>
-                      <Badge origin={t.origin} />
-                    </td>
-                  </tr>
+                  <TransactionRow
+                    key={`${t.id}-${revision}`}
+                    t={t}
+                    accounts={accounts}
+                    categories={categories}
+                    tags={tags}
+                    onSaved={onSaved}
+                    onRecurring={setRecurring}
+                  />
                 ))}
                 {!data.items.length && (
                   <tr>
-                    <td colSpan={7}>
+                    <td colSpan={9}>
                       Nenhuma transação encontrada para estes filtros.
                     </td>
                   </tr>
@@ -383,6 +254,15 @@ export function Transactions({
             </div>
           </>
         )
+      )}
+      {recurring && (
+        <RecurringEditor
+          transaction={recurring}
+          accounts={accounts}
+          categories={categories}
+          onSaved={onSaved}
+          onClose={() => setRecurring(null)}
+        />
       )}
     </>
   );

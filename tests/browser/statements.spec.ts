@@ -16,7 +16,7 @@ test('abre o parcelamento original e paga uma fatura em uma linha', async ({
   expect(source.status()).toBe(201);
   const { id } = await source.json();
 
-  await page.goto('/transacoes?account=card-a&from=2026-08-01&to=2026-08-31');
+  await page.goto('/transacoes/2026-08?account=card-a');
   const installment = page.getByRole('link', {
     name: 'Compra original, parcela 3 de 12',
   });

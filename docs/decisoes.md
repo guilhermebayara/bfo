@@ -79,11 +79,13 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 
 ## Recorrentes e assinaturas
 
+- Recorrente é reconhecido pela conta, pelo beneficiário e pela data próxima. O valor pode variar (ex.: conta de luz), sem faixa de valor para configurar.
+
 - Assinatura é uma marca aplicável a qualquer recorrente. A categoria do item continua a dele. Não existe categoria de assinatura.
 - Tipo de assinatura: lista que o dono cria e edita (ex.: Essencial e as demais). A tela de assinaturas agrupa por tipo e também por grupo de alocação.
 - Tela de assinaturas: valor, próxima cobrança, conta ou cartão onde cai, total por tipo.
 - Assinatura anual: no planejamento e no orçamento conta no mês da cobrança. A tela de assinaturas mostra também o equivalente mensal, como informação.
-- A assinatura guarda data de renovação. Aviso dentro do app, numa faixa no topo enquanto a renovação estiver próxima. Sem e-mail.
+- A assinatura guarda data de renovação e um prazo de aviso próprio, com 30 dias como padrão. Aviso dentro do app, numa faixa no topo enquanto a renovação estiver próxima. Sem e-mail.
 
 ## Fases
 

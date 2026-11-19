@@ -1,4 +1,14 @@
 import { Hono } from 'hono';
+import {
+  currentMonth,
+  validMonth,
+  monthBounds,
+  datesInMonth,
+  nextOccurrence,
+  monthlyEquivalent,
+  renewalSoon,
+} from '../shared/recurring';
+import type { Recurring } from '../shared/types';
 import { ptax, convert } from './fx';
 import { installmentAmount, statementCycle, today } from './statements';
 import type { Account, Statement } from '../shared/types';
@@ -41,9 +51,7 @@ function object(value: unknown): Record<string, unknown> {
 }
 function keys(body: Record<string, unknown>, allowed: string[]) {
   if (Object.keys(body).some((k) => !allowed.includes(k)))
-    fail(
-      'Campo não permitido. Somente categoria e nota podem ser editadas nesta sessão.',
-    );
+    fail('Campo não permitido para este registro.');
 }
 app.onError((error, c) => {
   if (error instanceof InputError)
@@ -122,6 +130,12 @@ app.get('/api/transactions', async (c) => {
   const query = c.req.query();
   const conditions: string[] = [];
   const params: string[] = [];
+  if (query.month) {
+    if (!validMonth(query.month)) fail('Mês inválido.');
+    const bounds = monthBounds(query.month);
+    conditions.push('t.date>=? AND t.date<=?');
+    params.push(bounds.from, bounds.to);
+  }
   for (const [key, column] of [
     ['account', 'account_id'],
     ['category', 'category_id'],
@@ -174,47 +188,176 @@ app.get('/api/transactions', async (c) => {
 });
 app.patch('/api/transactions/:id', async (c) => {
   const body = object(await c.req.json());
-  keys(body, ['category_id', 'note']);
-  if (!Object.keys(body).length) fail('Informe categoria ou nota.');
-  const transaction = await c.var.DB.prepare(
-    'SELECT id,kind,origin,statement_id FROM transactions WHERE id=?',
-  )
+  const db = c.var.DB;
+  const t = await db
+    .prepare('SELECT * FROM transactions WHERE id=?')
     .bind(c.req.param('id'))
-    .first();
-  if (!transaction) fail('Transação não encontrada.', 404);
-  const fields: string[] = [];
-  const values: (string | null)[] = [];
+    .first<import('../shared/types').Transaction>();
+  if (!t) return fail('Transação não encontrada.', 404);
+  const editable = t.origin === 'manual' && t.kind === 'regular';
+  keys(
+    body,
+    editable
+      ? [
+          'category_id',
+          'note',
+          'account_id',
+          'date',
+          'amount_cents',
+          'payee',
+          'tag_ids',
+          'fx_rate',
+        ]
+      : ['category_id', 'note'],
+  );
+  if (!Object.keys(body).length) fail('Informe os campos.');
+  const update: Record<string, unknown> = {};
   if ('category_id' in body) {
     if (
-      transaction!.kind === 'card_payment' ||
-      (transaction!.origin === 'adjustment' && transaction!.statement_id)
+      t.kind === 'card_payment' ||
+      (t.origin === 'adjustment' && t.statement_id)
     )
       fail('A categoria deste lançamento é protegida.');
-    if (body.category_id !== null && typeof body.category_id !== 'string')
-      fail('Categoria inválida.');
-    if (
-      body.category_id !== null &&
-      !(await c.var.DB.prepare('SELECT id FROM categories WHERE id=?')
-        .bind(body.category_id)
-        .first())
-    )
-      fail('Categoria não encontrada.');
-    fields.push('category_id=?');
-    values.push(body.category_id as string | null);
+    if (body.category_id !== null)
+      await exists(db, 'categories', body.category_id);
+    update.category_id = body.category_id;
   }
   if ('note' in body) {
     if (typeof body.note !== 'string' || body.note.length > 2000)
       fail('Nota deve ter até 2000 caracteres.');
-    fields.push('note=?');
-    values.push(body.note as string);
+    update.note = body.note;
   }
-  await c.var.DB.prepare(
-    `UPDATE transactions SET ${fields.join(',')} WHERE id=?`,
-  )
-    .bind(...values, c.req.param('id'))
-    .run();
+  const writes: D1PreparedStatement[] = [];
+  const financial = [
+    'account_id',
+    'date',
+    'amount_cents',
+    'payee',
+    'fx_rate',
+  ].some((k) => k in body);
+  if (financial) {
+    if (t.statement_id) {
+      const st = await db
+        .prepare('SELECT status FROM statements WHERE id=?')
+        .bind(t.statement_id)
+        .first();
+      if (st?.status !== 'open')
+        fail('Uma das faturas deste lançamento já foi fechada.', 409);
+    }
+    const account = await db
+      .prepare('SELECT * FROM accounts WHERE id=?')
+      .bind(body.account_id ?? t.account_id)
+      .first<Account>();
+    if (
+      !account ||
+      account.closed_at ||
+      account.archived ||
+      !account.cutoff_date
+    )
+      fail('Escolha uma conta ativa.');
+    const day = date(body.date ?? t.date);
+    if (day <= account!.cutoff_date!)
+      fail('O lançamento deve ser posterior ao corte.');
+    const amount = cents(body.amount_cents ?? t.amount_cents);
+    if (!amount) fail('Informe valor diferente de zero.');
+    const name = text(body.payee ?? t.payee, 'Beneficiário');
+    const q = await fx(
+      db,
+      account!.currency,
+      day,
+      body.fx_rate ??
+        (account!.currency === t.currency && day === t.date
+          ? t.fx_rate
+          : undefined),
+    );
+    let statement: string | null = null;
+    if (account!.kind === 'credit_card') {
+      if (!account!.closing_day || !account!.due_day)
+        fail('Configure o cartão.');
+      const cycle = statementCycle(
+        day,
+        account!.closing_day!,
+        account!.due_day!,
+      );
+      const existing = await db
+        .prepare(
+          'SELECT id,status FROM statements WHERE account_id=? AND closing_date=?',
+        )
+        .bind(account!.id, cycle.closingDate)
+        .first<{ id: string; status: string }>();
+      if (existing && existing.status !== 'open')
+        fail('Uma das faturas deste lançamento já foi fechada.', 409);
+      statement = existing?.id ?? crypto.randomUUID();
+      writes.push(
+        db
+          .prepare(
+            "INSERT INTO statements(id,account_id,period_start,closing_date,due_date,status) VALUES(?,?,?,?,?,'open') ON CONFLICT(account_id,closing_date) DO NOTHING",
+          )
+          .bind(
+            statement,
+            account!.id,
+            cycle.periodStart,
+            cycle.closingDate,
+            cycle.dueDate,
+          ),
+      );
+    }
+    writes.push(
+      db
+        .prepare(
+          'INSERT INTO payees(id,name) VALUES(?,?) ON CONFLICT(name) DO NOTHING',
+        )
+        .bind(crypto.randomUUID(), name),
+    );
+    Object.assign(update, {
+      account_id: account!.id,
+      date: day,
+      amount_cents: amount,
+      payee: name,
+      currency: account!.currency,
+      fx_rate: q.rate,
+      fx_source: q.source,
+      amount_brl_cents: converted(amount, q.rate),
+      statement_id: statement,
+    });
+    // O nome pode ser novo; o vínculo é resolvido dentro do mesmo batch.
+    writes.push(
+      db
+        .prepare(
+          'UPDATE transactions SET payee_id=(SELECT COALESCE(merged_into_id,id) FROM payees WHERE name=? COLLATE NOCASE) WHERE id=?',
+        )
+        .bind(name, t.id),
+    );
+  }
+  if ('tag_ids' in body) {
+    if (!Array.isArray(body.tag_ids) || body.tag_ids.length > 50)
+      fail('Tags inválidas.');
+    const tags = [...new Set(body.tag_ids as string[])];
+    for (const id of tags) await exists(db, 'tags', id);
+    writes.push(
+      db
+        .prepare('DELETE FROM transaction_tags WHERE transaction_id=?')
+        .bind(t.id),
+    );
+    for (const tag of tags)
+      writes.push(
+        db.prepare('INSERT INTO transaction_tags VALUES(?,?)').bind(t.id, tag),
+      );
+  }
+  if (Object.keys(update).length)
+    writes.push(
+      db
+        .prepare(
+          `UPDATE transactions SET ${Object.keys(update)
+            .map((k) => `${k}=?`)
+            .join(',')} WHERE id=?`,
+        )
+        .bind(...Object.values(update), t.id),
+    );
+  if (writes.length) await db.batch(writes);
   return c.json({ ok: true });
 });
+
 async function activation(
   db: D1Database,
   id: string,
@@ -950,6 +1093,7 @@ app.post('/api/accounts/:id/reconcile', async (c) => {
 // Tabelas e campos vêm desta lista fixa; valores sempre usam bind.
 const configTables = {
   institutions: ['name'],
+  'subscription-types': ['name'],
   tags: ['name', 'color'],
   'allocation-groups': ['name', 'target_percent'],
   'category-groups': ['name', 'allocation_group_id'],
@@ -1016,6 +1160,230 @@ for (const [route, fields] of Object.entries(configTables)) {
       },
     );
 }
+const recurringSql = `SELECT r.*,a.name AS account_name,a.currency,c.name AS category_name,ag.name AS allocation_name,st.name AS type_name
+ FROM recurring r JOIN accounts a ON a.id=r.account_id LEFT JOIN categories c ON c.id=r.category_id
+ LEFT JOIN category_groups cg ON cg.id=c.category_group_id LEFT JOIN allocation_groups ag ON ag.id=cg.allocation_group_id
+ LEFT JOIN subscription_types st ON st.id=r.subscription_type_id`;
+app.get('/api/recurring', async (c) => {
+  const month = c.req.query('month') ?? currentMonth();
+  if (!validMonth(month)) fail('Mês inválido.');
+  const db = c.var.DB;
+  const { results: rows } = await db
+    .prepare(recurringSql + ' ORDER BY c.name,r.payee')
+    .all<Recurring>();
+  if (c.req.query('catalog') === '1')
+    return c.json({
+      items: rows.map((r) => ({
+        ...r,
+        due_date: nextOccurrence(r, today()),
+        arrived: false,
+        actual_cents: 0,
+        transaction_id: null,
+      })),
+      summary: {},
+    });
+  const bounds = monthBounds(month);
+  const { results: transactions } = await db
+    .prepare(
+      `SELECT t.id,t.account_id,t.amount_cents,t.date,COALESCE(canonical.name,p.name,t.payee) AS payee,
+    (SELECT recurring_id FROM recurring_sources WHERE transaction_id=t.id) AS source_id
+    FROM transactions t LEFT JOIN payees p ON p.id=t.payee_id LEFT JOIN payees canonical ON canonical.id=p.merged_into_id
+    WHERE t.date>=? AND t.date<=? AND t.kind='regular' AND t.origin<>'adjustment' ORDER BY t.date,t.id`,
+    )
+    .bind(bounds.from, bounds.to)
+    .all<{
+      id: string;
+      account_id: string;
+      amount_cents: number;
+      date: string;
+      payee: string;
+      source_id: string | null;
+    }>();
+  const used = new Set<string>();
+  const items = rows
+    .filter((r) => r.active)
+    .flatMap((r) =>
+      datesInMonth(r, month).map((due) => {
+        const match = transactions
+          .filter(
+            (t) =>
+              !used.has(t.id) &&
+              t.account_id === r.account_id &&
+              Math.sign(t.amount_cents) === Math.sign(r.amount_cents) &&
+              (t.source_id === r.id ||
+                (!t.source_id &&
+                  t.payee.toLocaleLowerCase('pt-BR') ===
+                    r.payee.toLocaleLowerCase('pt-BR'))),
+          )
+          .sort(
+            (a, b) =>
+              Math.abs(Date.parse(a.date) - Date.parse(due)) -
+              Math.abs(Date.parse(b.date) - Date.parse(due)),
+          )[0];
+        if (match) used.add(match.id);
+        return {
+          ...r,
+          due_date: due,
+          arrived: !!match,
+          transaction_id: match?.id ?? null,
+          actual_cents: match?.amount_cents ?? 0,
+        };
+      }),
+    );
+  const summary: Record<
+    string,
+    Record<string, { expected: number; actual: number }>
+  > = {};
+  for (const item of items) {
+    const bucket = (summary[item.currency] ??= {
+      income: { expected: 0, actual: 0 },
+      expense: { expected: 0, actual: 0 },
+    });
+    const side = bucket[item.amount_cents < 0 ? 'income' : 'expense'];
+    side.expected += Math.abs(item.amount_cents);
+    side.actual += Math.abs(item.actual_cents);
+  }
+  return c.json({ items, summary });
+});
+app.get('/api/subscriptions', async (c) => {
+  const { results } = await c.var.DB.prepare(
+    recurringSql +
+      ' WHERE r.is_subscription=1 AND r.active=1 ORDER BY st.sort,r.payee',
+  ).all<Recurring>();
+  return c.json(
+    results.map((r) => ({
+      ...r,
+      next_charge: nextOccurrence(r, today()),
+      monthly_cents: monthlyEquivalent(
+        r.amount_cents,
+        r.cadence,
+        r.interval_days,
+      ),
+      renewal_soon: renewalSoon(r.renewal_date, today()),
+    })),
+  );
+});
+for (const method of ['post', 'patch'] as const)
+  app[method](
+    `/api/recurring${method === 'patch' ? '/:id' : ''}`,
+    async (c) => {
+      const db = c.var.DB;
+      const b = object(await c.req.json());
+      keys(b, [
+        'account_id',
+        'payee',
+        'amount_cents',
+        'category_id',
+        'cadence',
+        'next_date',
+        'interval_days',
+        'description',
+        'is_subscription',
+        'subscription_type_id',
+        'renewal_date',
+        'active',
+        'transaction_id',
+      ]);
+      const id = method === 'patch' ? c.req.param('id') : crypto.randomUUID();
+      const old =
+        method === 'patch'
+          ? await db
+              .prepare('SELECT * FROM recurring WHERE id=?')
+              .bind(id)
+              .first()
+          : null;
+      if (method === 'patch' && !old) fail('Recorrente não encontrado.', 404);
+      const r = { ...old, ...b };
+      const account = await db
+        .prepare(
+          'SELECT id FROM accounts WHERE id=? AND archived=0 AND closed_at IS NULL',
+        )
+        .bind(text(r.account_id, 'Conta'))
+        .first();
+      if (!account) fail('Conta indisponível.');
+      r.payee = text(r.payee, 'Beneficiário');
+      r.amount_cents = cents(r.amount_cents);
+      if (!r.amount_cents) fail('Informe valor diferente de zero.');
+      if (r.category_id != null) await exists(db, 'categories', r.category_id);
+      if (
+        !['monthly', 'yearly', 'weekly', 'custom'].includes(String(r.cadence))
+      )
+        fail('Frequência inválida.');
+      r.next_date = date(r.next_date);
+      if (
+        r.cadence === 'custom' &&
+        (!Number.isInteger(r.interval_days) ||
+          Number(r.interval_days) < 1 ||
+          Number(r.interval_days) > 3660)
+      )
+        fail('Informe o intervalo em dias, de 1 a 3660.');
+      r.is_subscription = r.is_subscription ?? 0;
+      r.active = r.active ?? 1;
+      if (
+        ![0, 1].includes(r.is_subscription as number) ||
+        ![0, 1].includes(r.active as number)
+      )
+        fail('Estado inválido.');
+      if (r.is_subscription === 1) {
+        await exists(db, 'subscription_types', r.subscription_type_id);
+        if (r.renewal_date == null) fail('Informe a renovação.');
+      }
+      if (r.renewal_date != null) r.renewal_date = date(r.renewal_date);
+      if (
+        typeof (r.description ?? '') !== 'string' ||
+        String(r.description ?? '').length > 2000
+      )
+        fail('Descrição inválida.');
+      const fields = [
+        'account_id',
+        'payee',
+        'amount_cents',
+        'category_id',
+        'cadence',
+        'next_date',
+        'interval_days',
+        'description',
+        'is_subscription',
+        'subscription_type_id',
+        'renewal_date',
+        'active',
+      ];
+      const values = fields.map(
+        (k) => r[k] ?? (k === 'description' ? '' : null),
+      );
+      const writes = [
+        method === 'post'
+          ? db
+              .prepare(
+                `INSERT INTO recurring(id,${fields.join(',')}) VALUES(?,${fields.map(() => '?').join(',')})`,
+              )
+              .bind(id, ...values)
+          : db
+              .prepare(
+                `UPDATE recurring SET ${fields.map((k) => `${k}=?`).join(',')} WHERE id=?`,
+              )
+              .bind(...values, id),
+      ];
+      if (b.transaction_id !== undefined) {
+        const t = await db
+          .prepare(
+            "SELECT id FROM transactions WHERE id=? AND kind='regular' AND origin<>'adjustment'",
+          )
+          .bind(text(b.transaction_id))
+          .first();
+        if (!t) fail('Escolha uma transação comum.');
+        writes.push(
+          db
+            .prepare(
+              'INSERT INTO recurring_sources(recurring_id,transaction_id) VALUES(?,?)',
+            )
+            .bind(id, b.transaction_id),
+        );
+      }
+      await db.batch(writes);
+      return c.json({ id }, method === 'post' ? 201 : 200);
+    },
+  );
 app.all('/api/*', (c) => c.json({ error: 'Rota não encontrada.' }, 404));
 app.all('*', (c) => c.env.ASSETS.fetch(c.req.raw));
 export default app;
