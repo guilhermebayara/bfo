@@ -4,7 +4,8 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
 
 ## Fase 1: Movimento (brief em docs/briefs/fase-1-movimento.md)
 
-- [ ] Sessão A: fundação técnica, seed e interface funcional de Transações e Contas (estrutura e hierarquia, visual neutro).
+- [x] Sessão A: fundação técnica, seed e interface funcional de Transações e Contas (estrutura e hierarquia, visual neutro).
+  - Implementação e validação local concluídas. Publicação e validação remota dependem dos passos em `docs/cloudflare.md`.
 - [ ] Sessão B: lançamento manual completo, categorias e grupos, marco e ajuste por conta.
 - [ ] Sessão C: cartão, fatura, parceladas, pagar fatura, conferência.
 - [ ] Sessão D: recorrentes, assinaturas, aviso de renovação.

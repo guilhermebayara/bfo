@@ -6,3 +6,5 @@ dist/
 .env.*
 # Dados reais da importação do Lunch Money: nunca versionar
 private-data/
+playwright-report/
+test-results/
