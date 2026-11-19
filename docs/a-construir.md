@@ -21,7 +21,7 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
 
 - [x] Ajuste técnico (Sessão B): a Cloudflare trocou as prévias por versão com alias pelo recurso Previews, com comando padrão `npx wrangler preview`. Migrar a configuração (bloco `previews` no ambiente homologacao do wrangler, comando de prévia com o ambiente) e atualizar docs/cloudflare.md com os nomes atuais do painel (Settings > Build, preview builds, Preview command).
 
-- [ ] Ajuste de fluxo (próxima sessão): migração automática no deploy da homologação (comando de deploy aplica `wrangler d1 migrations apply DB --remote --env homologacao` antes do `wrangler deploy --env homologacao`), remover a configuração de prévias por branch e reescrever docs/cloudflare.md para o fluxo simples. Se o token do Workers Builds não tiver permissão no D1, documentar o passo para o dono liberar.
+- [ ] Infraestrutura igual à do acervo da família (próxima sessão, depois que bayara.design estiver ativo na conta BFO): wrangler com Worker `bfo` sem ambientes nomeados, rota bfo.bayara.design com `custom_domain` e `previews_enabled`, D1 `bfo-producao` no nível de cima e `bfo-homologacao` no bloco `previews`, `workers_dev` desligado. Migração aplicada no deploy de cada ambiente. Reescrever docs/cloudflare.md para esse modelo (comandos do painel: build `npm run build`, deploy `npx wrangler deploy`, preview `npx wrangler preview`; Access em bfo.bayara.design e *.bfo.bayara.design). Depois, o Worker `bfo-homologacao` pode ser apagado pelo dono.
 
 ## Fase 2: Patrimônio
 
