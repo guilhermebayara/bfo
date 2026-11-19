@@ -39,7 +39,8 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
   - [x] 17 defeitos corrigidos (7 altos, 9 médios, 1 baixo), 97 testes de API/regras/migrações e 28 testes de navegador aprovados. Edição como planilha em Transações, salvamento automático, teclado e atualização das telas dependentes cobertos no navegador.
   - [x] Esclarecimento do dono aplicado: importadas permitem categoria, nota, tags e divisão; valor total e data permanecem travados.
   - [x] Lançamento parcelado com explicação da parcela atual e prévia completa, incluindo as retroativas antes de salvar.
-- [ ] Sessão H: script de importação do Lunch Money (API v2), apagar e refazer importação. Construída e testada só com dados simulados; a importação real espera o repositório privado.
+- [ ] Sessão H (ajustes): refazer a tabela de Transações como planilha de verdade (uma linha por transação, lançamento como linha no topo com as mesmas colunas, setas de mês), seletor de moeda em vez de texto ao criar conta, janela de recorrentes e antecipação reclassificada (decisões, seções Recorrentes e assinaturas e Cartão e fatura), botão de adicionar com conta padrão e seta com contas de movimento agrupadas por tipo, conta padrão nas configurações, botão de sinal no valor automático pela categoria (decisões, seção Tabela de transações), marcas de categoria com herança do grupo (decisões, seção Categorias e orçamento) resumo lateral do mês sem orçamento (decisões, seção Resumo lateral do mês), transferência em uma linha e seleção múltipla com edição em lote (decisões, seção Tabela de transações).
+- [ ] Sessão I: script de importação do Lunch Money (API v2), apagar e refazer importação. Construída e testada só com dados simulados; a importação real espera o repositório privado.
 
 - [ ] Conceito visual: feito no Claude depois que a estrutura da fase 1 estiver redonda. Duas propostas numa prévia, o dono escolhe olhando a tela, e só então o visual é aplicado.
 
@@ -59,3 +60,7 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
 - [ ] Ligar bfo.bayara.design ao Worker de produção, com Access.
 - [ ] Repositório privado antes do primeiro uso do token real.
 - [ ] Importação definitiva e datas de corte de cada conta.
+
+## Ideias para depois das três fases (sem decisão)
+
+- Importação pontual de extrato ou fatura (OFX ou CSV, quando o banco oferecer), separada da importação do histórico do Lunch Money. Diferenças: as transações entram como manuais e editáveis, passam por uma tela de revisão antes de salvar e são cruzadas com o que já foi lançado para não duplicar. Uso principal: achar a compra que faltou numa conferência de fatura. Baixa prioridade, porque o lançamento manual dá a melhor visão dos dados e os bancos não têm um padrão de exportação confiável.
