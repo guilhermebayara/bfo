@@ -5,7 +5,7 @@ export default defineConfig({
     cloudflareTest({
       miniflare: {
         compatibilityDate: '2026-11-19',
-        d1Databases: ['DB'],
+        d1Databases: ['DB', 'DB_HOMOLOGACAO'],
         bindings: { MIGRATIONS: await readD1Migrations('migrations') },
       },
       config: false,
