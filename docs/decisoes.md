@@ -55,6 +55,17 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 - O ajuste de fatura conta como gasto, na categoria própria "Diferença de fatura".
 - Compra parcelada: lançada uma vez, com valor total e número de parcelas. O app gera as parcelas, cada uma ligada à fatura do seu mês.
 
+- Parcelada retroativa: ao lançar uma compra que já começou (ex.: 3/10), o dono informa valor da parcela, total de parcelas e parcela atual. O app cria todas as parcelas, cada uma na fatura do seu mês, incluindo as que já passaram. Motivo: serve no dia da virada e também depois, quando uma compra ficar sem lançar por um tempo.
+- Parcelas retroativas que caem antes da data de corte da conta ficam marcadas como retroativas, porque os meses entre o fim do Lunch Money e o início do BFO não são fidedignos. Parcela retroativa que cai numa fatura já fechada entra na fatura, aparece marcada e a conferência daquela fatura é recalculada.
+- A quantidade é sempre em número de parcelas, nunca em meses.
+- Antecipação no cartão: ação na compra parcelada. O dono escolhe quantas parcelas antecipa, o app mostra o valor cheio e ele digita o valor cobrado pelo banco. Entra uma linha só na fatura atual com o valor pago, as parcelas antecipadas saem dos meses seguintes e o desconto fica no histórico da compra, reduzindo o custo real dela.
+- Antecipação de empréstimo (fase 2): o pagamento sai da corrente, o saldo devedor cai pelo valor cheio das parcelas antecipadas e o desconto fica registrado no empréstimo.
+
+## Divisão de transação
+
+- Uma transação pode ser dividida em partes, cada uma com categoria e tags próprias, por valor ou por percentual. O app mostra quanto falta dividir e só salva com a soma fechada. Desfazer a divisão volta a uma transação só.
+- Sem "dividir ao longo do tempo": o parcelamento por número de parcelas cobre isso.
+
 ## Categorias e orçamento
 
 - Duas camadas. Grupos de categoria organizam (Moradia, Alimentação). Grupos de alocação dizem o tipo de dinheiro (Essencial, Estilo de vida, Investimento), cada um com percentual previsto (ex.: 60 / 25 / 15). Cada grupo de categoria pertence a um grupo de alocação.
