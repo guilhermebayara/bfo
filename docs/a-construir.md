@@ -104,6 +104,8 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
   - As duas direções desenham também a tela inicial, com os números da Sessão X.
   - Pendente: análise das nove telas do Mobbin pelo dono com o chat, depois de 23/11. A revisão visual começa depois disso.
 
+- [ ] Web app no Mac, depois do conceito visual (decisões, Produto): manifesto e ícone para Adicionar ao Dock no Safari, notificações por Web Push enviadas pelo Worker (chaves VAPID como segredo, digitadas pelo dono) com os itens de "o que pede atenção" da tela inicial, e selo no ícone. Respeitar o Access: a assinatura das notificações só acontece com o dono logado.
+
 - [x] Ajuste técnico (Sessão B): a Cloudflare trocou as prévias por versão com alias pelo recurso Previews, com comando padrão `npx wrangler preview`. Migrar a configuração (bloco `previews` no ambiente homologacao do wrangler, comando de prévia com o ambiente) e atualizar docs/cloudflare.md com os nomes atuais do painel (Settings > Build, preview builds, Preview command).
 
 ## Fase 2: Patrimônio

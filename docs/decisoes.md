@@ -9,6 +9,7 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 - BFO (Bayara Family Office) é a versão própria do Lunch Money: transações, contas, recorrentes, orçamento, patrimônio líquido ao longo do tempo, dívidas, imóvel, investimentos e categorias agrupadas.
 - O dono só passa a usar de verdade quando as três fases estiverem prontas. As fases são rodadas de teste e ajuste: cada uma fica redonda antes de construir a que depende dela.
 - Web, desktop primeiro. App nativo é possibilidade para o futuro.
+- App no Mac, decidido em 20/11/2026: o web continua sendo a prioridade, para o acesso de qualquer lugar. No Mac, o BFO vira um web app do Safari (Adicionar ao Dock), com ícone, abertura no login, notificações por Web Push e selo no ícone com o que pede atenção, saindo da tela inicial. Entra depois do conceito visual, porque o ícone depende da identidade. Uma casca fina (Tauri) com ícone na barra de menus só se fizer falta no uso real, depois das três fases. App nativo com interface própria fica fora, para não manter duas interfaces.
 - Estrutura antes do visual. A primeira etapa acerta a estrutura, a interface funcional e as hierarquias, com visual neutro. O conceito visual vem depois, numa etapa própria, com duas propostas para o dono escolher.
 
 ## Importação e os dois momentos
