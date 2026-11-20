@@ -421,14 +421,23 @@ export function Preferences({
   accounts: Account[];
   onSaved: () => Promise<void>;
 }) {
+  const [primary, setPrimary] = useState('BRL'),
+    [used, setUsed] = useState<string[]>(['BRL']);
+  const names = new Intl.DisplayNames(['pt-BR'], { type: 'currency' });
   const [account, setAccount] = useState(''),
     [message, setMessage] = useState(''),
     [busy, setBusy] = useState(false),
     [ready, setReady] = useState(false);
   useEffect(() => {
-    api<{ default_account_id: string | null }>('/preferences')
+    api<{
+      default_account_id: string | null;
+      primary_currency: string;
+      currencies_in_use: string[];
+    }>('/preferences')
       .then((p) => {
         setAccount(p.default_account_id ?? '');
+        setPrimary(p.primary_currency);
+        setUsed(p.currencies_in_use);
         setReady(true);
       })
       .catch((e) => setMessage(e.message));
@@ -443,10 +452,14 @@ export function Preferences({
           try {
             await api('/preferences', {
               method: 'PATCH',
-              body: JSON.stringify({ default_account_id: account || null }),
+              body: JSON.stringify({
+                default_account_id: account || null,
+                primary_currency: primary,
+                currencies_in_use: used,
+              }),
             });
             await onSaved();
-            setMessage('Conta padrão salva.');
+            setMessage('Configurações salvas.');
           } catch (e) {
             setMessage((e as Error).message);
           } finally {
@@ -465,6 +478,51 @@ export function Preferences({
               <AccountOptions accounts={accounts} />
             </select>
           </label>
+          <label>
+            Moeda principal
+            <select
+              aria-label="Moeda principal"
+              value={primary}
+              onChange={(e) => setPrimary(e.target.value)}
+            >
+              {used.map((code) => (
+                <option key={code}>{code}</option>
+              ))}
+            </select>
+            <small>Padrão para contas novas. Totais e relatórios em BRL.</small>
+          </label>
+          <fieldset>
+            <legend>Moedas em uso</legend>
+            {used.map((code) => (
+              <label className="tag-choice" key={code}>
+                <input
+                  type="checkbox"
+                  checked
+                  onChange={() => setUsed(used.filter((c) => c !== code))}
+                />
+                {code} · {names.of(code)}
+              </label>
+            ))}
+            <label>
+              Adicionar moeda
+              <select
+                aria-label="Adicionar moeda"
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) setUsed([...used, e.target.value]);
+                }}
+              >
+                <option value="">Escolha</option>
+                {Intl.supportedValuesOf('currency')
+                  .filter((c) => !used.includes(c))
+                  .map((c) => (
+                    <option key={c} value={c}>
+                      {c} · {names.of(c)}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          </fieldset>
           <Button type="submit">Salvar configurações</Button>
         </fieldset>
       </form>

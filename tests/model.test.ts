@@ -1,3 +1,4 @@
+import { today } from '../src/shared/dates';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { env } from 'cloudflare:workers';
 import { applyD1Migrations } from 'cloudflare:test';
@@ -288,7 +289,7 @@ it('seed é repetível, cobre 14 meses e mantém edições e contas ativadas', a
   await db.exec(seed);
   const months = await db
     .prepare(
-      "SELECT COUNT(DISTINCT substr(date,1,7)) AS n FROM transactions WHERE origin='imported' AND id LIKE 'seed-%'",
+      "SELECT COUNT(DISTINCT substr(date,1,7)) AS n FROM transactions WHERE origin='imported' AND id LIKE 'seed-20%'",
     )
     .first();
   expect(months.n).toBe(7);
@@ -453,7 +454,7 @@ describe('Sessão B', () => {
       (
         await manual({
           account_id: id,
-          date: new Date().toISOString().slice(0, 10),
+          date: today(),
         })
       ).status,
     ).toBe(201);
@@ -540,9 +541,7 @@ describe('Sessão B', () => {
     ).toBe(201);
     const account = (await (await request('/accounts')).json())[0];
     expect(account.balance_cents).toBe(100000);
-    expect(account.last_reconciled_at).toBe(
-      new Date().toISOString().slice(0, 10),
-    );
+    expect(account.last_reconciled_at).toBe(today());
     const record = await db.prepare('SELECT * FROM reconciliations').first();
     expect(record.adjustment_transaction_id).toBeTruthy();
     expect(

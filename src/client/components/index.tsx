@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import type { Transaction } from '../../shared/types';
 import {
   useEffect,
@@ -39,6 +40,7 @@ export function MoneyField({
       {label}
       <input
         id={id}
+        aria-label={label}
         inputMode="decimal"
         required
         value={value}
@@ -105,7 +107,7 @@ export function Modal({
       previous?.focus();
     };
   }, []);
-  return (
+  return createPortal(
     <dialog
       ref={ref}
       aria-labelledby="modal-title"
@@ -126,7 +128,8 @@ export function Modal({
         </Button>
       </div>
       {children}
-    </dialog>
+    </dialog>,
+    document.body,
   );
 }
 

@@ -1,3 +1,4 @@
+import { movementAccounts } from './AccountOptions';
 import { statementCycle } from '../../shared/installments';
 import { today } from '../../shared/dates';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
@@ -19,9 +20,7 @@ export function ManualTransaction({
   categories: Category[];
   onSaved: () => Promise<void>;
 }) {
-  const active = accounts.filter(
-    (a) => !a.closed_at && !a.archived && a.cutoff_date,
-  );
+  const active = movementAccounts(accounts);
   const requestedAccount = new URLSearchParams(location.search).get('account');
   const [account, setAccount] = useState(
     active.find((a) => a.id === requestedAccount)?.id ?? active[0]?.id ?? '',

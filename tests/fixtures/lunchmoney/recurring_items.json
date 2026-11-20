@@ -1,0 +1,101 @@
+{
+  "recurring_items": [
+    {
+      "id": 701,
+      "description": "Salário",
+      "status": "reviewed",
+      "transaction_criteria": {
+        "start_date": "2023-02-05",
+        "end_date": null,
+        "granularity": "month",
+        "quantity": 1,
+        "anchor_date": "2026-10-05",
+        "payee": "Empresa Modelo",
+        "amount": "-5200.0000",
+        "currency": "brl",
+        "manual_account_id": 1,
+        "plaid_account_id": null
+      },
+      "overrides": {
+        "payee": "Empresa Modelo",
+        "notes": null,
+        "category_id": 204
+      },
+      "matches": {
+        "expected_occurrence_dates": [
+          "2026-11-05"
+        ],
+        "found_transactions": [
+          {
+            "date": "2026-10-05",
+            "transaction_id": 90002
+          }
+        ]
+      }
+    },
+    {
+      "id": 702,
+      "description": "Aluguel",
+      "status": "reviewed",
+      "transaction_criteria": {
+        "start_date": "2023-01-20",
+        "end_date": null,
+        "granularity": "month",
+        "quantity": 1,
+        "anchor_date": "2026-10-20",
+        "payee": "Imobiliária Exemplo",
+        "amount": "1850.0000",
+        "currency": "brl",
+        "manual_account_id": 1,
+        "plaid_account_id": null
+      },
+      "overrides": {
+        "payee": "Imobiliária Exemplo",
+        "notes": null,
+        "category_id": 201
+      },
+      "matches": {
+        "expected_occurrence_dates": [
+          "2026-11-20"
+        ],
+        "found_transactions": [
+          {
+            "date": "2026-10-20",
+            "transaction_id": 90015
+          }
+        ]
+      }
+    },
+    {
+      "id": 703,
+      "description": "Streaming encerrado",
+      "status": "ignored",
+      "transaction_criteria": {
+        "start_date": "2024-01-10",
+        "end_date": "2025-12-10",
+        "granularity": "month",
+        "quantity": 1,
+        "anchor_date": "2025-12-10",
+        "payee": "Serviço Antigo",
+        "amount": "33.0000",
+        "currency": "brl",
+        "manual_account_id": 1,
+        "plaid_account_id": null
+      },
+      "overrides": {
+        "payee": "Serviço Antigo",
+        "notes": null,
+        "category_id": 209
+      },
+      "matches": {
+        "expected_occurrence_dates": [],
+        "found_transactions": [
+          {
+            "date": "2025-12-01",
+            "transaction_id": 90025
+          }
+        ]
+      }
+    }
+  ]
+}

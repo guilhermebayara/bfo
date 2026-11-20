@@ -71,7 +71,9 @@ it('aplica a revisão sobre banco da Sessão F e reaplica sem mudar dados nem re
         name,
         (
           await db
-            .prepare(`SELECT ${columns.get(name)} FROM ${name} ORDER BY rowid`)
+            .prepare(
+              `SELECT ${columns.get(name)} FROM ${name}${name === 'categories' ? " WHERE id NOT IN ('transfer','card-fees')" : ''} ORDER BY rowid`,
+            )
             .all()
         ).results,
       ]),

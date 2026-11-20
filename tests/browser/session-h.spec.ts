@@ -60,7 +60,7 @@ test('botão insere a linha nas mesmas colunas, Enter salva e prepara a próxima
     .selectOption('seed-f-account');
   await page.getByRole('button', { name: 'Salvar configurações' }).click();
   await expect(page.getByRole('status').last()).toHaveText(
-    'Conta padrão salva.',
+    'Configurações salvas.',
   );
   await page.getByRole('link', { name: 'Transações', exact: true }).click();
   await page
@@ -70,7 +70,7 @@ test('botão insere a linha nas mesmas colunas, Enter salva e prepara a próxima
     })
     .click();
   const row = page.locator('tr[data-new-transaction]');
-  await expect(row.locator('td')).toHaveCount(11);
+  await expect(row.locator('td')).toHaveCount(12);
   expect((await row.boundingBox())!.height).toBeLessThanOrEqual(40);
   await expect(row.getByLabel('Conta do novo lançamento')).toHaveValue(
     'seed-f-account',
@@ -162,7 +162,7 @@ test('transferência aparece em uma linha neutra e mostra perspectiva de cada co
   const rows = page.locator('tr[data-transaction-id]');
   await expect(rows).toHaveCount(1);
   await expect(rows.locator('[data-sheet-cell="1"]')).toContainText(
-    'Conta de divisão fictícia → Dinheiro fictício H',
+    'Conta de divisão fictícia',
   );
   await expect(rows.locator('[data-sheet-cell="3"]')).toHaveText('R$ 150,00');
   await expect(rows.locator('.income')).toHaveCount(0);
@@ -301,7 +301,7 @@ test('moeda é uma lista ao criar e editar a conta e conta padrão reaparece ap�
     .selectOption('seed-f-card');
   await page.getByRole('button', { name: 'Salvar configurações' }).click();
   await expect(page.getByRole('status').last()).toHaveText(
-    'Conta padrão salva.',
+    'Configurações salvas.',
   );
   await page.reload();
   await expect(page.getByLabel('Conta padrão para lançamentos')).toHaveValue(
@@ -328,7 +328,7 @@ test('configurações aguardam preferência inicial sem sobrescrever a escolha d
   await select.selectOption('seed-f-account');
   await page.getByRole('button', { name: 'Salvar configurações' }).click();
   await expect(page.getByRole('status').last()).toHaveText(
-    'Conta padrão salva.',
+    'Configurações salvas.',
   );
   await page.getByRole('link', { name: 'Transações', exact: true }).click();
   await expect(

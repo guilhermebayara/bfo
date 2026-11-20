@@ -4,6 +4,8 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 
 ## Produto
 
+- Princípio: as decisões de produto não fixam forma nem posição de elementos de interface quando isso não for necessário. Layout fica livre para o conceito visual.
+
 - BFO (Bayara Family Office) é a versão própria do Lunch Money: transações, contas, recorrentes, orçamento, patrimônio líquido ao longo do tempo, dívidas, imóvel, investimentos e categorias agrupadas.
 - O dono só passa a usar de verdade quando as três fases estiverem prontas. As fases são rodadas de teste e ajuste: cada uma fica redonda antes de construir a que depende dela.
 - Web, desktop primeiro. App nativo é possibilidade para o futuro.
@@ -17,7 +19,13 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 - Cada conta tem a própria data de corte e um saldo de abertura nessa data, conferido com o extrato. As contas são ativadas uma a uma.
 - A diferença entre o saldo do arquivo e o saldo de abertura aparece como um ajuste visível na conta.
 - Transação importada: valor total e data ficam travados. A classificação pode ser editada: categoria, nota, tags e divisão em partes (a soma das partes sempre igual ao valor original). Decidido em 19/11/2026, resolvendo a ambiguidade levantada na Sessão G.
+- Valores com mais de duas casas decimais (comum em conversão de moeda) são arredondados para o centavo mais próximo. Se isso mudar a soma da conta, a diferença aparece no ajuste visível da data de corte. Decidido em 19/11/2026.
+- Transação marcada como pendente no Lunch Money (`is_pending`) entra como transação normal, com a nota "pendente no Lunch Money". O relatório da importação informa quantas vieram assim. Transações `delete_pending` ficam de fora. Decidido em 19/11/2026.
 - Durante as fases, a importação precisa poder ser apagada e refeita. A importação definitiva e as datas de corte acontecem quando o dono começar a usar.
+- Faturas no arquivo: o período importado fica sem faturas. Compras e pagamentos de cartão antigos entram como transações e transferências comuns. As faturas de cada cartão começam na data de corte dele.
+- Grupos do Lunch Money que não são transferência nem pagamento de fatura: cada transação do grupo entra separada, com uma nota indicando o grupo de origem.
+- Recorrentes do Lunch Money: os ativos entram como recorrentes, com as transações passadas ligadas a eles pelo `recurring_id`. Marca de assinatura e tipo o dono aplica depois.
+- Histórico de saldos e de orçamento: importados já na sessão de importação e guardados para as fases 2 e 3, para o token ser usado uma vez só.
 - Dados de teste: as sessões usam dados fictícios do repositório (seed). Na homologação, o dono roda a importação real.
 
 ## Contas
@@ -36,15 +44,27 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 
 ## Tabela de transações
 
+- Transações é o painel de gestão: tudo que mexe em dinheiro pode ser registrado ali. As outras telas (Cartão, Contas, Recorrentes) servem para ver e conferir e podem ter as mesmas ações, mas nenhuma ação é exclusiva delas.
+- Como cada tipo entra pela tabela:
+  - Despesa e receita: linha normal, sinal automático pela categoria.
+  - Transferência: "Nova transferência" na seta do botão de adicionar, com conta de origem e de destino lado a lado, data e valor. Nota e tags funcionam como em qualquer lançamento. A categoria nasce como Transferência (fora dos totais) e pode ser trocada. O destino pode ser qualquer conta ativa, inclusive as contas de saldo, porque o aporte em investimento é uma transferência para a conta de investimento e é reconhecido pelo destino, sem categoria própria. Decidido em 19/11/2026.
+  - Pagamento de fatura: transferência cujo destino é um cartão. A linha vira pagamento de fatura sozinha e pergunta qual fatura, sugerindo a mais antiga em aberto. Aceita pagamento parcial.
+  - Compra parcelada: quando a conta da linha é um cartão, aparece a célula de parcelas (1x por padrão). Acima de 1x surge "parcela atual" (retroativa) e a prévia das parcelas.
+  - Ações sobre transação existente no menu "..." da linha: dividir, antecipar, mover de fatura, cancelar parcelas futuras, criar recorrente.
+  - Ajustes de conferência nascem na conferência de saldo ou de fatura e aparecem na tabela como linhas de ajuste.
+
 - A tabela de Transações funciona como uma planilha. Toda célula visível é editável com um clique, salva sozinha e atualiza na hora tudo que depende dela (saldos, faturas, resumos). Teclado como numa planilha: Enter e Tab salvam e avançam, Esc cancela, setas movem entre células. Campos travados das importadas ficam visivelmente não editáveis.
+- A célula tem o mesmo tamanho em repouso, ao passar o mouse e em edição, como no Lunch Money: o campo de edição ocupa exatamente a célula, sem crescer nem encolher. Vale também para a linha de lançamento novo.
 - Isso é comportamento da interface e vale desde já, antes do conceito visual.
 - Campo de valor com um botão de sinal ao lado: [-] para saída e [+] para entrada. O valor é digitado sempre sem sinal. O sinal muda sozinho conforme a categoria (categoria de renda deixa [+], as demais deixam [-]) e o dono pode inverter com um clique.
-- Transferência entre contas aparece como uma linha só, com origem e destino na coluna da conta ("Conta A → Conta B") e o valor movido em cor neutra, sem sinal de gasto ou renda. Com filtro por uma das contas, a linha mostra o sinal do ponto de vista dela (saída na origem, entrada no destino). Sem a soma zerada do Lunch Money.
+- Transferência entre contas aparece como uma linha só: a coluna Conta mostra a origem e a coluna Beneficiário mostra o destino ("→ Conta B"), nas mesmas posições da linha de lançamento novo. Decidido em 19/11/2026, substituindo "Conta A → Conta B" na coluna da conta, que cortava o texto. O valor movido aparece em cor neutra, sem sinal de gasto ou renda. Com filtro por uma das contas, a linha mostra o sinal do ponto de vista dela (saída na origem, entrada no destino). Sem a soma zerada do Lunch Money.
 - Seleção múltipla abre um painel com total e média dos selecionados, edição em lote (data, beneficiário, categoria, nota, adicionar e remover tags, ligar a um recorrente) e exclusão em lote. Importadas selecionadas aceitam só a classificação. Ficam de fora: marcar como revisado (tudo é lançado pelo dono), trocar moeda e mover de conta em lote.
 - Novo lançamento entra como uma linha extra no topo da tabela. O botão de adicionar já traz a conta padrão do dono (definida nas configurações) e tem uma seta para escolher outra.
 - A lista de contas dessa seta mostra só contas de movimento, agrupadas por tipo (cartões, contas correntes, dinheiro), com a instituição em cada uma e em ordem alfabética dentro do grupo. Contas de saldo (investimento, imóvel, empréstimo) e contas encerradas ficam de fora, porque não recebem lançamentos.
 
 ## Moedas
+
+- Configurações: moeda principal (padrão de contas novas e base dos totais, BRL) e lista de moedas em uso. As listas de moeda do app mostram só as moedas em uso.
 
 - Cada conta tem a sua moeda. Cada lançamento guarda o valor original, a moeda e o valor em reais.
 - A cotação é buscada sozinha na data do lançamento, pela PTAX do Banco Central. O dono pode corrigir quando o banco tiver usado outra cotação.
@@ -95,6 +115,10 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 - Investimento na alocação conta só os aportes. Rendimento fica fora. Investimento fica fora do orçamento de gastos.
 - Orçamento pode ser preenchido por categoria (o grupo é a soma) ou por grupo, distribuindo depois entre as categorias.
 - Tela de orçamento por grupo de alocação: percentual previsto, valor distribuído nas categorias, valor realizado. Avisa quando as categorias passam do percentual do grupo.
+- Período do orçamento: mês do calendário.
+- Sobra: cada mês começa do zero. Categorias marcadas como reserva acumulam a sobra para os meses seguintes (ex.: IPVA, viagens, presentes de fim de ano).
+- Ajudas ao preencher: copiar do mês anterior, média dos últimos 3 meses e total dos recorrentes previstos na categoria.
+- Percentuais de alocação: padrão nas configurações, ajustável num mês específico.
 - Gasto no cartão entra no orçamento no mês da compra.
 - Exceção: parcela entra no orçamento no mês da fatura dela.
 - Parcelas futuras aparecem como valor já comprometido no orçamento de cada mês seguinte, antes da distribuição do resto.
@@ -108,7 +132,7 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 
 ## Recorrentes e assinaturas
 
-- Janela de reconhecimento do recorrente: 7 dias antes ou depois da data prevista. Conta no mês previsto mesmo quando a transação cai no mês seguinte.
+- Janela de reconhecimento do recorrente: 7 dias antes ou depois da data prevista. Conta no mês previsto mesmo quando a transação cai no mês seguinte. A regra fica visível no recorrente (ex.: "reconhece de 28/11 a 12/12").
 
 - Recorrente é reconhecido pela conta, pelo beneficiário e pela data próxima. O valor pode variar (ex.: conta de luz), sem faixa de valor para configurar.
 
@@ -127,6 +151,6 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 ## Infraestrutura
 
 - Cloudflare, conta BFO, dentro do login do dono. D1. Access fechado no e-mail do dono.
-- Homologação no endereço gratuito do Workers durante as fases.
+- Homologação em homologacao.bfo.bayara.design, como prévia da branch homologacao.
 - Produção em bfo.bayara.design. O domínio está sendo transferido para a Cloudflare e vai ficar na conta BFO.
 - Repositório público por enquanto, só com dados fictícios. Vira privado quando o token do Lunch Money entrar em uso.

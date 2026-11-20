@@ -277,3 +277,70 @@ it('paga em reais uma fatura estrangeira e credita o valor original no cartão',
       .first(),
   ).toEqual({ total: 5000 });
 });
+
+it('transporta o restante do pagamento parcial e quita pela fatura seguinte', async () => {
+  const id = await buy();
+  expect(
+    (
+      await check(id, {
+        action: 'close',
+        bank_amount_cents: 1000,
+        expected_total_cents: 1000,
+      })
+    ).status,
+  ).toBe(201);
+  const pay = (amount_cents: number) =>
+    request(`/statements/${id}/pay`, {
+      account_id: 'checking',
+      date: '2026-03-05',
+      amount_cents,
+    });
+  expect((await pay(400)).status).toBe(201);
+  expect(
+    await db
+      .prepare('SELECT status,bank_amount_cents FROM statements WHERE id=?')
+      .bind(id)
+      .first(),
+  ).toEqual({ status: 'closed', bank_amount_cents: 1000 });
+  expect((await pay(601)).status).toBe(409);
+  expect((await pay(0)).status).toBe(409);
+  expect((await pay(-1)).status).toBe(409);
+  expect(
+    (await (await request('/accounts')).json()).find((a) => a.id === 'credit')
+      .balance_cents,
+  ).toBe(-600);
+  const carry = await db
+    .prepare(
+      'SELECT destination_statement_id FROM statement_carryovers WHERE source_statement_id=?',
+    )
+    .bind(id)
+    .first();
+  const next = String(carry!.destination_statement_id);
+  expect(
+    (
+      await check(next, {
+        action: 'close',
+        bank_amount_cents: 600,
+        expected_total_cents: 600,
+      })
+    ).status,
+  ).toBe(201);
+  expect(
+    (
+      await request(`/statements/${next}/pay`, {
+        account_id: 'checking',
+        date: '2026-04-05',
+        amount_cents: 600,
+      })
+    ).status,
+  ).toBe(201);
+  expect(
+    await db
+      .prepare('SELECT status FROM statements WHERE id=?')
+      .bind(next)
+      .first(),
+  ).toEqual({ status: 'paid' });
+  expect(
+    (await (await request('/accounts')).json()).map((a) => a.balance_cents),
+  ).toEqual([0, -1000]);
+});

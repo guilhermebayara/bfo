@@ -41,7 +41,12 @@ export function RecurringEditor({
     account_id:
       item?.account_id ??
       transaction?.account_id ??
-      accounts.find((a) => !a.closed_at && !a.archived)?.id ??
+      accounts.find(
+        (a) =>
+          !a.closed_at &&
+          !a.archived &&
+          ['checking', 'cash', 'credit_card'].includes(a.kind),
+      )?.id ??
       '',
     payee: item?.payee ?? transaction?.payee ?? '',
     amount: String(
@@ -129,7 +134,12 @@ export function RecurringEditor({
               onChange={(e) => field('account_id', e.target.value)}
             >
               {accounts
-                .filter((a) => !a.archived && !a.closed_at)
+                .filter(
+                  (a) =>
+                    !a.archived &&
+                    !a.closed_at &&
+                    ['checking', 'cash', 'credit_card'].includes(a.kind),
+                )
                 .map((a) => (
                   <option value={a.id} key={a.id}>
                     {a.name}
@@ -412,6 +422,11 @@ export function RecurringScreen({
                   </td>
                   <td>
                     {humanDate(subscriptions ? r.next_charge : r.due_date)}
+                    <small>
+                      {recognitionWindow(
+                        subscriptions ? r.next_charge : r.due_date,
+                      )}
+                    </small>
                   </td>
                   <td>
                     {formatMoney(r.amount_cents, r.currency)}
@@ -497,4 +512,13 @@ export function SubscriptionTypes({
       />
     </>
   );
+}
+
+function recognitionWindow(day: string) {
+  const label = (offset: number) => {
+    const d = new Date(`${day}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + offset);
+    return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+  };
+  return `reconhece de ${label(-7)} a ${label(7)}`;
 }

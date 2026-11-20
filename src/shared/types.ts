@@ -1,7 +1,8 @@
 export interface Account {
   id: string;
   name: string;
-  kind: 'checking' | 'credit_card' | 'cash';
+  kind:
+    'checking' | 'credit_card' | 'cash' | 'investment' | 'property' | 'loan';
   currency: string;
   institution_id: string | null;
   institution_name: string | null;
@@ -11,6 +12,7 @@ export interface Account {
   opening_balance_cents: number;
   balance_cents: number;
   archived: number;
+  credit_limit_cents?: number | null;
   closing_day: number | null;
   due_day: number | null;
 }
@@ -95,9 +97,14 @@ export interface Statement {
   due_date: string;
   status: 'open' | 'closed' | 'paid';
   total_cents: number;
+  paid_cents?: number;
   bank_amount_cents: number | null;
   difference_cents: number | null;
   is_current: number;
+  scheduled_closing_date?: string;
+  previous_balance_cents?: number;
+  carried_out_cents?: number;
+  remaining_cents?: number;
 }
 
 export interface StatementCheck {

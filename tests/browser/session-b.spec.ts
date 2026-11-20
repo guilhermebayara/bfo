@@ -106,6 +106,7 @@ test('lançamento sugere beneficiário, usa fallback manual de câmbio e filtra 
     'Notas',
     'Tags',
     'Origem',
+    'Parcelas',
     'Ações',
   ]);
   const data = await (

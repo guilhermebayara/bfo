@@ -16,7 +16,11 @@ export function CreateAccount({ onSaved }: { onSaved: () => Promise<void> }) {
   const [error, setError] = useState('');
   const [closing, setClosing] = useState('20');
   const [due, setDue] = useState('27');
+  const [limit, setLimit] = useState('');
   useEffect(() => {
+    api<{ primary_currency: string }>('/preferences')
+      .then((p) => setCurrency(p.primary_currency))
+      .catch((e) => setError(e.message));
     api<Named[]>('/institutions')
       .then(setInstitutions)
       .catch((e) => setError(e.message));
@@ -46,7 +50,11 @@ export function CreateAccount({ onSaved }: { onSaved: () => Promise<void> }) {
           institution_id: id,
           opening_balance_cents: parseMoney(balance),
           ...(kind === 'credit_card'
-            ? { closing_day: Number(closing), due_day: Number(due) }
+            ? {
+                closing_day: Number(closing),
+                due_day: Number(due),
+                credit_limit_cents: limit.trim() ? parseMoney(limit) : null,
+              }
             : {}),
         }),
       });
@@ -103,6 +111,9 @@ export function CreateAccount({ onSaved }: { onSaved: () => Promise<void> }) {
               <option value="checking">Conta corrente</option>
               <option value="credit_card">Cartão</option>
               <option value="cash">Dinheiro</option>
+              <option value="investment">Investimento</option>
+              <option value="property">Imóvel</option>
+              <option value="loan">Empréstimo</option>
             </select>
           </label>
           <label>
@@ -123,6 +134,15 @@ export function CreateAccount({ onSaved }: { onSaved: () => Promise<void> }) {
           </label>
           {kind === 'credit_card' && (
             <>
+              <label>
+                Limite opcional ({currency})
+                <input
+                  inputMode="decimal"
+                  value={limit}
+                  onChange={(e) => setLimit(e.target.value)}
+                />
+                <small>Vazio para cartão sem limite definido.</small>
+              </label>
               <label>
                 Dia de fechamento
                 <input
