@@ -72,6 +72,8 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
   - [x] Navegação, cabeçalhos e hierarquia das telas revisados. Tokens, componentes e estados catalogados em `/fundacoes`.
   - [x] Testes de navegador cobrem a navegação, o catálogo e a geometria das células da planilha.
 
+- [ ] Ajustes da revisão da Sessão L (pelo dono em 20/11/2026), para a sessão de correção depois da QA: resumo do mês em Transações recolhível, ao lado quando houver espaço, para a tabela ganhar largura; no Cartão, a fatura selecionada e as compras do ciclo vêm antes da lista de faturas; na navegação, os títulos dos grupos (Movimento, Cadastros, Aplicativo) pareciam itens desativados e precisam se distinguir claramente dos itens clicáveis.
+
 - [ ] Conceito visual: feito no Claude depois que a estrutura da fase 1 estiver redonda. Duas propostas numa prévia, o dono escolhe olhando a tela, e só então o visual é aplicado.
 
 - [x] Ajuste técnico (Sessão B): a Cloudflare trocou as prévias por versão com alias pelo recurso Previews, com comando padrão `npx wrangler preview`. Migrar a configuração (bloco `previews` no ambiente homologacao do wrangler, comando de prévia com o ambiente) e atualizar docs/cloudflare.md com os nomes atuais do painel (Settings > Build, preview builds, Preview command).
