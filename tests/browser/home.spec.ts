@@ -3,10 +3,10 @@ import type { HomeData } from '../../src/shared/home';
 import { formatMoney } from '../../src/shared/money';
 import { clockHeaders, expect, test, type APIRequestContext } from './fixtures';
 
-async function openHome(page: Page, day: string) {
+async function openHome(page: Page, day: string, target = '/') {
   await page.clock.setFixedTime(new Date(`${day}T12:00:00-03:00`));
   await page.context().setExtraHTTPHeaders(clockHeaders(day));
-  await page.goto('/');
+  await page.goto(target);
   await expect(
     page.getByRole('heading', { name: 'Início', exact: true }),
   ).toBeVisible();
@@ -326,7 +326,10 @@ test('abre os dois períodos filtrados no dia 31 e confere os totais da categori
       day,
     );
   }
-  await openHome(page, day);
+  await openHome(page, day, '/#andamento-do-mes');
+  await expect(
+    page.getByRole('heading', { name: 'Como o mês está andando' }),
+  ).toBeInViewport();
   const comparison = page.getByRole('table', { name: 'Comparação mensal' });
   await expect(
     comparison.getByRole('columnheader', { name: '01/10/2026 a 31/10/2026' }),

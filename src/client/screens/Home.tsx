@@ -216,6 +216,11 @@ function MonthRows({
 
 export function Home({ revision }: { revision: number }) {
   const { data, state } = useHome(revision);
+  const ready = data !== null;
+  useEffect(() => {
+    if (ready && location.hash)
+      document.getElementById(location.hash.slice(1))?.scrollIntoView();
+  }, [ready]);
   return (
     <>
       <PageHeader title="Início" context={data && humanDate(data.day)} />
