@@ -39,7 +39,7 @@ it('persistência da conta padrão rejeita conta de arquivo ou encerrada', async
       })
     ).status,
   ).toBe(200);
-  expect(await (await req('/preferences')).json()).toEqual({
+  expect(await (await req('/preferences')).json()).toMatchObject({
     default_account_id: 'seed-f-account',
   });
   for (const account of ['checking', 'closed', 'ausente'])

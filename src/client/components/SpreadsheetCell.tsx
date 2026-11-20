@@ -141,7 +141,7 @@ export function SpreadsheetCell({
       aria-label={label}
       aria-busy={busy}
       title={`${typeof display === 'string' ? `${display}\n` : ''}${locked ?? 'Clique para editar. Salva ao sair da célula.'}`}
-      className={`sheet-cell ${locked ? 'sheet-locked' : ''}`}
+      className={`sheet-cell ${active ? 'sheet-editing' : ''} ${locked ? 'sheet-locked' : ''}`}
       onClick={(e) => {
         if (!(e.target as HTMLElement).closest('a,button')) start();
       }}

@@ -165,11 +165,12 @@ app.get('/api/transactions', async (c) => {
         key === 'category'
           ? '(CASE WHEN EXISTS(SELECT 1 FROM transaction_splits WHERE transaction_id=t.id) THEN EXISTS(SELECT 1 FROM transaction_splits WHERE transaction_id=t.id AND category_id=?) ELSE t.category_id=? END)'
           : key === 'account'
-            ? "(t.account_id=? OR (t.kind='transfer' AND EXISTS(SELECT 1 FROM transactions pair WHERE pair.id=t.transfer_pair_id AND pair.account_id=?)))"
+            ? "(t.account_id=? OR (t.kind='card_payment' AND EXISTS(SELECT 1 FROM statements s WHERE s.id=t.statement_id AND s.account_id=?)) OR (t.kind='transfer' AND EXISTS(SELECT 1 FROM transactions pair WHERE pair.id=t.transfer_pair_id AND pair.account_id=?)))"
             : `t.${column}=?`,
       );
       params.push(query[key]);
       if (key === 'category' || key === 'account') params.push(query[key]);
+      if (key === 'account') params.push(query[key]);
     }
   if (
     query.origin &&
@@ -208,7 +209,7 @@ app.get('/api/transactions', async (c) => {
     .bind(...params)
     .first<{ count: number }>();
   const { results } = await c.var.DB.prepare(
-    `SELECT t.*, (SELECT a.name FROM transactions pair JOIN accounts a ON a.id=pair.account_id WHERE pair.id=t.transfer_pair_id) AS destination_name, (SELECT pair.account_id FROM transactions pair WHERE pair.id=t.transfer_pair_id) AS destination_account_id, (SELECT pair.amount_cents FROM transactions pair WHERE pair.id=t.transfer_pair_id) AS destination_amount_cents, (SELECT pair.currency FROM transactions pair WHERE pair.id=t.transfer_pair_id) AS destination_currency, (SELECT status FROM statements WHERE id=t.statement_id OR (t.statement_id IS NULL AND t.kind='regular' AND t.origin<>'adjustment' AND account_id=t.account_id AND t.date BETWEEN period_start AND closing_date) LIMIT 1) AS statement_status, (SELECT COUNT(*) FROM transaction_splits WHERE transaction_id=t.id) AS split_count, ip.count AS installment_count, CASE WHEN t.origin='imported' THEN t.payee ELSE COALESCE(canonical.name,p.name,t.payee) END AS payee, COALESCE(p.merged_into_id,p.id) AS payee_id, a.name AS account_name, ag.name AS allocation_name, (SELECT json_group_array(json_object('id',tags.id,'name',tags.name,'color',tags.color)) FROM transaction_tags tt JOIN tags ON tags.id=tt.tag_id WHERE tt.transaction_id=t.id) AS tags_json FROM transactions t JOIN accounts a ON a.id=t.account_id LEFT JOIN installment_plans ip ON ip.id=t.installment_plan_id LEFT JOIN payees p ON p.id=t.payee_id LEFT JOIN payees canonical ON canonical.id=p.merged_into_id LEFT JOIN categories cat ON cat.id=t.category_id LEFT JOIN category_groups cg ON cg.id=cat.category_group_id LEFT JOIN allocation_groups ag ON ag.id=cg.allocation_group_id ${where} ORDER BY t.date DESC,t.id LIMIT 50 OFFSET ?`,
+    `SELECT t.*, COALESCE((SELECT a.name FROM transactions pair JOIN accounts a ON a.id=pair.account_id WHERE pair.id=t.transfer_pair_id),(SELECT a.name FROM statements s JOIN accounts a ON a.id=s.account_id WHERE s.id=t.statement_id AND t.kind='card_payment')) AS destination_name, COALESCE((SELECT pair.account_id FROM transactions pair WHERE pair.id=t.transfer_pair_id),(SELECT s.account_id FROM statements s WHERE s.id=t.statement_id AND t.kind='card_payment')) AS destination_account_id, COALESCE((SELECT pair.amount_cents FROM transactions pair WHERE pair.id=t.transfer_pair_id),-t.card_amount_cents) AS destination_amount_cents, COALESCE((SELECT pair.currency FROM transactions pair WHERE pair.id=t.transfer_pair_id),(SELECT a.currency FROM statements s JOIN accounts a ON a.id=s.account_id WHERE s.id=t.statement_id AND t.kind='card_payment')) AS destination_currency, (SELECT status FROM statements WHERE id=t.statement_id OR (t.statement_id IS NULL AND t.kind='regular' AND t.origin<>'adjustment' AND account_id=t.account_id AND t.date BETWEEN period_start AND closing_date) LIMIT 1) AS statement_status, (SELECT COUNT(*) FROM transaction_splits WHERE transaction_id=t.id) AS split_count, ip.count AS installment_count, CASE WHEN t.origin='imported' THEN t.payee ELSE COALESCE(canonical.name,p.name,t.payee) END AS payee, COALESCE(p.merged_into_id,p.id) AS payee_id, a.name AS account_name, ag.name AS allocation_name, (SELECT json_group_array(json_object('id',tags.id,'name',tags.name,'color',tags.color)) FROM transaction_tags tt JOIN tags ON tags.id=tt.tag_id WHERE tt.transaction_id=t.id) AS tags_json FROM transactions t JOIN accounts a ON a.id=t.account_id LEFT JOIN installment_plans ip ON ip.id=t.installment_plan_id LEFT JOIN payees p ON p.id=t.payee_id LEFT JOIN payees canonical ON canonical.id=p.merged_into_id LEFT JOIN categories cat ON cat.id=t.category_id LEFT JOIN category_groups cg ON cg.id=cat.category_group_id LEFT JOIN allocation_groups ag ON ag.id=cg.allocation_group_id ${where} ORDER BY t.date DESC,t.id LIMIT 50 OFFSET ?`,
   )
     .bind(...params, (page - 1) * 50)
     .all();
@@ -218,29 +219,127 @@ app.get('/api/transactions', async (c) => {
   }));
   return c.json({ items: tagged, total: total!.count, page, page_size: 50 });
 });
-app.get('/api/preferences', async (c) =>
-  c.json(
-    await c.var.DB.prepare(
-      'SELECT default_account_id FROM preferences WHERE id=1',
-    ).first(),
-  ),
-);
-app.patch('/api/preferences', async (c) => {
-  const b = object(await c.req.json());
-  keys(b, ['default_account_id']);
-  if (!('default_account_id' in b)) fail('Informe a conta padrão.');
-  if (b.default_account_id !== null) {
-    const a = await c.var.DB.prepare(
-      "SELECT id FROM accounts WHERE id=? AND kind IN ('checking','credit_card','cash') AND closed_at IS NULL AND archived=0 AND cutoff_date IS NOT NULL",
+app.post('/api/transfers', async (c) => {
+  const b = object(await c.req.json()),
+    db = c.var.DB;
+  keys(b, [
+    'account_id',
+    'destination_account_id',
+    'date',
+    'amount_cents',
+    'fx_rate',
+    'destination_fx_rate',
+  ]);
+  const day = date(b.date),
+    amount = cents(b.amount_cents);
+  if (amount <= 0) fail('Informe um valor positivo.');
+  if (day > today()) fail('A data está no futuro.');
+  const source = await db
+    .prepare(
+      "SELECT * FROM accounts WHERE id=? AND kind IN ('checking','cash') AND closed_at IS NULL AND archived=0 AND cutoff_date<?",
     )
-      .bind(b.default_account_id)
+    .bind(text(b.account_id, 'Origem'), day)
+    .first<Account>();
+  const dest = await db
+    .prepare(
+      "SELECT * FROM accounts WHERE id=? AND kind IN ('checking','cash') AND closed_at IS NULL AND archived=0 AND cutoff_date<?",
+    )
+    .bind(text(b.destination_account_id, 'Destino'), day)
+    .first<Account>();
+  if (!source || !dest || source.id === dest.id)
+    return fail(
+      'Escolha contas ativas e diferentes. Para cartão, selecione uma fatura.',
+    );
+  const q = await fx(db, source.currency, day, b.fx_rate);
+  const dq =
+    source.currency === dest.currency
+      ? q
+      : await fx(db, dest.currency, day, b.destination_fx_rate);
+  const destAmount = converted(amount, q.rate, dq.rate);
+  if (destAmount <= 0) fail('O valor convertido é menor que um centavo.');
+  const id = crypto.randomUUID(),
+    pair = crypto.randomUUID();
+  const insert = (
+    tx: string,
+    account: Account,
+    value: number,
+    quote: { rate: number; source: string },
+    other: string,
+  ) =>
+    db
+      .prepare(
+        "INSERT INTO transactions(id,account_id,date,amount_cents,currency,fx_rate,amount_brl_cents,fx_source,payee,origin,kind,transfer_pair_id) VALUES(?,?,?,?,?,?,?,?,?,'manual','transfer',?)",
+      )
+      .bind(
+        tx,
+        account.id,
+        day,
+        value,
+        account.currency,
+        quote.rate,
+        converted(value, quote.rate),
+        quote.source,
+        'Transferência',
+        other,
+      );
+  await db.batch([
+    insert(id, source, amount, q, pair),
+    insert(pair, dest, -destAmount, dq, id),
+  ]);
+  return c.json({ id }, 201);
+});
+app.get('/api/preferences', async (c) => {
+  const p = (await c.var.DB.prepare(
+    'SELECT default_account_id,primary_currency,currencies_in_use FROM preferences WHERE id=1',
+  ).first())!;
+  return c.json({
+    ...p,
+    currencies_in_use: JSON.parse(String(p.currencies_in_use)),
+  });
+});
+app.patch('/api/preferences', async (c) => {
+  const b = object(await c.req.json()),
+    db = c.var.DB;
+  keys(b, ['default_account_id', 'primary_currency', 'currencies_in_use']);
+  const old = (await db
+    .prepare(
+      'SELECT default_account_id,primary_currency,currencies_in_use FROM preferences WHERE id=1',
+    )
+    .first())!;
+  const account =
+    'default_account_id' in b ? b.default_account_id : old.default_account_id;
+  if (account !== null) {
+    const a = await db
+      .prepare(
+        "SELECT id FROM accounts WHERE id=? AND kind IN ('checking','credit_card','cash') AND closed_at IS NULL AND archived=0 AND cutoff_date IS NOT NULL",
+      )
+      .bind(account)
       .first();
     if (!a) fail('Escolha uma conta de movimento ativa.');
   }
-  await c.var.DB.prepare(
-    'UPDATE preferences SET default_account_id=? WHERE id=1',
+  const primary = currency(b.primary_currency ?? old.primary_currency);
+  const used = b.currencies_in_use ?? JSON.parse(String(old.currencies_in_use));
+  if (
+    !Array.isArray(used) ||
+    !used.length ||
+    used.some((v) => typeof v !== 'string')
   )
-    .bind(b.default_account_id)
+    fail('Escolha as moedas em uso.');
+  const codes = [...new Set((used as string[]).map(currency))];
+  if (!codes.includes(primary) || !codes.includes('BRL'))
+    fail('Inclua a moeda principal e BRL nas moedas em uso.');
+  const existing = (
+    await db
+      .prepare('SELECT DISTINCT currency FROM accounts')
+      .all<{ currency: string }>()
+  ).results;
+  if (existing.some((a) => !codes.includes(a.currency)))
+    fail('Uma moeda de conta cadastrada deve permanecer em uso.');
+  await db
+    .prepare(
+      'UPDATE preferences SET default_account_id=?,primary_currency=?,currencies_in_use=? WHERE id=1',
+    )
+    .bind(account, primary, JSON.stringify(codes))
     .run();
   return c.json({ ok: true });
 });
@@ -271,6 +370,12 @@ app.patch('/api/accounts/:id', async (c) => {
           .first()))
     )
       fail('Conta com saldo ou histórico mantém a moeda original.', 409);
+    const p = (await db
+      .prepare('SELECT currencies_in_use FROM preferences WHERE id=1')
+      .first())!;
+    if (!JSON.parse(String(p.currencies_in_use)).includes(code))
+      fail('Escolha uma moeda em uso.');
+
     writes.push(
       db
         .prepare('UPDATE accounts SET currency=? WHERE id=?')
@@ -849,7 +954,12 @@ app.post('/api/accounts', async (c) => {
     'due_day',
   ]);
   const name = text(b.name);
-  const code = currency(b.currency ?? 'BRL');
+  const pref = (await c.var.DB.prepare(
+    'SELECT primary_currency,currencies_in_use FROM preferences WHERE id=1',
+  ).first())!;
+  const code = currency(b.currency ?? pref.primary_currency);
+  if (!JSON.parse(String(pref.currencies_in_use)).includes(code))
+    fail('Escolha uma moeda em uso.');
   if (!['checking', 'credit_card', 'cash'].includes(String(b.kind)))
     fail('Tipo inválido.');
   await exists(c.var.DB, 'institutions', b.institution_id);
@@ -1488,7 +1598,7 @@ app.get('/api/cards/:id/statements', async (c) => {
     (
       await db
         .prepare(
-          `SELECT s.*, s.closing_date=? AS is_current,
+          `SELECT s.*, COALESCE((SELECT SUM(card_amount_cents) FROM transactions WHERE statement_id=s.id AND kind='card_payment'),0) AS paid_cents, s.closing_date=? AS is_current,
       CASE WHEN EXISTS(SELECT 1 FROM statement_revisions WHERE statement_id=s.id) THEN s.bank_amount_cents-s.total_cents ELSE COALESCE((SELECT bank_amount_cents-app_amount_cents FROM statement_checks
                 WHERE statement_id=s.id ORDER BY rowid DESC LIMIT 1),
                s.bank_amount_cents-s.total_cents) END AS difference_cents
@@ -1635,7 +1745,13 @@ app.post('/api/statements/:id/pay', async (c) => {
   if (statement.status !== 'closed')
     return fail('Só é possível pagar uma fatura fechada.', 409);
   const b = object(await c.req.json());
-  keys(b, ['account_id', 'date', 'card_fx_rate', 'account_fx_rate']);
+  keys(b, [
+    'account_id',
+    'date',
+    'card_fx_rate',
+    'account_fx_rate',
+    'amount_cents',
+  ]);
   const day = date(b.date);
   const source = await db
     .prepare(
@@ -1648,7 +1764,20 @@ app.post('/api/statements/:id/pay', async (c) => {
   if (day > today()) return fail('A data do pagamento está no futuro.');
   if (!statement.cutoff_date || day <= statement.cutoff_date)
     return fail('O pagamento deve ser posterior ao corte do cartão.');
-  const amount = cents(statement.bank_amount_cents ?? statement.total_cents);
+  const total = cents(statement.bank_amount_cents ?? statement.total_cents);
+  const paid = (await db
+    .prepare(
+      "SELECT COALESCE(SUM(card_amount_cents),0) AS amount FROM transactions WHERE statement_id=? AND kind='card_payment'",
+    )
+    .bind(statement.id)
+    .first<{ amount: number }>())!.amount;
+  const remaining = total - paid;
+  const amount =
+    b.amount_cents === undefined ? remaining : cents(b.amount_cents);
+  if (amount > remaining || (amount <= 0 && remaining !== 0))
+    return fail(
+      'Informe um pagamento positivo até o saldo restante da fatura.',
+    );
   if (amount < 0)
     return fail('A fatura está com saldo credor e não exige pagamento.');
   const cardQuote = amount
@@ -1676,10 +1805,11 @@ app.post('/api/statements/:id/pay', async (c) => {
   const [payment] = await db.batch([
     db
       .prepare(
-        `INSERT INTO transactions(id,account_id,date,amount_cents,currency,fx_rate,amount_brl_cents,fx_source,payee,origin,kind,statement_id)
-       SELECT ?,a.id,?,?,?,?,?,?,?,'manual','card_payment',s.id
+        `INSERT INTO transactions(id,account_id,date,amount_cents,currency,fx_rate,amount_brl_cents,fx_source,payee,origin,kind,statement_id,card_amount_cents)
+       SELECT ?,a.id,?,?,?,?,?,?,?,'manual','card_payment',s.id,?
        FROM statements s JOIN accounts a ON a.id=?
-       WHERE s.id=? AND s.status='closed' AND a.closed_at IS NULL AND a.archived=0 AND a.cutoff_date<?`,
+       WHERE s.id=? AND s.status='closed' AND a.closed_at IS NULL AND a.archived=0 AND a.cutoff_date<?
+       AND COALESCE((SELECT SUM(card_amount_cents) FROM transactions WHERE statement_id=s.id AND kind='card_payment'),0)=?`,
       )
       .bind(
         id,
@@ -1690,16 +1820,18 @@ app.post('/api/statements/:id/pay', async (c) => {
         brl,
         q.source,
         name,
+        amount,
         source.id,
         statement.id,
         day,
+        paid,
       ),
     db
       .prepare(
-        `UPDATE statements SET status='paid',bank_amount_cents=?
+        `UPDATE statements SET status=CASE WHEN ? >= ? THEN 'paid' ELSE 'closed' END,bank_amount_cents=?
        WHERE id=? AND EXISTS (SELECT 1 FROM transactions WHERE id=?)`,
       )
-      .bind(amount, statement.id, id),
+      .bind(paid + amount, total, total, statement.id, id),
   ]);
   if (payment.meta.changes !== 1)
     return fail('Fatura ou conta alterada. Atualize a página.', 409);

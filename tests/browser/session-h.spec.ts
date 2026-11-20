@@ -60,7 +60,7 @@ test('botão insere a linha nas mesmas colunas, Enter salva e prepara a próxima
     .selectOption('seed-f-account');
   await page.getByRole('button', { name: 'Salvar configurações' }).click();
   await expect(page.getByRole('status').last()).toHaveText(
-    'Conta padrão salva.',
+    'Configurações salvas.',
   );
   await page.getByRole('link', { name: 'Transações', exact: true }).click();
   await page
@@ -301,7 +301,7 @@ test('moeda é uma lista ao criar e editar a conta e conta padrão reaparece ap�
     .selectOption('seed-f-card');
   await page.getByRole('button', { name: 'Salvar configurações' }).click();
   await expect(page.getByRole('status').last()).toHaveText(
-    'Conta padrão salva.',
+    'Configurações salvas.',
   );
   await page.reload();
   await expect(page.getByLabel('Conta padrão para lançamentos')).toHaveValue(
@@ -328,7 +328,7 @@ test('configurações aguardam preferência inicial sem sobrescrever a escolha d
   await select.selectOption('seed-f-account');
   await page.getByRole('button', { name: 'Salvar configurações' }).click();
   await expect(page.getByRole('status').last()).toHaveText(
-    'Conta padrão salva.',
+    'Configurações salvas.',
   );
   await page.getByRole('link', { name: 'Transações', exact: true }).click();
   await expect(

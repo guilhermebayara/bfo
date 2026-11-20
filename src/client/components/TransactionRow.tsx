@@ -29,7 +29,7 @@ export function TransactionRow({
   accountFilter: string;
 }) {
   const account = accounts.find((a) => a.id === t.account_id);
-  const transfer = t.kind === 'transfer';
+  const transfer = t.kind === 'transfer' || t.kind === 'card_payment';
   const financialLock =
     t.origin === 'imported'
       ? 'Importada: valor, data, conta e beneficiário protegidos. Classificação editável.'
@@ -202,6 +202,7 @@ export function TransactionRow({
           return (
             <>
               <div className="signed-value">
+                <span>{t.currency}</span>
                 <Button
                   type="button"
                   aria-label="Inverter sinal"
@@ -223,21 +224,24 @@ export function TransactionRow({
                 />
               </div>
               {t.currency !== 'BRL' && (
-                <>
-                  <label>
-                    Cotação manual
-                    <input
-                      inputMode="decimal"
-                      value={v.rate}
-                      onChange={(e) =>
-                        change(JSON.stringify({ ...v, rate: e.target.value }))
-                      }
-                    />
-                  </label>
-                  <small>
-                    {formatMoney(t.amount_brl_cents)} · PTAX ou cotação manual
-                  </small>
-                </>
+                <details className="row-menu fx-menu" onToggle={positionMenu}>
+                  <summary>Cotação</summary>
+                  <div className="menu-panel">
+                    <label>
+                      Cotação manual
+                      <input
+                        inputMode="decimal"
+                        value={v.rate}
+                        onChange={(e) =>
+                          change(JSON.stringify({ ...v, rate: e.target.value }))
+                        }
+                      />
+                    </label>
+                    <small>
+                      {formatMoney(t.amount_brl_cents)} · PTAX ou cotação manual
+                    </small>
+                  </div>
+                </details>
               )}
             </>
           );
@@ -273,12 +277,7 @@ export function TransactionRow({
         }
         open={t.split_count ? () => onSplit(t) : undefined}
         save={classify}
-        editor={(draft, change) => (
-          <>
-            <small>A alocação acompanha a categoria.</small>
-            {categoryEditor(draft, change)}
-          </>
-        )}
+        editor={(draft, change) => <>{categoryEditor(draft, change)}</>}
       />
       <SpreadsheetCell
         column={6}
@@ -316,26 +315,29 @@ export function TransactionRow({
         editor={(draft, change) => {
           const ids = JSON.parse(draft) as string[];
           return (
-            <>
-              {tags.map((tag) => (
-                <label className="tag-choice" key={tag.id}>
-                  <input
-                    type="checkbox"
-                    checked={ids.includes(tag.id)}
-                    onChange={(e) =>
-                      change(
-                        JSON.stringify(
-                          e.target.checked
-                            ? [...ids, tag.id]
-                            : ids.filter((id) => id !== tag.id),
-                        ),
-                      )
-                    }
-                  />
-                  {tag.name}
-                </label>
-              ))}
-            </>
+            <details className="row-menu" open onToggle={positionMenu}>
+              <summary>Tags</summary>
+              <div className="menu-panel">
+                {tags.map((tag) => (
+                  <label className="tag-choice" key={tag.id}>
+                    <input
+                      type="checkbox"
+                      checked={ids.includes(tag.id)}
+                      onChange={(e) =>
+                        change(
+                          JSON.stringify(
+                            e.target.checked
+                              ? [...ids, tag.id]
+                              : ids.filter((id) => id !== tag.id),
+                          ),
+                        )
+                      }
+                    />
+                    {tag.name}
+                  </label>
+                ))}
+              </div>
+            </details>
           );
         }}
       />

@@ -412,6 +412,11 @@ export function RecurringScreen({
                   </td>
                   <td>
                     {humanDate(subscriptions ? r.next_charge : r.due_date)}
+                    <small>
+                      {recognitionWindow(
+                        subscriptions ? r.next_charge : r.due_date,
+                      )}
+                    </small>
                   </td>
                   <td>
                     {formatMoney(r.amount_cents, r.currency)}
@@ -497,4 +502,13 @@ export function SubscriptionTypes({
       />
     </>
   );
+}
+
+function recognitionWindow(day: string) {
+  const label = (offset: number) => {
+    const d = new Date(`${day}T12:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + offset);
+    return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+  };
+  return `reconhece de ${label(-7)} a ${label(7)}`;
 }

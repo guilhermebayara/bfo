@@ -257,6 +257,7 @@ export function NewTransactionRow({
       </td>
       <td>
         <div className="signed-value">
+          <span>{code}</span>
           <Button
             type="button"
             disabled={busy}

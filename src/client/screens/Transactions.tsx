@@ -1,3 +1,4 @@
+import { NewTransferRow } from '../components/NewTransferRow';
 import { positionMenu } from '../components/menu';
 import { useEffect, useState } from 'react';
 import type { Account, Category, Transaction, Tag } from '../../shared/types';
@@ -40,6 +41,7 @@ export function Transactions({
   const [showFilters, setShowFilters] = useState(false);
   const [search, setSearch] = useState('');
   const [adding, setAdding] = useState(false);
+  const [transfer, setTransfer] = useState(false);
   const [purchase, setPurchase] = useState(false);
   const [defaultAccount, setDefaultAccount] = useState('');
   const [chosenAccount, setChosenAccount] = useState('');
@@ -135,7 +137,13 @@ export function Transactions({
       />
       <div className="toolbar">
         <div className="add-control">
-          <Button disabled={!entryAccount} onClick={() => setAdding(true)}>
+          <Button
+            disabled={!entryAccount}
+            onClick={() => {
+              setTransfer(false);
+              setAdding(true);
+            }}
+          >
             Adicionar em{' '}
             {accounts.find((a) => a.id === entryAccount)?.name ?? 'conta'}
           </Button>
@@ -143,10 +151,17 @@ export function Transactions({
             aria-label="Escolher conta para adicionar"
             value={entryAccount}
             onChange={(e) => {
+              if (e.target.value === 'transfer') {
+                setTransfer(true);
+                setAdding(true);
+                return;
+              }
+              setTransfer(false);
               setChosenAccount(e.target.value);
               setAdding(true);
             }}
           >
+            <option value="transfer">Nova transferência</option>
             <AccountOptions accounts={accounts} />
           </select>
         </div>
@@ -336,18 +351,28 @@ export function Transactions({
                     label="Transações"
                   >
                     <>
-                      {adding && (
-                        <NewTransactionRow
-                          key={month}
-                          initialAccount={entryAccount}
-                          month={month}
-                          accounts={accounts}
-                          categories={categories}
-                          tags={tags}
-                          onSaved={onSaved}
-                          onCancel={() => setAdding(false)}
-                        />
-                      )}
+                      {adding &&
+                        (transfer ? (
+                          <NewTransferRow
+                            key={month}
+                            initialAccount={entryAccount}
+                            month={month}
+                            accounts={accounts}
+                            onSaved={onSaved}
+                            onCancel={() => setAdding(false)}
+                          />
+                        ) : (
+                          <NewTransactionRow
+                            key={month}
+                            initialAccount={entryAccount}
+                            month={month}
+                            accounts={accounts}
+                            categories={categories}
+                            tags={tags}
+                            onSaved={onSaved}
+                            onCancel={() => setAdding(false)}
+                          />
+                        ))}
                       {data.items.map((t) => (
                         <TransactionRow
                           key={t.id}

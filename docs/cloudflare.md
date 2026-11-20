@@ -51,3 +51,9 @@ npm run db:seed:homologacao
 O seed inclui o Cartão de parcelas fictício, com a compra Cadeira retroativa fictícia (3 de 10 em novembro/2026) e Equipamento antecipado fictício (desconto de R$ 30,00). A Compra mista fictícia fica na Conta de divisão fictícia, em novembro/2026. Os exemplos da sessão F são inicializados uma vez, com marcador em `seed_fixtures`, preservando inclusive divisões editadas ou desfeitas ao repetir o seed.
 
 Validação local: build, 83 testes de API/regras e 18 testes de navegador aprovados. Os testes incluem fatura paga com histórico preservado, entradas importadas, divisão em moeda estrangeira sem perder centavos em reais e prazo de aviso editável. O fluxo autenticado da prévia remota depende do acesso do dono pelo Cloudflare Access.
+
+## Sessão I
+
+Em 19/11/2026, a migração `0008_session_i.sql` e o seed fictício foram aplicados pela integração Cloudflare nos D1 `bfo-teste` e `bfo-homologacao`. A migração 0007 pendente também foi aplicada na homologação. Os registros em `d1_migrations` foram atualizados junto com cada migração. A conferência confirmou a transferência de R$ 150,00 e o pagamento parcial de R$ 40,00 na fatura fictícia de R$ 100,00, ainda fechada e com R$ 60,00 a pagar. `PRAGMA foreign_key_check` não encontrou erros nos dois bancos.
+
+O seed mantém os comandos existentes e usa marcador `session-i` para preservar alterações posteriores nos exemplos. Os testes de navegador cobrem a criação desses tipos pela nova linha de Transações. O saldo anterior na fatura seguinte permanece para a Sessão J.

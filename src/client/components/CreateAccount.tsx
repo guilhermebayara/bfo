@@ -17,6 +17,9 @@ export function CreateAccount({ onSaved }: { onSaved: () => Promise<void> }) {
   const [closing, setClosing] = useState('20');
   const [due, setDue] = useState('27');
   useEffect(() => {
+    api<{ primary_currency: string }>('/preferences')
+      .then((p) => setCurrency(p.primary_currency))
+      .catch((e) => setError(e.message));
     api<Named[]>('/institutions')
       .then(setInstitutions)
       .catch((e) => setError(e.message));

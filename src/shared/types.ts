@@ -95,6 +95,7 @@ export interface Statement {
   due_date: string;
   status: 'open' | 'closed' | 'paid';
   total_cents: number;
+  paid_cents?: number;
   bank_amount_cents: number | null;
   difference_cents: number | null;
   is_current: number;
