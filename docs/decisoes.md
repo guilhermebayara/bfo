@@ -62,6 +62,8 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 - Transferência entre contas aparece como uma linha só: a coluna Conta mostra a origem e a coluna Beneficiário mostra o destino ("→ Conta B"), nas mesmas posições da linha de lançamento novo. Decidido em 19/11/2026, substituindo "Conta A → Conta B" na coluna da conta, que cortava o texto. O valor movido aparece em cor neutra, sem sinal de gasto ou renda. Com filtro por uma das contas, a linha mostra o sinal do ponto de vista dela (saída na origem, entrada no destino). Sem a soma zerada do Lunch Money.
 - Seleção múltipla abre um painel com total e média dos selecionados, edição em lote (data, beneficiário, categoria, nota, adicionar e remover tags, ligar a um recorrente) e exclusão em lote. Importadas selecionadas aceitam só a classificação. Ficam de fora: marcar como revisado (tudo é lançado pelo dono), trocar moeda e mover de conta em lote.
 - Lançamento manual aceita data futura (ex.: boleto agendado). Ele entra no saldo da conta só quando a data chegar e, até lá, aparece em Próximos. Decidido em 20/11/2026, depois que a QA encontrou no código um bloqueio de data futura que não tinha sido decidido.
+- Histórico de alterações com desfazer. Cada transação guarda o que mudou e quando, inclusive criação e exclusão. Cmd+Z desfaz a última ação da sessão, e o histórico permite voltar qualquer campo a um valor anterior. Decidido em 20/11/2026, na triagem da QA. Detalhe em docs/briefs/historico-desfazer.md.
+- Aviso ao adicionar, editar ou excluir uma transação, como no Lunch Money: diz o que mudou e o novo saldo da conta afetada. O dono pediu para considerar um botão de desfazer no próprio aviso. Decidido em 20/11/2026.
 - Novo lançamento entra como uma linha extra no topo da tabela. O botão de adicionar já traz a conta padrão do dono (definida nas configurações) e tem uma seta para escolher outra.
 - A lista de contas dessa seta mostra só contas de movimento, agrupadas por tipo (cartões, contas correntes, dinheiro), com a instituição em cada uma e em ordem alfabética dentro do grupo. Contas de saldo (investimento, imóvel, empréstimo) e contas encerradas ficam de fora, porque não recebem lançamentos.
 
@@ -157,4 +159,5 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 - Cloudflare, conta BFO, dentro do login do dono. D1. Access fechado no e-mail do dono.
 - Homologação em homologacao.bfo.bayara.design, como prévia da branch homologacao.
 - Produção em bfo.bayara.design. O domínio está sendo transferido para a Cloudflare e vai ficar na conta BFO.
+- Backup automático diário dos bancos com dados reais num bucket R2 da conta BFO, guardando os últimos 30 dias, com restauração testada. Decidido em 20/11/2026, na triagem da QA.
 - Repositório público por enquanto, só com dados fictícios. Vira privado quando o token do Lunch Money entrar em uso.
