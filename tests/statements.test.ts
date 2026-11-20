@@ -278,7 +278,7 @@ it('paga em reais uma fatura estrangeira e credita o valor original no cartão',
   ).toEqual({ total: 5000 });
 });
 
-it('registra pagamentos parciais, rejeita excesso e quita apenas quando soma o total', async () => {
+it('transporta o restante do pagamento parcial e quita pela fatura seguinte', async () => {
   const id = await buy();
   expect(
     (
@@ -302,18 +302,42 @@ it('registra pagamentos parciais, rejeita excesso e quita apenas quando soma o t
       .bind(id)
       .first(),
   ).toEqual({ status: 'closed', bank_amount_cents: 1000 });
-  expect((await pay(601)).status).toBe(400);
-  expect((await pay(0)).status).toBe(400);
-  expect((await pay(-1)).status).toBe(400);
+  expect((await pay(601)).status).toBe(409);
+  expect((await pay(0)).status).toBe(409);
+  expect((await pay(-1)).status).toBe(409);
   expect(
     (await (await request('/accounts')).json()).find((a) => a.id === 'credit')
       .balance_cents,
   ).toBe(-600);
-  expect((await pay(600)).status).toBe(201);
+  const carry = await db
+    .prepare(
+      'SELECT destination_statement_id FROM statement_carryovers WHERE source_statement_id=?',
+    )
+    .bind(id)
+    .first();
+  const next = String(carry!.destination_statement_id);
+  expect(
+    (
+      await check(next, {
+        action: 'close',
+        bank_amount_cents: 600,
+        expected_total_cents: 600,
+      })
+    ).status,
+  ).toBe(201);
+  expect(
+    (
+      await request(`/statements/${next}/pay`, {
+        account_id: 'checking',
+        date: '2026-04-05',
+        amount_cents: 600,
+      })
+    ).status,
+  ).toBe(201);
   expect(
     await db
       .prepare('SELECT status FROM statements WHERE id=?')
-      .bind(id)
+      .bind(next)
       .first(),
   ).toEqual({ status: 'paid' });
   expect(

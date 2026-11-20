@@ -22,6 +22,7 @@ type Purchase = {
     | 'added_to_closed'
     | 'advance_id'
   > & {
+    cancelled_reason: string | null;
     statement_id: string | null;
     due_date: string | null;
     closing_date: string | null;
@@ -71,6 +72,7 @@ export function InstallmentPurchase({
     (t) =>
       t.installment_number &&
       !t.advance_id &&
+      !t.cancelled_reason &&
       t.status === 'open' &&
       t.closing_date! > purchase.current_closing_date,
   );
@@ -195,7 +197,9 @@ export function InstallmentPurchase({
               )}
             </td>
             <td>
-              {t.advance_id && t.installment_number ? (
+              {t.cancelled_reason ? (
+                'Cancelada: ' + t.cancelled_reason
+              ) : t.advance_id && t.installment_number ? (
                 'Antecipada'
               ) : t.statement_id && t.due_date ? (
                 <a

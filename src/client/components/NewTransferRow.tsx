@@ -1,17 +1,20 @@
 import { useEffect, useState } from 'react';
-import type { Account, Statement } from '../../shared/types';
+import { positionMenu } from './menu';
+import type { Tag, Account, Statement } from '../../shared/types';
 import { today } from '../../shared/dates';
 import { formatMoney, parseMoney } from '../../shared/money';
 import { api, humanDate } from '../api';
 import { Button } from './index';
 export function NewTransferRow({
   accounts,
+  tags,
   month,
   initialAccount,
   onSaved,
   onCancel,
 }: {
   accounts: Account[];
+  tags: Tag[];
   month: string;
   initialAccount: string;
   onSaved: () => Promise<void>;
@@ -31,6 +34,8 @@ export function NewTransferRow({
       month === today().slice(0, 7) ? today() : `${month}-01`,
     ),
     [amount, setAmount] = useState(''),
+    [note, setNote] = useState(''),
+    [selectedTags, setSelectedTags] = useState<string[]>([]),
     [statements, setStatements] = useState<
       (Statement & { paid_cents: number })[]
     >([]),
@@ -52,7 +57,7 @@ export function NewTransferRow({
     })
       .then((rows) => {
         const pending = rows
-          .filter((s) => s.status === 'closed')
+          .filter((s) => s.status === 'closed' && (s.remaining_cents ?? 1) > 0)
           .sort((a, b) => a.due_date.localeCompare(b.due_date));
         setStatements(pending);
         setStatement(pending[0]?.id ?? '');
@@ -80,18 +85,22 @@ export function NewTransferRow({
           account_id: source,
           date: day,
           amount_cents: value,
+          note,
+          tag_ids: selectedTags,
           ...(!card ? { destination_account_id: dest } : {}),
         }),
       });
       await onSaved();
       setAmount('');
+      setNote('');
+      setSelectedTags([]);
       setMessage(card ? 'Pagamento registrado.' : 'Transferência salva.');
       if (card) {
         const rows = await api<(Statement & { paid_cents: number })[]>(
           `/cards/${dest}/statements`,
         );
         const pending = rows
-          .filter((s) => s.status === 'closed')
+          .filter((s) => s.status === 'closed' && (s.remaining_cents ?? 1) > 0)
           .sort((a, b) => a.due_date.localeCompare(b.due_date));
         setStatements(pending);
         setStatement(
@@ -210,9 +219,43 @@ export function NewTransferRow({
           {card ? 'Pagamento de fatura' : 'Entre contas'}
         </span>
       </td>
-      <td />
-      <td />
+      <td>
+        <input
+          aria-label="Nota da transferência"
+          maxLength={2000}
+          value={note}
+          disabled={busy}
+          onChange={(e) => setNote(e.target.value)}
+        />
+      </td>
+      <td>
+        <details className="row-menu" onToggle={positionMenu}>
+          <summary>
+            {selectedTags.length ? `${selectedTags.length} tags` : 'Tags'}
+          </summary>
+          <div className="menu-panel">
+            {tags.map((tag) => (
+              <label className="tag-choice" key={tag.id}>
+                <input
+                  type="checkbox"
+                  checked={selectedTags.includes(tag.id)}
+                  disabled={busy}
+                  onChange={(e) =>
+                    setSelectedTags(
+                      e.target.checked
+                        ? [...selectedTags, tag.id]
+                        : selectedTags.filter((id) => id !== tag.id),
+                    )
+                  }
+                />
+                {tag.name}
+              </label>
+            ))}
+          </div>
+        </details>
+      </td>
       <td>Manual</td>
+      <td />
       <td>
         <Button
           aria-label="Salvar transferência"

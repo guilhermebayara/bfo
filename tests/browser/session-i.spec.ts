@@ -91,7 +91,7 @@ test('nova transferência nasce na seta e salva uma linha neutra com origem e de
   expect(transfer.destination_account_id).toBe('seed-h-destination');
   const saved = page.locator(`tr[data-transaction-id="${transfer.id}"]`);
   await expect(saved.locator('[data-sheet-cell="1"]')).toHaveText(
-    'Conta de divisão fictícia → Dinheiro fictício H',
+    'Conta de divisão fictícia',
   );
   await expect(saved.locator('[data-sheet-cell="3"]')).not.toContainText('−');
   await expect(saved.locator('[data-sheet-cell="3"]')).not.toContainText('+');
@@ -101,6 +101,36 @@ test('transferência para cartão sugere a fatura mais antiga e registra pagamen
   page,
   request,
 }) => {
+  // Um cartão isolado mantém o fluxo independente dos exemplos históricos.
+  const created = await request.post('/api/accounts', {
+    data: {
+      name: 'Cartão isolado I',
+      kind: 'credit_card',
+      currency: 'BRL',
+      institution_id: 'horizonte',
+      closing_day: 20,
+      due_day: 27,
+    },
+  });
+  const cardId = (await created.json()).id;
+  await request.post('/api/transactions', {
+    data: {
+      account_id: cardId,
+      date: '2026-11-19',
+      payee: 'Compra isolada I',
+      amount_cents: 10000,
+    },
+  });
+  const invoice = (
+    await (await request.get(`/api/cards/${cardId}/statements`)).json()
+  ).find((s: any) => s.total_cents === 10000);
+  await request.post(`/api/statements/${invoice.id}/check`, {
+    data: {
+      action: 'close',
+      bank_amount_cents: 10000,
+      expected_total_cents: 10000,
+    },
+  });
   const before = await (await request.get('/api/accounts')).json();
   await page.goto('/transacoes/2026-11');
   await page
@@ -108,31 +138,30 @@ test('transferência para cartão sugere a fatura mais antiga e registra pagamen
     .selectOption('transfer');
   const row = page.locator('[data-new-transfer]');
   await row.getByLabel('Conta de origem').selectOption('seed-f-account');
-  await row.getByLabel('Conta de destino').selectOption('seed-i-card');
-  await expect(row.getByLabel('Fatura a pagar')).toHaveValue(
-    'seed-i-statement',
-  );
+  await row.getByLabel('Conta de destino').selectOption(cardId);
+  await expect(row.getByLabel('Fatura a pagar')).toHaveValue(invoice.id);
   await row.getByLabel('Data da transferência').fill('2026-11-19');
   await row.getByLabel('Valor da transferência (BRL)').fill('10,00');
   await row.getByRole('button', { name: 'Salvar transferência' }).click();
   await expect(row.getByRole('status')).toHaveText('Pagamento registrado.');
   const cards = await (
-    await request.get('/api/cards/seed-i-card/statements')
+    await request.get(`/api/cards/${cardId}/statements`)
   ).json();
-  const bill = cards.find((s: any) => s.id === 'seed-i-statement');
+  const bill = cards.find((s: any) => s.id === invoice.id);
   expect(bill.status).toBe('closed');
-  expect(bill.paid_cents).toBe(5000);
+  expect(bill.paid_cents).toBe(1000);
+  expect(bill.carried_out_cents).toBe(9000);
   const after = await (await request.get('/api/accounts')).json();
   expect(
-    after.find((a: any) => a.id === 'seed-i-card').balance_cents -
-      before.find((a: any) => a.id === 'seed-i-card').balance_cents,
+    after.find((a: any) => a.id === cardId).balance_cents -
+      before.find((a: any) => a.id === cardId).balance_cents,
   ).toBe(1000);
   expect(
     after.find((a: any) => a.id === 'seed-f-account').balance_cents -
       before.find((a: any) => a.id === 'seed-f-account').balance_cents,
   ).toBe(-1000);
   const payments = await (
-    await request.get('/api/transactions?month=2026-11&account=seed-i-card')
+    await request.get(`/api/transactions?month=2026-11&account=${cardId}`)
   ).json();
   expect(
     payments.items.some(

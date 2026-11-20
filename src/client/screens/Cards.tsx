@@ -18,6 +18,20 @@ import {
 type Detail = {
   items: Transaction[];
   checks: StatementCheck[];
+  events: {
+    id: string;
+    action: string;
+    reason: string;
+    date: string;
+    before_json: string;
+    after_json: string;
+    created_at: string;
+  }[];
+  carryovers: {
+    source_statement_id: string;
+    amount_cents: number;
+    due_date: string;
+  }[];
   revisions: {
     id: string;
     previous_cents: number;
@@ -32,15 +46,18 @@ type Preview = {
   difference_cents: number;
 };
 
-function StatementAction({
+export type StatementMode = 'check' | 'pay' | 'reopen' | 'early-close';
+export function StatementAction({
   mode,
   statement,
   card,
   accounts,
   onClose,
   onSaved,
+  onEarlyClosed,
 }: {
-  mode: 'check' | 'pay';
+  onEarlyClosed?: () => void;
+  mode: StatementMode;
   statement: Statement;
   card: Account;
   accounts: Account[];
@@ -66,6 +83,14 @@ function StatementAction({
     }).format(new Date()),
   );
   const [bank, setBank] = useState('');
+  const [payment, setPayment] = useState(
+    String(
+      (statement.remaining_cents ??
+        (statement.bank_amount_cents ?? statement.total_cents) -
+          (statement.paid_cents ?? 0)) / 100,
+    ).replace('.', ','),
+  );
+  const [reason, setReason] = useState('');
   const [cardRate, setCardRate] = useState('');
   const [sourceRate, setSourceRate] = useState('');
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -84,8 +109,16 @@ function StatementAction({
     setBusy(true);
     setError('');
     try {
+      if (mode === 'reopen' || mode === 'early-close') {
+        await post({ date: day, ...(mode === 'reopen' ? { reason } : {}) });
+        await onSaved();
+        if (mode === 'early-close' && onEarlyClosed) onEarlyClosed();
+        else onClose();
+        return;
+      }
       if (pay) {
         await post({
+          amount_cents: parseMoney(payment),
           account_id: sourceId,
           date: day,
           ...(cardRate ? { card_fx_rate: manualRate(cardRate) } : {}),
@@ -121,13 +154,52 @@ function StatementAction({
   }
   return (
     <Modal
-      title={pay ? 'Pagar fatura' : 'Conferir fatura'}
+      title={
+        mode === 'reopen'
+          ? 'Reabrir fatura'
+          : mode === 'early-close'
+            ? 'Antecipar fechamento'
+            : pay
+              ? 'Pagar fatura'
+              : 'Conferir fatura'
+      }
       onClose={onClose}
       busy={busy}
     >
       <form onSubmit={(event) => void run(event)}>
         <fieldset disabled={busy}>
-          {pay ? (
+          {mode === 'reopen' || mode === 'early-close' ? (
+            <>
+              <label>
+                {mode === 'reopen'
+                  ? 'Data da reabertura'
+                  : 'Data de fechamento antecipado'}
+                <input
+                  required
+                  type="date"
+                  value={day}
+                  onChange={(e) => setDay(e.target.value)}
+                />
+              </label>
+              {mode === 'reopen' ? (
+                <label>
+                  Motivo da reabertura
+                  <input
+                    required
+                    maxLength={2000}
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                  />
+                </label>
+              ) : (
+                <p>
+                  Compras após essa data vão para a próxima fatura. As datas dos
+                  ciclos seguintes são preservadas. Depois, confira o valor do
+                  banco para concluir o fechamento.
+                </p>
+              )}
+            </>
+          ) : pay ? (
             <>
               <p>
                 Saldo a pagar{' '}
@@ -136,6 +208,17 @@ function StatementAction({
                     (statement.paid_cents ?? 0),
                 )}
               </p>
+              <MoneyField
+                id="statement-payment"
+                label={`Valor do pagamento (${card.currency})`}
+                value={payment}
+                onChange={setPayment}
+              />
+              <small>
+                No pagamento parcial, o restante será saldo anterior na próxima
+                fatura. Juros e encargos devem ser lançados separadamente na
+                categoria Tarifas e encargos.
+              </small>
               {checking.length === 0 && (
                 <p>
                   Ative uma conta corrente na tela de Contas para pagar a
@@ -235,17 +318,134 @@ function StatementAction({
             </Button>
           )}
           <Button type="submit" disabled={busy || (pay && !sourceId)}>
-            {pay
-              ? 'Registrar pagamento'
-              : !preview
-                ? 'Comparar valores'
-                : preview.difference_cents
-                  ? 'Fechar com ajuste'
-                  : 'Fechar fatura'}
+            {mode === 'reopen'
+              ? 'Reabrir fatura'
+              : mode === 'early-close'
+                ? 'Antecipar e conferir depois'
+                : pay
+                  ? 'Registrar pagamento'
+                  : !preview
+                    ? 'Comparar valores'
+                    : preview.difference_cents
+                      ? 'Fechar com ajuste'
+                      : 'Fechar fatura'}
           </Button>
         </div>
       </form>
     </Modal>
+  );
+}
+
+function HistoryChanges({
+  before,
+  after,
+  currency,
+}: {
+  before: string;
+  after: string;
+  currency: string;
+}) {
+  const a = JSON.parse(before),
+    b = JSON.parse(after),
+    original = a.statement ?? a;
+  type Item = {
+    id: string;
+    date?: string;
+    data?: string;
+    payee?: string;
+    beneficiario?: string;
+    amount_cents?: number;
+    valor?: number;
+    category_id?: string;
+    categoria?: string;
+    note?: string;
+    nota?: string;
+    tags?: string;
+    parts?: string;
+  };
+  const normalized = (i: Item) => ({
+    id: i.id,
+    date: i.date ?? i.data,
+    payee: i.payee ?? i.beneficiario,
+    amount: i.amount_cents ?? i.valor,
+    category: i.category_id ?? i.categoria,
+    note: i.note ?? i.nota,
+    tags: typeof i.tags === 'string' ? i.tags : JSON.stringify(i.tags),
+    parts: typeof i.parts === 'string' ? i.parts : JSON.stringify(i.parts),
+  });
+  const old = (a.items ?? []).map(normalized),
+    current = (b.items ?? []).map(normalized);
+  const changed = [
+    ...new Set([
+      ...old.map((i: ReturnType<typeof normalized>) => i.id),
+      ...current.map((i: ReturnType<typeof normalized>) => i.id),
+    ]),
+  ].flatMap((id) => {
+    const prev = old.find((i: ReturnType<typeof normalized>) => i.id === id),
+      next = current.find((i: ReturnType<typeof normalized>) => i.id === id);
+    if (!prev)
+      return [
+        `${next.payee}: incluída, ${formatMoney(next.amount ?? 0, currency)}`,
+      ];
+    if (!next)
+      return [
+        `${prev.payee}: retirada, ${formatMoney(prev.amount ?? 0, currency)}`,
+      ];
+    const changes = [];
+    if (prev.amount !== next.amount)
+      changes.push(
+        `${formatMoney(prev.amount ?? 0, currency)} → ${formatMoney(next.amount ?? 0, currency)}`,
+      );
+    if (prev.date !== next.date)
+      changes.push(`data: ${humanDate(prev.date)} → ${humanDate(next.date)}`);
+    if (prev.payee !== next.payee)
+      changes.push(`beneficiário: ${prev.payee} → ${next.payee}`);
+    if (prev.category !== next.category) changes.push('categoria alterada');
+    if (prev.note !== next.note)
+      changes.push(`nota: ${prev.note || 'vazia'} → ${next.note || 'vazia'}`);
+    if (prev.tags !== next.tags) changes.push('tags alteradas');
+    if (prev.parts !== next.parts) changes.push('divisão alterada');
+    return changes.length ? [`${next.payee}: ${changes.join('; ')}`] : [];
+  });
+  return (
+    <>
+      <p>
+        Total: {formatMoney(original.total_cents ?? 0, currency)} →{' '}
+        {formatMoney(b.total_cents ?? 0, currency)}
+      </p>
+      {original.paid_cents !== b.paid_cents && (
+        <p>
+          Pago: {formatMoney(original.paid_cents ?? 0, currency)} →{' '}
+          {formatMoney(b.paid_cents ?? 0, currency)}
+        </p>
+      )}
+      {original.carried_out_cents !== b.carried_out_cents && (
+        <p>
+          Transportado: {formatMoney(original.carried_out_cents ?? 0, currency)}{' '}
+          → {formatMoney(b.carried_out_cents ?? 0, currency)}
+        </p>
+      )}
+      {original.closing_date !== b.closing_date && (
+        <p>
+          Fechamento:{' '}
+          {original.closing_date
+            ? humanDate(original.closing_date)
+            : 'Sem data'}{' '}
+          → {humanDate(b.closing_date)}
+        </p>
+      )}
+      {changed.length ? (
+        <ul>
+          {changed.map((line, index) => (
+            <li key={index}>{line}</li>
+          ))}
+        </ul>
+      ) : (
+        <p>
+          Compras preservadas. A operação e o motivo ficam registrados acima.
+        </p>
+      )}
+    </>
   );
 }
 
@@ -269,7 +469,7 @@ export function Cards({
   const [detail, setDetail] = useState<Detail | null>(null);
   const [error, setError] = useState('');
   const [revision, setRevision] = useState(0);
-  const [mode, setMode] = useState<'check' | 'pay' | null>(null);
+  const [mode, setMode] = useState<StatementMode | null>(null);
   const card =
     cards.find((a) => a.id === cardId) ??
     cards.find((a) => !a.archived && !a.closed_at) ??
@@ -279,6 +479,31 @@ export function Cards({
     statements.find((s) => s.account_id === card?.id && s.is_current) ??
     statements.find((s) => s.account_id === card?.id);
   const statementId = statement?.id;
+  const [commitment, setCommitment] = useState<{
+    committed_cents: number;
+    credit_limit_cents: number | null;
+    available_cents: number | null;
+    recurring_until: string;
+  } | null>(null);
+  const [limit, setLimit] = useState(''),
+    [limitMessage, setLimitMessage] = useState('');
+  useEffect(() => {
+    setLimit(
+      card?.credit_limit_cents == null
+        ? ''
+        : String(card.credit_limit_cents / 100).replace('.', ','),
+    );
+    const abort = new AbortController();
+    if (card)
+      api<typeof commitment>(`/cards/${card.id}/commitment`, {
+        signal: abort.signal,
+      })
+        .then(setCommitment)
+        .catch((e) => {
+          if (e.name !== 'AbortError') setError(e.message);
+        });
+    return () => abort.abort();
+  }, [card?.id, card?.credit_limit_cents, revision]);
   useEffect(() => {
     if (!card) return;
     const abort = new AbortController();
@@ -381,6 +606,58 @@ export function Cards({
           {error}
         </p>
       )}
+      {commitment && (
+        <section aria-label="Limite do cartão">
+          <h2>Compromisso do cartão</h2>
+          <p>Comprometido: {money(commitment.committed_cents)}</p>
+          {commitment.credit_limit_cents !== null && (
+            <>
+              <p>Limite: {money(commitment.credit_limit_cents)}</p>
+              <p>Disponível: {money(commitment.available_cents!)}</p>
+            </>
+          )}
+          <small>
+            Inclui compras e parcelas lançadas, saldos anteriores e recorrentes
+            ainda previstos até {humanDate(commitment.recurring_until)}.
+          </small>
+          <details>
+            <summary>Configurar limite</summary>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setLimitMessage('');
+                try {
+                  await api(`/accounts/${card.id}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({
+                      credit_limit_cents: limit.trim()
+                        ? parseMoney(limit)
+                        : null,
+                    }),
+                  });
+                  await onSaved();
+                  setRevision((v) => v + 1);
+                  setLimitMessage('Limite salvo.');
+                } catch (e) {
+                  setLimitMessage((e as Error).message);
+                }
+              }}
+            >
+              <label>
+                Limite opcional ({card.currency})
+                <input
+                  inputMode="decimal"
+                  value={limit}
+                  onChange={(e) => setLimit(e.target.value)}
+                />
+              </label>
+              <small>Deixe vazio para cartão sem limite definido.</small>
+              <Button type="submit">Salvar limite</Button>
+              <p role="status">{limitMessage}</p>
+            </form>
+          </details>
+        </section>
+      )}
       {summary('Fatura atual', current ? [current] : [])}
       {summary(
         'Faturas anteriores',
@@ -398,26 +675,86 @@ export function Cards({
             {humanDate(statement.closing_date)} · {statuses[statement.status]} ·{' '}
             {money(statement.total_cents)}
           </p>
+          {!!statement.previous_balance_cents && (
+            <p>Saldo anterior: {money(statement.previous_balance_cents)}</p>
+          )}
+          {!!statement.carried_out_cents && (
+            <p>
+              Saldo transportado para a próxima fatura:{' '}
+              {money(statement.carried_out_cents)}
+            </p>
+          )}
           {!!statement.paid_cents && (
             <p>
               Pago: {money(statement.paid_cents)} · Saldo a pagar:{' '}
               {money(
-                (statement.bank_amount_cents ?? statement.total_cents) -
-                  statement.paid_cents,
+                statement.remaining_cents ??
+                  (statement.bank_amount_cents ?? statement.total_cents) -
+                    statement.paid_cents,
               )}
             </p>
           )}
           {!card.closed_at && !card.archived && statement.status === 'open' && (
-            <Button onClick={() => setMode('check')}>Conferir e fechar</Button>
+            <>
+              <Button onClick={() => setMode('check')}>
+                Conferir e fechar
+              </Button>
+              <Button onClick={() => setMode('early-close')}>
+                Antecipar fechamento
+              </Button>
+            </>
           )}
           {!card.closed_at &&
             !card.archived &&
+            statement.status === 'closed' && (
+              <Button onClick={() => setMode('reopen')}>Reabrir fatura</Button>
+            )}
+          {!card.closed_at &&
+            !card.archived &&
             statement.status === 'closed' &&
+            (statement.remaining_cents ?? 1) > 0 &&
             (statement.bank_amount_cents ?? statement.total_cents) >= 0 && (
               <Button onClick={() => setMode('pay')}>Pagar fatura</Button>
             )}
           {detail && (
             <>
+              {detail.events?.length > 0 && (
+                <>
+                  <h3>Histórico da fatura</h3>
+                  <Table
+                    label="Histórico da fatura"
+                    headers={['Data', 'Operação', 'Motivo e alterações']}
+                  >
+                    {detail.events.map((event) => (
+                      <tr key={event.id}>
+                        <td>{humanDate(event.date)}</td>
+                        <td>
+                          {{
+                            reopen: 'Reabertura',
+                            close: 'Fechamento',
+                            'early-close': 'Fechamento antecipado',
+                            edit: 'Edição de parcela',
+                            cancel: 'Cancelamento',
+                            move: 'Mudança de fatura',
+                            payment: 'Pagamento',
+                          }[event.action] ?? event.action}
+                        </td>
+                        <td>
+                          {event.reason}
+                          <details>
+                            <summary>Ver o que mudou</summary>
+                            <HistoryChanges
+                              before={event.before_json}
+                              after={event.after_json}
+                              currency={card.currency}
+                            />
+                          </details>
+                        </td>
+                      </tr>
+                    ))}
+                  </Table>
+                </>
+              )}
               <h3>Compras do ciclo</h3>
               {detail.items.length ? (
                 <Table
@@ -532,8 +869,9 @@ export function Cards({
       )}
       {mode && statement && (
         <StatementAction
-          key={statement.id}
+          key={statement.id + mode}
           mode={mode}
+          onEarlyClosed={() => setMode('check')}
           statement={statement}
           card={card}
           accounts={accounts}
@@ -545,5 +883,70 @@ export function Cards({
         />
       )}
     </>
+  );
+}
+
+export function StatementFromTable({
+  transaction,
+  accounts,
+  mode,
+  onClose,
+  onSaved,
+}: {
+  transaction: Transaction;
+  accounts: Account[];
+  mode: StatementMode;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+}) {
+  const card = accounts.find(
+    (a) =>
+      a.id ===
+      (transaction.kind === 'card_payment'
+        ? transaction.destination_account_id
+        : transaction.account_id),
+  );
+  const [statement, setStatement] = useState<Statement | null>(null),
+    [error, setError] = useState(''),
+    [activeMode, setActiveMode] = useState(mode),
+    [revision, setRevision] = useState(0);
+  useEffect(() => {
+    const abort = new AbortController();
+    if (card)
+      api<Statement[]>(`/cards/${card.id}/statements`, { signal: abort.signal })
+        .then((rows) => {
+          const st =
+            rows.find((s) => s.id === transaction.statement_id) ??
+            rows.find(
+              (s) =>
+                transaction.date >= s.period_start &&
+                transaction.date <= s.closing_date,
+            );
+          if (st) setStatement(st);
+          else setError('Fatura não encontrada.');
+        })
+        .catch((e) => {
+          if (e.name !== 'AbortError') setError(e.message);
+        });
+    return () => abort.abort();
+  }, [card?.id, transaction.statement_id, revision]);
+  return statement && card ? (
+    <StatementAction
+      key={activeMode}
+      mode={activeMode}
+      statement={statement}
+      card={card}
+      accounts={accounts}
+      onClose={onClose}
+      onEarlyClosed={() => {
+        setRevision((v) => v + 1);
+        setActiveMode('check');
+      }}
+      onSaved={onSaved}
+    />
+  ) : (
+    <Modal title="Fatura" onClose={onClose}>
+      <p role="status">{error || 'Carregando fatura...'}</p>
+    </Modal>
   );
 }

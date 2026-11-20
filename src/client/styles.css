@@ -542,6 +542,9 @@ td select {
   width: var(--sheet-origin-width);
 }
 .sheet-table th:nth-child(11) {
+  width: var(--sheet-date-width);
+}
+.sheet-table th:nth-child(12) {
   width: var(--sheet-action-width);
 }
 .cell-value {
@@ -782,4 +785,33 @@ td select {
   height: 100%;
   display: flex;
   align-items: center;
+}
+
+.sheet-table .dialog-row,
+.sheet-table .dialog-row td {
+  height: 0;
+  padding: 0;
+  border: 0;
+}
+.installment-preview {
+  max-width: min(var(--modal-width), 90vw);
+  max-height: var(--popover-max-height);
+  overflow: auto;
+}
+.sheet-table .installment-preview table {
+  table-layout: auto;
+  min-width: 0;
+}
+.sheet-table .installment-preview th,
+.sheet-table .installment-preview td {
+  width: auto;
+  height: auto;
+  white-space: normal;
+}
+.entry-row td > .row-menu {
+  height: 100%;
+}
+.entry-row td > .row-menu > summary {
+  height: calc(var(--sheet-row-height) - var(--line));
+  padding: var(--space-1) var(--space-2);
 }
