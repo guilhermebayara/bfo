@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { transactionCsv } from './transaction-csv';
 import { applyScheduledPayments } from './scheduled-payments';
 import type { TransactionNotice } from '../shared/transaction-notice';
 import { reverseTransactionAction, UndoConflict } from './transaction-undo';
@@ -152,7 +153,7 @@ app.use('/api/*', async (c, next) => {
       : c.env.DB;
   if (!db) throw new Error('Binding D1 ausente para este endereço.');
   if (
-    /^\/api\/(accounts|cards|transactions|statements|upcoming|transaction-actions|installment-plans)(\/|$)/.test(
+    /^\/api\/(accounts|cards|transactions(?:\.csv)?|statements|upcoming|transaction-actions|installment-plans)(\/|$)/.test(
       url.pathname,
     )
   )
@@ -202,12 +203,17 @@ app.get('/api/health', async (c) => {
   await c.var.DB.prepare('SELECT 1').first();
   return c.json({ ok: true });
 });
-const balanceSql = (day: string) => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) fail('Data inválida.');
-  return `CASE WHEN a.cutoff_date IS NULL THEN
- -COALESCE((SELECT SUM(t.amount_cents) FROM account_movements t WHERE t.account_id=a.id AND t.date<='${day}'),0)
- ELSE a.opening_balance_cents-COALESCE((SELECT SUM(t.amount_cents) FROM account_movements t WHERE t.account_id=a.id AND t.date>a.cutoff_date AND t.date<='${day}'),0) END`;
-};
+function accountBalanceSql(
+  account: 'a' | 'balance_account',
+  day: string,
+  historical = false,
+) {
+  const cutoff = `${account}.cutoff_date`;
+  return `CASE WHEN ${cutoff} IS NULL ${historical ? `OR ${day}<=${cutoff}` : ''} THEN
+ -COALESCE((SELECT SUM(m.amount_cents) FROM account_movements m WHERE m.account_id=${account}.id AND m.date<=${day}),0)
+ ELSE ${account}.opening_balance_cents-COALESCE((SELECT SUM(m.amount_cents) FROM account_movements m WHERE m.account_id=${account}.id AND m.date>${cutoff} AND m.date<=${day}),0) END`;
+}
+const balanceSql = (day: string) => accountBalanceSql('a', `'${date(day)}'`);
 app.get('/api/accounts', async (c) => {
   const { results } = await c.var.DB.prepare(
     `SELECT a.*, i.name AS institution_name, ${balanceSql(c.var.today)} AS balance_cents FROM accounts a LEFT JOIN institutions i ON i.id=a.institution_id ORDER BY i.sort,i.name,a.name`,
@@ -232,16 +238,60 @@ app.get('/api/categories', async (c) =>
     ).results,
   ),
 );
-app.get('/api/transactions', async (c) => {
+app.on('GET', ['/api/transactions', '/api/transactions.csv'], async (c) => {
   const query = c.req.query();
+  const csv = c.req.path.endsWith('.csv');
   const conditions: string[] = [
-    '(t.advance_id IS NULL OR t.installment_number IS NULL)',
     "(t.kind<>'transfer' OR t.transfer_pair_id IS NULL OR t.amount_cents>0)",
-    'NOT EXISTS(SELECT 1 FROM installment_cancellations ic WHERE ic.transaction_id=t.id)',
   ];
   const params: string[] = [];
-  if (query.month) {
-    if (!validMonth(query.month)) fail('Mês inválido.');
+  const contributionParams: (string | number)[] = [];
+  let contribution = '';
+  if (query.month && !validMonth(query.month)) fail('Mês inválido.');
+  if (query.summary) {
+    if (!query.month || !['income', 'expense'].includes(query.summary))
+      return fail('Resumo inválido.');
+    const parts = ['mt.spending_month=?', 'mt.is_income=?'];
+    contributionParams.push(query.month, query.summary === 'income' ? 1 : 0);
+    if (query.group === 'none') parts.push('ec.category_group_id IS NULL');
+    else if (query.group) {
+      parts.push('ec.category_group_id=?');
+      contributionParams.push(query.group);
+    }
+    if (query.category === 'none') parts.push('mt.category_id IS NULL');
+    else if (query.category) {
+      parts.push('mt.category_id=?');
+      contributionParams.push(query.category);
+    }
+    contribution = `JOIN (
+      SELECT mt.id,SUM(CASE WHEN mt.is_income=1 THEN -mt.amount_brl_cents ELSE mt.amount_brl_cents END) AS amount_cents
+      FROM monthly_totals mt LEFT JOIN effective_categories ec ON ec.id=mt.category_id
+      WHERE ${parts.join(' AND ')} GROUP BY mt.id
+    ) contribution ON contribution.id=t.id`;
+  }
+  if (query.statement) {
+    conditions.push(
+      'EXISTS(SELECT 1 FROM statement_items si WHERE si.statement_id=? AND si.id=t.id)',
+    );
+    params.push(query.statement);
+  }
+  if (query.transaction) {
+    conditions.push('t.id=?');
+    params.push(query.transaction);
+  }
+  if (query.balance === 'current') {
+    if (!query.account) return fail('Escolha uma conta para conferir o saldo.');
+    conditions.push(
+      `t.date<=? AND EXISTS(SELECT 1 FROM accounts ba WHERE ba.id=? AND (ba.cutoff_date IS NULL OR t.date>ba.cutoff_date))`,
+    );
+    params.push(c.var.today, query.account);
+  }
+  if (
+    query.month &&
+    !query.summary &&
+    !query.statement &&
+    query.balance !== 'current'
+  ) {
     const bounds = monthBounds(query.month);
     conditions.push('t.date>=? AND t.date<=?');
     params.push(bounds.from, bounds.to);
@@ -251,7 +301,7 @@ app.get('/api/transactions', async (c) => {
     ['category', 'category_id'],
     ['origin', 'origin'],
   ] as const)
-    if (query[key]) {
+    if (query[key] && !(key === 'category' && query.summary)) {
       conditions.push(
         key === 'category'
           ? '(CASE WHEN EXISTS(SELECT 1 FROM transaction_splits WHERE transaction_id=t.id) THEN EXISTS(SELECT 1 FROM transaction_splits WHERE transaction_id=t.id AND category_id=?) ELSE t.category_id=? END)'
@@ -293,22 +343,158 @@ app.get('/api/transactions', async (c) => {
   const page = Number(query.page ?? 1);
   if (!Number.isSafeInteger(page) || page < 1 || page > 1000000)
     fail('Página inválida.');
-  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-  const total = await c.var.DB.prepare(
-    `SELECT COUNT(*) AS count FROM transactions t ${where}`,
-  )
-    .bind(...params)
-    .first<{ count: number }>();
-  const { results } = await c.var.DB.prepare(
-    `SELECT t.*, COALESCE((SELECT a.name FROM transactions pair JOIN accounts a ON a.id=pair.account_id WHERE pair.id=t.transfer_pair_id),(SELECT a.name FROM statements s JOIN accounts a ON a.id=s.account_id WHERE s.id=t.statement_id AND t.kind='card_payment')) AS destination_name, COALESCE((SELECT pair.account_id FROM transactions pair WHERE pair.id=t.transfer_pair_id),(SELECT s.account_id FROM statements s WHERE s.id=t.statement_id AND t.kind='card_payment')) AS destination_account_id, COALESCE((SELECT pair.amount_cents FROM transactions pair WHERE pair.id=t.transfer_pair_id),-t.card_amount_cents) AS destination_amount_cents, COALESCE((SELECT pair.currency FROM transactions pair WHERE pair.id=t.transfer_pair_id),(SELECT a.currency FROM statements s JOIN accounts a ON a.id=s.account_id WHERE s.id=t.statement_id AND t.kind='card_payment')) AS destination_currency, (SELECT status FROM statements WHERE id=t.statement_id OR (t.statement_id IS NULL AND t.kind='regular' AND t.origin<>'adjustment' AND account_id=t.account_id AND t.date BETWEEN period_start AND closing_date) LIMIT 1) AS statement_status, (SELECT p.payment_date FROM scheduled_statement_payments p JOIN statements s ON s.id=p.statement_id WHERE p.applied=0 AND (s.id=t.statement_id OR (t.statement_id IS NULL AND t.kind='regular' AND t.origin<>'adjustment' AND s.account_id=t.account_id AND t.date BETWEEN s.period_start AND s.closing_date)) LIMIT 1) AS statement_scheduled_payment_date, (SELECT COUNT(*) FROM transaction_splits WHERE transaction_id=t.id) AS split_count, ip.count AS installment_count, CASE WHEN t.origin='imported' THEN t.payee ELSE COALESCE(canonical.name,p.name,t.payee) END AS payee, COALESCE(p.merged_into_id,p.id) AS payee_id, a.name AS account_name, ag.name AS allocation_name, (SELECT json_group_array(json_object('id',tags.id,'name',tags.name,'color',tags.color)) FROM transaction_tags tt JOIN tags ON tags.id=tt.tag_id WHERE tt.transaction_id=t.id) AS tags_json FROM transactions t JOIN accounts a ON a.id=t.account_id LEFT JOIN installment_plans ip ON ip.id=t.installment_plan_id LEFT JOIN payees p ON p.id=t.payee_id LEFT JOIN payees canonical ON canonical.id=p.merged_into_id LEFT JOIN categories cat ON cat.id=t.category_id LEFT JOIN category_groups cg ON cg.id=cat.category_group_id LEFT JOIN allocation_groups ag ON ag.id=cg.allocation_group_id ${where} ORDER BY t.date DESC,t.id LIMIT 50 OFFSET ?`,
-  )
-    .bind(...params, (page - 1) * 50)
-    .all();
-  const tagged = results.map(({ tags_json, ...t }) => ({
+  const where = `WHERE ${conditions.join(' AND ')}`;
+  const running =
+    !csv &&
+    query.account &&
+    ![
+      query.category,
+      query.group,
+      query.summary,
+      query.statement,
+      query.transaction,
+      query.tag,
+      query.origin,
+      query.from,
+      query.to,
+      query.search,
+    ].some(Boolean);
+  // A lista mostra o lançamento mais recente primeiro. No mesmo dia, o saldo
+  // final do dia volta uma movimentação a cada linha anterior na lista.
+  const runningColumns = running
+    ? `,
+    ${accountBalanceSql('balance_account', 't.date', true)} + COALESCE(SUM(
+      CASE WHEN t.account_id=balance_account.id THEN t.amount_cents
+        WHEN t.kind='transfer' THEN (SELECT pair.amount_cents FROM transactions pair WHERE pair.id=t.transfer_pair_id)
+        WHEN t.kind='card_payment' THEN -COALESCE(t.card_amount_cents,(SELECT s.bank_amount_cents FROM statements s WHERE s.id=t.statement_id))
+      END
+    ) OVER(PARTITION BY t.date ORDER BY t.id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING),0) AS running_balance_cents,
+    CASE WHEN t.date>? THEN 'forecast' WHEN balance_account.cutoff_date IS NOT NULL AND t.date<=balance_account.cutoff_date THEN 'archive' END AS running_balance_state`
+    : '';
+  const db = c.var.DB;
+  const needsTotal = query.summary || query.statement || query.transaction;
+  const totalExpression = query.summary
+    ? 'contribution.amount_cents'
+    : 't.amount_cents';
+  const totals = db
+    .prepare(
+      `SELECT COUNT(*) AS count,${needsTotal ? `SUM(${totalExpression})` : '0'} AS amount_cents FROM active_transactions t ${contribution} ${where}`,
+    )
+    .bind(...contributionParams, ...params);
+  const list = db
+    .prepare(
+      `SELECT t.*,
+        COALESCE(
+          (SELECT a.name FROM transactions pair JOIN accounts a ON a.id=pair.account_id WHERE pair.id=t.transfer_pair_id),
+          (SELECT a.name FROM statements s JOIN accounts a ON a.id=s.account_id WHERE s.id=t.statement_id AND t.kind='card_payment')
+        ) AS destination_name,
+        COALESCE(
+          (SELECT pair.account_id FROM transactions pair WHERE pair.id=t.transfer_pair_id),
+          (SELECT s.account_id FROM statements s WHERE s.id=t.statement_id AND t.kind='card_payment')
+        ) AS destination_account_id,
+        COALESCE(
+          (SELECT pair.amount_cents FROM transactions pair WHERE pair.id=t.transfer_pair_id),
+          -COALESCE(t.card_amount_cents,(SELECT bank_amount_cents FROM statements WHERE id=t.statement_id AND t.kind='card_payment'))
+        ) AS destination_amount_cents,
+        COALESCE(
+          (SELECT pair.currency FROM transactions pair WHERE pair.id=t.transfer_pair_id),
+          (SELECT a.currency FROM statements s JOIN accounts a ON a.id=s.account_id WHERE s.id=t.statement_id AND t.kind='card_payment')
+        ) AS destination_currency,
+        (SELECT status FROM statements WHERE id=t.statement_id OR
+          (t.statement_id IS NULL AND t.kind='regular' AND t.origin<>'adjustment' AND account_id=t.account_id AND t.date BETWEEN period_start AND closing_date) LIMIT 1
+        ) AS statement_status,
+        (SELECT p.payment_date FROM scheduled_statement_payments p JOIN statements s ON s.id=p.statement_id WHERE p.applied=0 AND
+          (s.id=t.statement_id OR (t.statement_id IS NULL AND t.kind='regular' AND t.origin<>'adjustment' AND s.account_id=t.account_id AND t.date BETWEEN s.period_start AND s.closing_date)) LIMIT 1
+        ) AS statement_scheduled_payment_date,
+        (SELECT COUNT(*) FROM transaction_splits WHERE transaction_id=t.id) AS split_count,
+        ip.count AS installment_count,
+        CASE WHEN t.origin='imported' THEN t.payee ELSE COALESCE(canonical.name,p.name,t.payee) END AS payee,
+        COALESCE(p.merged_into_id,p.id) AS payee_id,
+        a.name AS account_name, ag.name AS allocation_name,
+        ${
+          csv
+            ? `
+        CASE WHEN EXISTS (SELECT 1 FROM transaction_splits p WHERE p.transaction_id=t.id)
+          THEN (SELECT group_concat(name, ', ') FROM (SELECT DISTINCT COALESCE(c.name, 'Sem categoria') AS name
+            FROM transaction_splits p LEFT JOIN categories c ON c.id=p.category_id WHERE p.transaction_id=t.id ORDER BY name))
+          ELSE cat.name END AS category_name,
+        CASE WHEN EXISTS (SELECT 1 FROM transaction_splits p WHERE p.transaction_id=t.id)
+          THEN (SELECT group_concat(name, ', ') FROM (SELECT DISTINCT COALESCE(g.name, 'Sem grupo') AS name
+            FROM transaction_splits p LEFT JOIN categories c ON c.id=p.category_id LEFT JOIN category_groups g ON g.id=c.category_group_id
+            WHERE p.transaction_id=t.id ORDER BY name))
+          ELSE cg.name END AS group_name,
+        `
+            : ''
+        }
+        (SELECT json_group_array(json_object('id',tags.id,'name',tags.name,'color',tags.color)) FROM tags WHERE tags.id IN (
+          SELECT tt.tag_id FROM transaction_tags tt WHERE tt.transaction_id=t.id
+          ${csv ? 'UNION SELECT st.tag_id FROM transaction_splits p JOIN split_tags st ON st.split_id=p.id WHERE p.transaction_id=t.id' : ''}
+        )) AS tags_json
+    ${query.summary ? ',contribution.amount_cents AS total_amount_cents' : ''}${runningColumns}
+    FROM active_transactions t
+    JOIN accounts a ON a.id=t.account_id
+    LEFT JOIN installment_plans ip ON ip.id=t.installment_plan_id
+    LEFT JOIN payees p ON p.id=t.payee_id LEFT JOIN payees canonical ON canonical.id=p.merged_into_id
+    LEFT JOIN categories cat ON cat.id=t.category_id LEFT JOIN category_groups cg ON cg.id=cat.category_group_id
+    LEFT JOIN allocation_groups ag ON ag.id=cg.allocation_group_id
+    ${contribution}
+    ${running ? 'JOIN accounts balance_account ON balance_account.id=?' : ''}
+    ${where} ORDER BY t.date DESC,t.id ${csv ? '' : 'LIMIT 50 OFFSET ?'}`,
+    )
+    .bind(
+      ...(running ? [c.var.today] : []),
+      ...contributionParams,
+      ...(running ? [query.account] : []),
+      ...params,
+      ...(csv ? [] : [(page - 1) * 50]),
+    );
+  type Row = Transaction & {
+    tags_json: string;
+    category_name: string | null;
+    group_name: string | null;
+  };
+  const withTags = ({ tags_json, ...t }: Row) => ({
     ...t,
-    tags: JSON.parse(String(tags_json)),
-  }));
-  return c.json({ items: tagged, total: total!.count, page, page_size: 50 });
+    tags: JSON.parse(tags_json),
+  });
+  if (csv) {
+    const { results } = await list.all<Row>();
+    const month =
+      query.balance === 'current'
+        ? c.var.today.slice(0, 7)
+        : (query.month ?? c.var.today.slice(0, 7));
+    return c.body(transactionCsv(results.map(withTags)), 200, {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="transacoes-${month}.csv"`,
+      'Cache-Control': 'no-store',
+    });
+  }
+  const carry =
+    query.statement && query.statementTotal === '1'
+      ? db
+          .prepare(
+            'SELECT previous_balance_cents AS cents FROM statement_totals WHERE id=?',
+          )
+          .bind(query.statement)
+      : db.prepare('SELECT 0 AS cents');
+  const [count, rows, previous] = await db.batch<
+    Row & { count: number; cents: number }
+  >([totals, list, carry]);
+  const total = Number(count.results[0].count);
+  const previousBalance = Number(previous.results[0]?.cents ?? 0);
+  const totalAmount = Number(count.results[0].amount_cents ?? 0);
+  return c.json({
+    items: rows.results.map(withTags),
+    total,
+    page,
+    page_size: 50,
+    ...(needsTotal
+      ? {
+          total_amount_cents: totalAmount + previousBalance,
+          previous_balance_cents: previousBalance,
+        }
+      : {}),
+  });
 });
 async function cardCalendar(
   db: D1Database,
@@ -621,7 +807,7 @@ app.get('/api/month-summary', async (c) => {
   const month = c.req.query('month') ?? c.var.today.slice(0, 7);
   if (!validMonth(month)) fail('Mês inválido.');
   const rows = await c.var.DB.prepare(
-    `SELECT t.category_id,COALESCE(cat.name,'Sem categoria') AS category_name,COALESCE(g.name,'Sem grupo') AS group_name,t.is_income,t.exclude_budget,
+    `SELECT t.category_id,COALESCE(cat.name,'Sem categoria') AS category_name,COALESCE(g.name,'Sem grupo') AS group_name,g.id AS group_id,t.is_income,t.exclude_budget,
     SUM(CASE WHEN t.is_income=1 THEN -t.amount_brl_cents ELSE t.amount_brl_cents END) AS amount_cents
     FROM monthly_totals t LEFT JOIN categories cat ON cat.id=t.category_id LEFT JOIN category_groups g ON g.id=cat.category_group_id
     WHERE t.spending_month=? GROUP BY t.category_id,t.is_income,t.exclude_budget ORDER BY t.is_income DESC,g.sort,g.name,cat.name`,
@@ -3402,6 +3588,7 @@ app.get('/api/upcoming', async (c) => {
     type: string;
     label: string;
     amount_cents: number;
+    date?: string;
   };
   type Due = {
     id: string;
@@ -3436,7 +3623,7 @@ app.get('/api/upcoming', async (c) => {
     const components = (
       await db
         .prepare(
-          `SELECT id,payee AS label,CASE WHEN installment_number IS NOT NULL THEN 'installment' ELSE 'purchase' END AS type,amount_cents FROM statement_items WHERE statement_id=?`,
+          `SELECT id,date,payee AS label,CASE WHEN installment_number IS NOT NULL THEN 'installment' ELSE 'purchase' END AS type,amount_cents FROM statement_items WHERE statement_id=?`,
         )
         .bind(st.id)
         .all<Component>()

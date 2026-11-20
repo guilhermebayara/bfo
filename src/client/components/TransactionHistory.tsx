@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useMoney, Privacy, maskedMoney } from '../privacy';
+import { useContext, useEffect, useState } from 'react';
 import type {
   TransactionHistory as History,
   TransactionSnapshot,
 } from '../../server/transaction-history';
 import { transactionFieldLabels as fields } from '../../shared/transaction-notice';
-import { formatMoney } from '../../shared/money';
 import type { Account, Category, Tag, Transaction } from '../../shared/types';
 import { api, humanDate } from '../api';
 import { Button, Modal, State } from './index';
@@ -24,6 +24,8 @@ export function TransactionHistory({
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
+  const formatMoney = useMoney();
+  const hidden = useContext(Privacy);
   const [entries, setEntries] = useState<History[] | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -37,6 +39,7 @@ export function TransactionHistory({
   function value(field: string, snapshot: TransactionSnapshot) {
     const v = snapshot[field];
     if (v === null || v === '') return 'Sem valor';
+    if (field === 'fx_rate' && hidden) return maskedMoney;
     if (field === 'date') return humanDate(String(v));
     if (field === 'amount_cents')
       return formatMoney(Number(v), String(snapshot.currency));

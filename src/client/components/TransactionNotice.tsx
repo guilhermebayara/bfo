@@ -1,5 +1,5 @@
+import { useMoney } from '../privacy';
 import { useEffect, useRef, useState } from 'react';
-import { formatMoney } from '../../shared/money';
 import type { TransactionNotice as NoticeData } from '../../shared/transaction-notice';
 import { Button, Notice } from './index';
 
@@ -12,6 +12,7 @@ export function TransactionNotice({
   onUndo?: () => void;
   busy: boolean;
 }) {
+  const formatMoney = useMoney();
   const [hover, setHover] = useState(false);
   const [focused, setFocused] = useState(false);
   const [visible, setVisible] = useState(true);

@@ -94,7 +94,7 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
   - [x] Pilha de desfazer e refazer enquanto a página estiver aberta, respeitando as travas.
   - [x] Aviso com novo saldo das contas afetadas e botão Desfazer. O lote mostra um aviso só.
 
-- [ ] Ferramentas de uso diário (Sessão V, Codex, em paralelo à N): total leva às transações, saldo corrido por conta, filtro de privacidade e exportação em CSV (decisões, Tabela de transações; brief em docs/briefs/uso-diario.md).
+- [x] Ferramentas de uso diário (Sessão V, Codex, em paralelo à N): total leva às transações, saldo corrido por conta, filtro de privacidade e exportação em CSV (decisões, Tabela de transações; brief em docs/briefs/uso-diario.md).
 
 - [ ] Conceito visual: feito no Claude depois que a estrutura da fase 1 estiver redonda. Duas propostas numa prévia, o dono escolhe olhando a tela, e só então o visual é aplicado.
   - Consolidado das referências em [docs/referencia-visual-consolidado.md](referencia-visual-consolidado.md), sem decisão.

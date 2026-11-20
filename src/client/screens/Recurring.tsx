@@ -1,3 +1,4 @@
+import { FinancialInput, useMoney } from '../privacy';
 import { useEffect, useState, useRef } from 'react';
 import type {
   Account,
@@ -7,7 +8,7 @@ import type {
   Transaction,
 } from '../../shared/types';
 import { currentMonth } from '../../shared/recurring';
-import { formatMoney, parseMoney } from '../../shared/money';
+import { parseMoney } from '../../shared/money';
 import { api, humanDate } from '../api';
 import {
   PageHeader,
@@ -157,7 +158,7 @@ export function RecurringEditor({
           </label>
           <label>
             Valor ({code})
-            <input
+            <FinancialInput
               required
               inputMode="decimal"
               value={form.amount}
@@ -292,6 +293,7 @@ export function RecurringScreen({
   onSaved: () => Promise<void>;
   subscriptions?: boolean;
 }) {
+  const formatMoney = useMoney();
   const [month, setMonth] = useState(currentMonth()),
     [rows, setRows] = useState<Recurring[]>([]),
     [summary, setSummary] = useState<Summary>({}),

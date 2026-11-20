@@ -11,7 +11,14 @@ import {
   Table,
   CategoryOptions,
 } from '../components';
-import { api } from '../api';
+import { api, humanDate } from '../api';
+import { today } from '../../shared/dates';
+import { useMoney } from '../privacy';
+import {
+  readTransactionFilters,
+  transactionsUrl,
+  type TransactionFilters,
+} from '../transaction-filters';
 import { currentMonth, validMonth } from '../../shared/recurring';
 import { MonthNavigation } from '../components/MonthNavigation';
 import { SplitTransaction } from '../components/SplitTransaction';
@@ -31,6 +38,8 @@ type Page = {
   total: number;
   page: number;
   page_size: number;
+  total_amount_cents?: number;
+  previous_balance_cents?: number;
 };
 export function Transactions({
   accounts,
@@ -38,15 +47,18 @@ export function Transactions({
   revision,
   onSaved,
   path,
+  urlSearch,
   navigate,
 }: {
   path: string;
+  urlSearch: string;
   navigate: (to: string, replace?: boolean) => void;
   accounts: Account[];
   categories: Category[];
   revision: number;
   onSaved: () => Promise<void>;
 }) {
+  const formatMoney = useMoney();
   const rawMonth = path.split('/')[2] ?? currentMonth();
   const month = validMonth(rawMonth) ? rawMonth : currentMonth();
   const [showFilters, setShowFilters] = useState(false);
@@ -83,7 +95,6 @@ export function Transactions({
     }
   }
 
-  const [search, setSearch] = useState('');
   const [adding, setAdding] = useState(false);
   const [transfer, setTransfer] = useState(false);
   const [purchase, setPurchase] = useState(false);
@@ -105,48 +116,78 @@ export function Transactions({
   const [recurring, setRecurring] = useState<Transaction | null>(null);
   useEffect(() => {
     if (path === '/transacoes' || path === '/')
-      navigate(`/transacoes/${month}${location.search}`, true);
-    setPage(1);
+      navigate(`/transacoes/${month}${urlSearch ? `?${urlSearch}` : ''}`, true);
     setSelected([]);
     setAdding(false);
   }, [path]);
-  const [filters, setFilters] = useState({
-    tag: '',
-    account: new URLSearchParams(location.search).get('account') ?? '',
-    category: '',
-    origin: '',
-    from: new URLSearchParams(location.search).get('from') ?? '',
-    to: new URLSearchParams(location.search).get('to') ?? '',
-  });
+  const { search, ...filters } = readTransactionFilters(urlSearch);
+  const drill =
+    filters.summary ||
+    filters.statement ||
+    filters.transaction ||
+    filters.balance;
+  const onlyAccount =
+    !!filters.account &&
+    !search &&
+    !Object.entries(filters).some(
+      ([key, value]) => key !== 'account' && key !== 'balance' && value,
+    );
+  const balanceAccount = onlyAccount
+    ? accounts.find((a) => a.id === filters.account)
+    : undefined;
+  const drillAccount = accounts.find((a) => a.id === filters.account);
+  const extraColumn = balanceAccount
+    ? balanceAccount.kind === 'credit_card'
+      ? 'Saldo do cartão'
+      : 'Saldo corrido'
+    : filters.summary
+      ? 'No total (R$)'
+      : '';
+  const categoryName =
+    categories.find((c) => c.id === filters.category)?.name ??
+    (filters.category === 'none' ? 'Sem categoria' : '');
+  const groupName =
+    categories.find((c) => c.category_group_id === filters.group)?.group_name ??
+    (filters.group === 'none' ? 'Sem grupo' : '');
+  const filterCount = Object.entries(filters).filter(
+    ([key, value]) => key !== 'statementTotal' && value,
+  ).length;
   const [tags, setTags] = useState<Tag[]>([]);
   useEffect(() => {
     api<Tag[]>('/tags')
       .then(setTags)
       .catch((e) => setError(e.message));
   }, [revision]);
-  const [page, setPage] = useState(1);
-  const [data, setData] = useState<Page | null>(null);
+  const [pagination, setPagination] = useState({ address: '', page: 1 });
+  const address = transactionsUrl(month, { ...filters, search });
+  const page = pagination.address === address ? pagination.page : 1;
+  const setPage = (page: number) => setPagination({ address, page });
+  const [result, setResult] = useState<{ query: string; data: Page } | null>(
+    null,
+  );
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [retry, setRetry] = useState(0);
+  const matching = new URLSearchParams({ month });
+  for (const [key, value] of Object.entries({ ...filters, search })) {
+    if (value) matching.set(key, value);
+  }
+  const query = `${matching}&page=${page}`;
+  const data = result?.query === query ? result.data : null;
   useEffect(() => {
     if (data)
       setSelected((ids) =>
         ids.filter((id) => data.items.some((t) => t.id === id)),
       );
   }, [data]);
-  const [loading, setLoading] = useState(true);
-  const [retry, setRetry] = useState(0);
-  const query = new URLSearchParams({
-    ...filters,
-    search,
-    month,
-    page: String(page),
-  }).toString();
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setError('');
     api<Page>(`/transactions?${query}`, { signal: controller.signal })
-      .then(setData)
+      .then((data) => {
+        if (!controller.signal.aborted) setResult({ query, data });
+      })
       .catch((e) => {
         if (e.name !== 'AbortError') setError(e.message);
       })
@@ -155,22 +196,32 @@ export function Transactions({
       });
     return () => controller.abort();
   }, [query, revision, retry]);
-  function filter(key: keyof typeof filters, value: string) {
-    setFilters({ ...filters, [key]: value });
+  function filter(key: keyof TransactionFilters, value: string) {
+    const next = { ...filters, search, [key]: value };
+    if (key === 'account' && value !== filters.account) next.balance = '';
+    navigate(transactionsUrl(month, next), key === 'search');
     setSelected([]);
     setPage(1);
+  }
+  function changeMonth(next: string) {
+    if (month === next && !drill) return;
+    navigate(
+      transactionsUrl(next, {
+        ...filters,
+        search,
+        statement: '',
+        statementTotal: '',
+        transaction: '',
+        balance: '',
+      }),
+    );
   }
   const entryAccountName = accounts.find((a) => a.id === entryAccount)?.name;
   return (
     <>
       <PageHeader
         title="Transações"
-        context={
-          <MonthNavigation
-            month={month}
-            onChange={(m) => navigate(`/transacoes/${m}${location.search}`)}
-          />
-        }
+        context={<MonthNavigation month={month} onChange={changeMonth} />}
         actions={
           <div className="add-control">
             <Button
@@ -214,11 +265,7 @@ export function Transactions({
             type="search"
             placeholder="Buscar beneficiário ou nota"
             value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-              setSelected([]);
-            }}
+            onChange={(e) => filter('search', e.target.value)}
           />
         </label>
         <Button
@@ -227,9 +274,7 @@ export function Transactions({
           onClick={() => setShowFilters(!showFilters)}
         >
           Filtros
-          {Object.values(filters).filter(Boolean).length
-            ? ` (${Object.values(filters).filter(Boolean).length})`
-            : ''}
+          {filterCount ? ` (${filterCount})` : ''}
         </Button>
         <Button
           aria-expanded={showSummary}
@@ -238,6 +283,15 @@ export function Transactions({
         >
           {showSummary ? 'Recolher resumo do mês' : 'Expandir resumo do mês'}
         </Button>
+        {!loading && data && !error && (
+          <a
+            className="button action-link"
+            href={`/api/transactions.csv?${matching}`}
+            download
+          >
+            Baixar CSV
+          </a>
+        )}
         <Menu trigger="Mais opções">
           <Button onClick={() => setPurchase(true)}>
             Lançar compra parcelada
@@ -263,7 +317,10 @@ export function Transactions({
             >
               <option value="">Todas</option>
               {accounts
-                .filter((a) => !a.closed_at && !a.archived)
+                .filter(
+                  (a) =>
+                    a.id === filters.account || (!a.closed_at && !a.archived),
+                )
                 .map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.name}
@@ -278,6 +335,7 @@ export function Transactions({
               onChange={(e) => filter('category', e.target.value)}
             >
               <option value="">Todas</option>
+              {filters.summary && <option value="none">Sem categoria</option>}
               <CategoryOptions categories={categories} />
             </select>
           </label>
@@ -327,14 +385,8 @@ export function Transactions({
           </label>
           <Button
             onClick={() => {
-              setFilters({
-                tag: '',
-                account: '',
-                category: '',
-                origin: '',
-                from: '',
-                to: '',
-              });
+              navigate(transactionsUrl(month, { search }));
+              setSelected([]);
               setPage(1);
             }}
           >
@@ -354,10 +406,20 @@ export function Transactions({
           className="transactions-summary"
           hidden={!showSummary}
         >
-          {showSummary && <MonthSummary month={month} revision={revision} />}
+          {showSummary && (
+            <MonthSummary
+              month={month}
+              revision={revision}
+              navigate={(to) => {
+                navigate(to);
+                setPage(1);
+                setSelected([]);
+              }}
+            />
+          )}
         </div>
         <section className="transactions-main">
-          {loading && !data ? (
+          {!data && !error ? (
             <State kind="loading">Carregando transações…</State>
           ) : error ? (
             <State
@@ -377,6 +439,94 @@ export function Transactions({
                   {data.total} transações · Entrada soma ao saldo; saída reduz o
                   saldo.
                 </p>
+                {drill && (
+                  <div className="drill-detail">
+                    <div className="inline-actions">
+                      <strong>
+                        {filters.summary
+                          ? [
+                              filters.summary === 'income'
+                                ? 'Renda'
+                                : 'Despesas',
+                              groupName,
+                              categoryName,
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')
+                          : filters.statement
+                            ? filters.statementTotal
+                              ? 'Total da fatura'
+                              : 'Compras do ciclo'
+                            : filters.balance
+                              ? `Saldo até hoje · ${drillAccount?.name ?? 'Conta'}`
+                              : 'Transação de origem'}
+                        {data.total_amount_cents !== undefined &&
+                          ` · ${formatMoney(data.total_amount_cents, filters.summary ? 'BRL' : (drillAccount?.currency ?? data.items[0]?.currency))}`}
+                        {filters.balance &&
+                          drillAccount &&
+                          ` · ${formatMoney(drillAccount.balance_cents, drillAccount.currency)}`}
+                      </strong>
+                      <Button
+                        variant="quiet"
+                        onClick={() => navigate(transactionsUrl(month, {}))}
+                      >
+                        Voltar ao mês
+                      </Button>
+                    </div>
+                    {filters.summary && (
+                      <p>
+                        Transferências e itens fora dos totais ficam de fora.
+                        Nas divisões, “No total” soma só as partes que
+                        correspondem ao filtro. Parcelas contam no mês da
+                        fatura. Lançamentos futuros contam no mês do resumo e
+                        afetam o saldo só na data.
+                      </p>
+                    )}
+                    {!!data.previous_balance_cents && (
+                      <p>
+                        Inclui{' '}
+                        {formatMoney(
+                          data.previous_balance_cents,
+                          drillAccount?.currency,
+                        )}{' '}
+                        de saldo anterior, transportado da fatura anterior sem
+                        gerar outra transação.
+                      </p>
+                    )}
+                    {filters.balance && (
+                      <p>
+                        {drillAccount?.cutoff_date && (
+                          <>
+                            Saldo de abertura em{' '}
+                            {humanDate(drillAccount.cutoff_date)}:{' '}
+                            {formatMoney(
+                              drillAccount.opening_balance_cents,
+                              drillAccount.currency,
+                            )}
+                            .{' '}
+                          </>
+                        )}
+                        Transferências movimentam a conta. Lançamentos futuros
+                        entram no saldo na data.
+                      </p>
+                    )}
+                    {filters.transaction &&
+                      data.items.some((t) => t.date > today()) && (
+                        <p>
+                          Lançamento futuro. Entra no saldo da conta na data.
+                        </p>
+                      )}
+                    {filters.transaction &&
+                      data.items.some((t) =>
+                        ['transfer', 'card_payment'].includes(t.kind),
+                      ) && (
+                        <p>
+                          Movimenta as duas contas e fica fora dos totais de
+                          renda e despesa.
+                        </p>
+                      )}
+                  </div>
+                )}
                 {!!selected.length && (
                   <BulkTransactions
                     items={data.items.filter((t) => selected.includes(t.id))}
@@ -386,7 +536,9 @@ export function Transactions({
                     onClear={() => setSelected([])}
                   />
                 )}
-                <div className="sheet-table">
+                <div
+                  className={`sheet-table${extraColumn ? ' sheet-table-extra' : ''}`}
+                >
                   <label className="select-page">
                     <input
                       type="checkbox"
@@ -410,6 +562,7 @@ export function Transactions({
                       'Conta',
                       'Beneficiário',
                       'Valor',
+                      ...(extraColumn ? [extraColumn] : []),
                       'Categoria',
                       'Alocação',
                       'Notas',
@@ -418,7 +571,7 @@ export function Transactions({
                       'Parcelas',
                       'Ações',
                     ]}
-                    numeric={[4]}
+                    numeric={extraColumn ? [4, 5] : [4]}
                     label="Transações"
                   >
                     <>
@@ -426,6 +579,7 @@ export function Transactions({
                         (transfer ? (
                           <NewTransferRow
                             key={month}
+                            extraColumn={!!extraColumn}
                             initialAccount={entryAccount}
                             month={month}
                             accounts={accounts}
@@ -436,6 +590,7 @@ export function Transactions({
                         ) : (
                           <NewTransactionRow
                             key={month}
+                            extraColumn={!!extraColumn}
                             initialAccount={entryAccount}
                             month={month}
                             accounts={accounts}
@@ -458,6 +613,8 @@ export function Transactions({
                             )
                           }
                           accountFilter={filters.account}
+                          balanceAccount={balanceAccount}
+                          showContribution={!!filters.summary}
                           accounts={accounts}
                           categories={categories}
                           tags={tags}
@@ -468,7 +625,7 @@ export function Transactions({
                       ))}
                       {!data.items.length && (
                         <tr>
-                          <td colSpan={12}>
+                          <td colSpan={extraColumn ? 13 : 12}>
                             <State kind="empty">
                               Nenhuma transação encontrada para estes filtros.
                             </State>

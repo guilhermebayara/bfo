@@ -1,5 +1,5 @@
+import { useMoney } from '../privacy';
 import { useState } from 'react';
-import { formatMoney } from '../../shared/money';
 import {
   Badge,
   Button,
@@ -71,6 +71,7 @@ function TokenList({
 }
 
 export function Foundations() {
+  const formatMoney = useMoney();
   const [modal, setModal] = useState(false);
   const [confirmation, setConfirmation] = useState('');
   const [retried, setRetried] = useState(false);

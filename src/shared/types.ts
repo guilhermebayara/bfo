@@ -62,6 +62,9 @@ export interface Transaction {
   added_to_closed: number;
   advance_id: string | null;
   split_count: number;
+  total_amount_cents?: number;
+  running_balance_cents?: number;
+  running_balance_state?: 'forecast' | 'archive' | null;
   installment_number: number | null;
   installment_count: number | null;
 }

@@ -1,6 +1,7 @@
+import { transactionsUrl } from '../transaction-filters';
+import { useMoney } from '../privacy';
 import { useEffect, useState } from 'react';
 import { api, humanDate } from '../api';
-import { formatMoney } from '../../shared/money';
 import { PageHeader, Panel, State, Truncated, Table } from '../components';
 type Due = {
   id: string;
@@ -16,9 +17,11 @@ type Due = {
     type: string;
     label: string;
     amount_cents: number;
+    date?: string;
   }[];
 };
 export function Upcoming({ revision }: { revision: number }) {
+  const formatMoney = useMoney();
   const [data, setData] = useState<{
       from: string;
       to: string;
@@ -102,7 +105,25 @@ export function Upcoming({ revision }: { revision: number }) {
                                 {i.components.map((p) => (
                                   <li key={p.id}>
                                     {p.label}:{' '}
-                                    {formatMoney(p.amount_cents, i.currency)}
+                                    {p.date ? (
+                                      <a
+                                        href={transactionsUrl(
+                                          p.date.slice(0, 7),
+                                          {
+                                            account: i.account_id,
+                                            transaction: p.id,
+                                          },
+                                        )}
+                                        aria-label={`Valor de ${p.label}: ${formatMoney(p.amount_cents, i.currency)}. Ver transação`}
+                                      >
+                                        {formatMoney(
+                                          p.amount_cents,
+                                          i.currency,
+                                        )}
+                                      </a>
+                                    ) : (
+                                      formatMoney(p.amount_cents, i.currency)
+                                    )}
                                     {p.type === 'installment'
                                       ? ' · Parcela'
                                       : ''}
@@ -116,7 +137,21 @@ export function Upcoming({ revision }: { revision: number }) {
                           <Truncated>{i.account_name}</Truncated>
                         </td>
                         <td className="numeric">
-                          {formatMoney(i.amount_cents, i.currency)}
+                          {['scheduled', 'transfer', 'payment'].includes(
+                            i.type,
+                          ) ? (
+                            <a
+                              href={transactionsUrl(i.date.slice(0, 7), {
+                                account: i.account_id,
+                                transaction: i.id,
+                              })}
+                              aria-label={`Valor de ${i.label}: ${formatMoney(i.amount_cents, i.currency)}. Ver transação`}
+                            >
+                              {formatMoney(i.amount_cents, i.currency)}
+                            </a>
+                          ) : (
+                            formatMoney(i.amount_cents, i.currency)
+                          )}
                         </td>
                       </tr>
                     ))}

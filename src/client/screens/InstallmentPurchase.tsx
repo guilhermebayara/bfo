@@ -1,3 +1,4 @@
+import { FinancialInput, useMoney } from '../privacy';
 import { useEffect, useState } from 'react';
 import type {
   Account,
@@ -5,7 +6,7 @@ import type {
   Transaction,
   InstallmentAdvance,
 } from '../../shared/types';
-import { formatMoney, parseMoney } from '../../shared/money';
+import { parseMoney } from '../../shared/money';
 import { api, humanDate } from '../api';
 import { Badge, PageHeader, Panel, State, Button, Table } from '../components';
 type Purchase = {
@@ -43,6 +44,7 @@ export function InstallmentPurchase({
   accounts: Account[];
   onSaved: () => Promise<void>;
 }) {
+  const formatMoney = useMoney();
   const [purchase, setPurchase] = useState<Purchase | null>(null),
     [error, setError] = useState(''),
     [revision, setRevision] = useState(0),
@@ -230,7 +232,7 @@ export function InstallmentPurchase({
               </p>
               <label>
                 Valor cobrado pelo banco ({plan.currency})
-                <input
+                <FinancialInput
                   required
                   inputMode="decimal"
                   value={paid}
@@ -240,7 +242,7 @@ export function InstallmentPurchase({
               {plan.currency !== 'BRL' && (
                 <label>
                   Cotação para BRL (opcional)
-                  <input
+                  <FinancialInput
                     inputMode="decimal"
                     value={rate}
                     onChange={(e) => setRate(e.target.value)}
