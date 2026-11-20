@@ -2,6 +2,8 @@
 
 Feito no chat de gestão em 20/11/2026, cruzando a observação direta de Mira e Charted com [docs/referencia-visual-analise.md](referencia-visual-analise.md), as decisões e as pesquisas externas resumidas em [docs/a-construir.md](a-construir.md). Sem decisão. Serve de entrada para as duas direções visuais, que o dono escolhe depois.
 
+Complemento de estrutura e fluxo: [docs/referencia-manus.md](referencia-manus.md), pesquisa do Manus de 20/11/2026, com cruzamento.
+
 Pendente: as nove telas do Mobbin. O site bloqueou o navegador do chat, então elas entram aqui só pela descrição da Sessão O. O dono vai analisá-las junto com o chat depois de 23/11, e a revisão visual começa depois disso.
 
 ## O que se vê nas duas preferidas
