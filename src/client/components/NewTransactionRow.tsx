@@ -34,6 +34,7 @@ export function NewTransactionRow({
     [selected, setSelected] = useState<string[]>([]),
     [rate, setRate] = useState(''),
     [error, setError] = useState(''),
+    [hint, setHint] = useState(''),
     [busy, setBusy] = useState(false);
   const row = useRef<HTMLTableRowElement>(null),
     input = useRef<HTMLInputElement>(null),
@@ -143,19 +144,31 @@ export function NewTransactionRow({
     if (!payee.trim()) return;
     const abort = new AbortController();
     const timer = setTimeout(() => {
-      api<{ category_id: string | null; tag_ids: string[] }>(
-        `/payees/suggestion?name=${encodeURIComponent(payee)}`,
-        { signal: abort.signal },
-      )
+      api<{
+        category_id: string | null;
+        tag_ids: string[];
+        source: 'default' | 'last' | 'none';
+      }>(`/payees/suggestion?name=${encodeURIComponent(payee)}`, {
+        signal: abort.signal,
+      })
         .then((s) => {
-          if (!manualCategory.current && s.category_id) {
-            setCategory(s.category_id);
+          const apply = s.source === 'default';
+          if (!manualCategory.current && (apply || s.category_id)) {
+            setCategory(s.category_id ?? '');
             setIncome(
               !!categories.find((c) => c.id === s.category_id)
                 ?.effective_income,
             );
           }
-          if (!manualTags.current) setSelected(s.tag_ids);
+          if (!manualTags.current && (apply || s.tag_ids.length))
+            setSelected(s.tag_ids);
+          setHint(
+            s.source === 'default'
+              ? 'Sugestão pelo padrão. Dá para mudar antes de salvar.'
+              : s.source === 'last'
+                ? 'Sugestão pelo último lançamento. Dá para mudar antes de salvar.'
+                : '',
+          );
         })
         .catch((e) => {
           if (e.name !== 'AbortError') setError(e.message);
@@ -207,6 +220,7 @@ export function NewTransactionRow({
       setAmount('');
       setCategory('');
       setNote('');
+      setHint('');
       setSelected([]);
       setIncome(false);
       setCount('1');
@@ -530,9 +544,9 @@ export function NewTransactionRow({
         >
           ↵
         </Button>
-        {error && (
+        {(error || hint) && (
           <span className="cell-message" role="status">
-            {error}
+            {error || hint}
           </span>
         )}
       </td>

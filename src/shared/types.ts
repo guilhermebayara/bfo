@@ -81,6 +81,9 @@ export interface Payee {
   count: number;
   first_date: string | null;
   last_date: string | null;
+  has_default: number;
+  default_category_id: string | null;
+  default_tag_ids: string[];
 }
 export interface Named {
   id: string;

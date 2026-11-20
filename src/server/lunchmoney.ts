@@ -645,7 +645,7 @@ export function wipeImportSql(): string[] {
     `DELETE FROM recurring WHERE id IN (SELECT local_id FROM import_links WHERE source='lunchmoney' AND entity='recurring')`,
     `DELETE FROM imported_balances WHERE id IN (SELECT local_id FROM import_links WHERE source='lunchmoney' AND entity='balance')`,
     `DELETE FROM imported_budgets WHERE id IN (SELECT local_id FROM import_links WHERE source='lunchmoney' AND entity='budget')`,
-    `DELETE FROM tags WHERE id IN (SELECT local_id FROM import_links WHERE source='lunchmoney' AND entity='tag') AND NOT EXISTS (SELECT 1 FROM transaction_tags WHERE tag_id=tags.id) AND NOT EXISTS (SELECT 1 FROM split_tags WHERE tag_id=tags.id)`,
+    `DELETE FROM tags WHERE id IN (SELECT local_id FROM import_links WHERE source='lunchmoney' AND entity='tag') AND NOT EXISTS (SELECT 1 FROM transaction_tags WHERE tag_id=tags.id) AND NOT EXISTS (SELECT 1 FROM split_tags WHERE tag_id=tags.id) AND NOT EXISTS (SELECT 1 FROM payee_default_tags WHERE tag_id=tags.id)`,
     `DELETE FROM categories WHERE id IN (SELECT local_id FROM import_links WHERE source='lunchmoney' AND entity='category') AND NOT EXISTS (SELECT 1 FROM transactions WHERE category_id=categories.id) AND NOT EXISTS (SELECT 1 FROM transaction_splits WHERE category_id=categories.id) AND NOT EXISTS (SELECT 1 FROM recurring WHERE category_id=categories.id) AND NOT EXISTS (SELECT 1 FROM installment_plans WHERE category_id=categories.id)`,
     `DELETE FROM category_groups WHERE id IN (SELECT local_id FROM import_links WHERE source='lunchmoney' AND entity='category_group') AND NOT EXISTS (SELECT 1 FROM categories WHERE category_group_id=category_groups.id)`,
     `DELETE FROM accounts WHERE id IN (SELECT local_id FROM import_links WHERE source='lunchmoney' AND entity='account') AND NOT EXISTS (SELECT 1 FROM transactions WHERE account_id=accounts.id) AND NOT EXISTS (SELECT 1 FROM recurring WHERE account_id=accounts.id)`,
@@ -800,7 +800,8 @@ export async function collectFromApi(options: {
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : '';
-    if (!message || message.includes(token)) throw new Error('Falha na coleta.');
+    if (!message || message.includes(token))
+      throw new Error('Falha na coleta.');
     throw error;
   }
 }
