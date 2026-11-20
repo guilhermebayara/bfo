@@ -68,6 +68,8 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
 - [ ] Sessão K: script de importação do Lunch Money (API v2), apagar e refazer importação. Construída e testada só com dados simulados; a importação real espera o repositório privado.
   - [x] Dados simulados da API v2 prontos em `tests/fixtures/lunchmoney/` (um JSON por endpoint, transações em duas páginas, casos de borda descritos no `LEIA-ME.md`). Faltam o script e os testes da importação.
 
+- [ ] Sessão L (fundações de layout, antes do conceito): pedido do dono em 19/11/2026, porque a interface básica demais dificulta testar. Continua neutra, sem identidade visual. Tokens em duas camadas (primitivos e papéis semânticos), escalas de tipografia, espaço, superfície e borda, números tabulares e valores alinhados à direita, estrutura da aplicação com navegação e cabeçalho de página padrão, componentes base reutilizáveis, estados vazio, carregando e erro, uma página de catálogo das fundações e revisão da hierarquia de cada tela. Sem regra nova e sem funcionalidade nova. Referências guardadas em docs/referencia-visual.md, para o conceito.
+
 - [ ] Conceito visual: feito no Claude depois que a estrutura da fase 1 estiver redonda. Duas propostas numa prévia, o dono escolhe olhando a tela, e só então o visual é aplicado.
 
 - [x] Ajuste técnico (Sessão B): a Cloudflare trocou as prévias por versão com alias pelo recurso Previews, com comando padrão `npx wrangler preview`. Migrar a configuração (bloco `previews` no ambiente homologacao do wrangler, comando de prévia com o ambiente) e atualizar docs/cloudflare.md com os nomes atuais do painel (Settings > Build, preview builds, Preview command).
