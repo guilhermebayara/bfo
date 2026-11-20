@@ -13,6 +13,7 @@ Quando o dono só envia ou explica uma referência, ela é contexto para avaliar
 - https://www.quicken.com/
 - https://lunchmoney.app
 - https://www.revolut.com
+- https://wealthfolio.app (enviado em 20/11/2026; o dono gostou da interface). App de código aberto para desktop, centrado em investimentos, com telas de investimentos, patrimônio, gastos e planejamento, em claro e escuro. Serve também ao brief da fase 2 (patrimônio).
 - https://nubank.com.br
 - https://stripe.com/en-br
 

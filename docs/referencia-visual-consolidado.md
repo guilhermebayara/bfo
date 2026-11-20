@@ -4,7 +4,7 @@ Feito no chat de gestão em 20/11/2026, cruzando a observação direta de Mira e
 
 Complemento de estrutura e fluxo: [docs/referencia-manus.md](referencia-manus.md), pesquisa do Manus de 20/11/2026, com cruzamento.
 
-Pendente: as nove telas do Mobbin. O site bloqueou o navegador do chat, então elas entram aqui só pela descrição da Sessão O. O dono vai analisá-las junto com o chat depois de 23/11, e a revisão visual começa depois disso.
+Pendente: o Wealthfolio (https://wealthfolio.app), enviado pelo dono em 20/11/2026, entra na mesma análise. Pendente também: as nove telas do Mobbin. O site bloqueou o navegador do chat, então elas entram aqui só pela descrição da Sessão O. O dono vai analisá-las junto com o chat depois de 23/11, e a revisão visual começa depois disso.
 
 ## O que se vê nas duas preferidas
 
