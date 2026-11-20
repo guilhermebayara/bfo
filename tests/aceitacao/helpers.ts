@@ -5,6 +5,13 @@ import { seedSql } from '../../scripts/seed-data.mjs';
 
 export const db = env.DB as D1Database;
 
+/** Conta corrente ativa do seed (checking do seed nasce sem corte). */
+export const ACTIVE = 'seed-f-account';
+/** Destino cash ativo do seed. */
+export const CASH = 'seed-h-destination';
+/** Investimento ativo do seed. */
+export const INVESTMENT = 'seed-j-investment';
+
 export const req = (path: string, method = 'GET', body?: object) =>
   app.request(
     `https://bfo.test/api${path}`,
