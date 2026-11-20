@@ -34,6 +34,7 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 - Instituição é o primeiro nível. Cada conta pertence a uma instituição, e o tipo (corrente, cartão, investimento, empréstimo) fica na conta. A tela de Contas agrupa por instituição, com subtotal, e tem alternância para agrupar por tipo.
 - Toda conta criada à mão nasce ativa. Só as contas importadas do Lunch Money começam como "só arquivo", e são ativadas no dia em que o dono começar a usar o BFO. A tela explica esse estado.
 - "Atualizado em" é a data da última conferência de saldo. A ação "Conferir saldo" funciona como a conferência da fatura: o dono digita o saldo do banco, vê a diferença e escolhe procurar o que faltou ou lançar um ajuste.
+- Saldo do cartão na tela de Contas: o que já foi lançado até hoje e ainda não foi pago. Parcelas futuras ficam fora do saldo e aparecem no comprometido do cartão. Decidido em 20/11/2026, depois da QA da fase 1.
 - Conta encerrada sai da lista principal e dos filtros e vai para uma seção recolhida "Encerradas" no fim da tela. O histórico continua nas transações e no patrimônio.
 
 - Contas de movimento (corrente, cartão) vivem de transações.
@@ -60,6 +61,7 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 - Campo de valor com um botão de sinal ao lado: [-] para saída e [+] para entrada. O valor é digitado sempre sem sinal. O sinal muda sozinho conforme a categoria (categoria de renda deixa [+], as demais deixam [-]) e o dono pode inverter com um clique.
 - Transferência entre contas aparece como uma linha só: a coluna Conta mostra a origem e a coluna Beneficiário mostra o destino ("→ Conta B"), nas mesmas posições da linha de lançamento novo. Decidido em 19/11/2026, substituindo "Conta A → Conta B" na coluna da conta, que cortava o texto. O valor movido aparece em cor neutra, sem sinal de gasto ou renda. Com filtro por uma das contas, a linha mostra o sinal do ponto de vista dela (saída na origem, entrada no destino). Sem a soma zerada do Lunch Money.
 - Seleção múltipla abre um painel com total e média dos selecionados, edição em lote (data, beneficiário, categoria, nota, adicionar e remover tags, ligar a um recorrente) e exclusão em lote. Importadas selecionadas aceitam só a classificação. Ficam de fora: marcar como revisado (tudo é lançado pelo dono), trocar moeda e mover de conta em lote.
+- Lançamento manual aceita data futura (ex.: boleto agendado). Ele entra no saldo da conta só quando a data chegar e, até lá, aparece em Próximos. Decidido em 20/11/2026, depois que a QA encontrou no código um bloqueio de data futura que não tinha sido decidido.
 - Novo lançamento entra como uma linha extra no topo da tabela. O botão de adicionar já traz a conta padrão do dono (definida nas configurações) e tem uma seta para escolher outra.
 - A lista de contas dessa seta mostra só contas de movimento, agrupadas por tipo (cartões, contas correntes, dinheiro), com a instituição em cada uma e em ordem alfabética dentro do grupo. Contas de saldo (investimento, imóvel, empréstimo) e contas encerradas ficam de fora, porque não recebem lançamentos.
 
