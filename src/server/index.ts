@@ -293,6 +293,19 @@ async function resolvedCycle(
 ) {
   return (await cardCalendar(db, card)).resolve(day, offset, respectEarly);
 }
+async function advanceCycle(
+  db: D1Database,
+  card: Pick<Account, 'id' | 'closing_day' | 'due_day'>,
+  day: string,
+) {
+  const calendar = await cardCalendar(db, card);
+  const cycle = calendar.resolve(day);
+  const statement = calendar.statements.get(cycle.scheduledClosingDate);
+  // Depois da conferência no dia do fechamento, a antecipação entra no próximo ciclo.
+  if (statement && statement.status !== 'open' && day === cycle.closingDate)
+    return calendar.resolve(day, 1);
+  return cycle;
+}
 function insertCycle(
   db: D1Database,
   account: string,
@@ -1421,7 +1434,7 @@ app.get('/api/installment-plans/:id', async (c) => {
     .prepare('SELECT * FROM accounts WHERE id=?')
     .bind(plan.account_id)
     .first<Account>())!;
-  const cycle = await resolvedCycle(db, card, today());
+  const cycle = await advanceCycle(db, card, today());
   return c.json({
     plan,
     installments: results,
@@ -1460,7 +1473,7 @@ app.post('/api/installment-plans/:id/advance', async (c) => {
     day <= String(plan.cutoff_date)
   )
     fail('Conta indisponível.', 409);
-  const cycle = await resolvedCycle(
+  const cycle = await advanceCycle(
     db,
     {
       id: String(plan.account_id),

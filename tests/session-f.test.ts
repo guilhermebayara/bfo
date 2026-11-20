@@ -1,4 +1,4 @@
-import { beforeAll, expect, it } from 'vitest';
+import { beforeAll, expect, it, vi } from 'vitest';
 import { env } from 'cloudflare:workers';
 import { applyD1Migrations } from 'cloudflare:test';
 import app from '../src/server/index';
@@ -133,6 +133,97 @@ it('antecipa próximas parcelas numa linha, registra desconto e reduz o custo e 
       })
     ).status,
   ).toBe(400);
+});
+it('antecipa as parcelas 5 e 6 em dezembro após fechar novembro e lançar outra compra', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-11-20T15:00:00Z'));
+  try {
+    const account = 'f-card-composto';
+    await db
+      .prepare(
+        "INSERT INTO accounts(id,name,kind,cutoff_date,closing_day,due_day) VALUES(?,'Cartão fictício composto','credit_card','2026-11-01',20,27)",
+      )
+      .bind(account)
+      .run();
+    const original = await buy({
+      account_id: account,
+      date: '2026-11-10',
+      installment_count: 10,
+      installment_amount_cents: 10000,
+    });
+    expect(original.status).toBe(201);
+    const { installment_plan_id: id } = await original.json();
+    const bills = await (await req(`/cards/${account}/statements`)).json();
+    const november = bills.find((bill) => bill.closing_date === '2026-11-20');
+    const december = bills.find((bill) => bill.closing_date === '2026-12-20');
+    expect(november.total_cents).toBe(10000);
+    expect(
+      (
+        await req(`/statements/${november.id}/check`, 'POST', {
+          action: 'close',
+          bank_amount_cents: 10000,
+          expected_total_cents: 10000,
+        })
+      ).status,
+    ).toBe(201);
+
+    const other = await buy({
+      account_id: account,
+      payee: 'Outra compra fictícia',
+      installment_count: 6,
+      installment_current: 1,
+      installment_amount_cents: 10000,
+    });
+    expect(other.status).toBe(201);
+
+    const advance = await req(`/installment-plans/${id}/advance`, 'POST', {
+      count: 2,
+      paid_cents: 18000,
+      expected_face_cents: 20000,
+    });
+    const result = await advance.json();
+    expect(advance.status, JSON.stringify(result)).toBe(201);
+    expect(result.discount_cents).toBe(2000);
+
+    const updatedBills = await (
+      await req(`/cards/${account}/statements`)
+    ).json();
+    const bill = await (await req(`/statements/${december.id}`)).json();
+    expect(updatedBills.find((row) => row.id === december.id).total_cents).toBe(
+      38000,
+    );
+    expect(
+      bill.items.filter(
+        (item) =>
+          item.installment_plan_id === id && item.installment_number === null,
+      ),
+    ).toMatchObject([{ id: result.transaction_id, amount_cents: 18000 }]);
+    const plan = await (await req(`/installment-plans/${id}`)).json();
+    expect(plan.current_closing_date).toBe('2026-12-20');
+    expect(plan.real_cost_cents).toBe(98000);
+    expect(plan.advances).toMatchObject([
+      { count: 2, face_cents: 20000, paid_cents: 18000 },
+    ]);
+    const advanced = plan.installments.filter(
+      (part) => part.installment_number && part.advance_id,
+    );
+    expect(advanced.map((part) => part.installment_number)).toEqual([5, 6]);
+    expect(advanced.map((part) => part.closing_date)).toEqual([
+      '2027-01-20',
+      '2027-02-20',
+    ]);
+    for (const part of advanced) {
+      const later = await (
+        await req(`/statements/${part.statement_id}`)
+      ).json();
+      expect(later.items.some((item) => item.id === part.id)).toBe(false);
+      expect(
+        updatedBills.find((row) => row.id === part.statement_id).total_cents,
+      ).toBe(10000);
+    }
+  } finally {
+    vi.useRealTimers();
+  }
 });
 async function regular(origin = 'manual', amount = 10001) {
   const id = crypto.randomUUID();
