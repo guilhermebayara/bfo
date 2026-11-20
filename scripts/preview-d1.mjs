@@ -8,7 +8,12 @@ export function runPreviewD1(databaseName, args, flags) {
   const { rawConfig } = experimental_readRawConfig({
     config: 'wrangler.jsonc',
   });
-  const productionDatabases = rawConfig.d1_databases;
+  // O backup lê a homologação em produção. O banco servido pela API continua protegido.
+  const productionDatabases = rawConfig.d1_databases?.filter(
+    ({ binding, database_name }) =>
+      binding !== 'BACKUP_DB_HOMOLOGACAO' ||
+      database_name !== 'bfo-homologacao',
+  );
   const database = rawConfig.previews?.d1_databases?.find(
     (entry) => entry.database_name === databaseName,
   );

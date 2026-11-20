@@ -83,9 +83,10 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
   - [x] Saldo do cartão em Contas: o já lançado até hoje e ainda não pago. Parcela futura fica de fora e entra no comprometido.
 - [x] Categoria e tags padrão no beneficiário, para a sessão de correção: editáveis na tela de beneficiários; a sugestão ao digitar o beneficiário usa o padrão quando existir e a última vez quando não (decisões, Tags e beneficiários).
   - [x] Migração 0011 guarda categoria e tags padrão. Na tela dá para definir, trocar e remover. A sugestão do lançamento usa o padrão quando existe e a última vez quando não, e continua editável antes de salvar. Na unificação permanece o padrão do destino.
-- [ ] Possível defeito da QA, para a sessão de correção investigar: antecipação de parcelas devolve 409 ("As parcelas ou a fatura atual mudaram") num cenário composto, depois de fechar a fatura anterior e lançar outra compra parcelada no mesmo cartão. Isolada, funciona. Detalhe em docs/qa/fase-1.md.
+- [x] Possível defeito da QA, para a sessão de correção investigar: antecipação de parcelas devolve 409 ("As parcelas ou a fatura atual mudaram") num cenário composto, depois de fechar a fatura anterior e lançar outra compra parcelada no mesmo cartão. Isolada, funciona. Detalhe em docs/qa/fase-1.md. Corrigido na Sessão R.
 - [ ] QA complementar (Sessão N, Claude Code): refazer o mês simulado pela API com relógio fixo e gabarito escrito antes de rodar, e conferir por amostragem o que a Sessão M marcou como Ok.
-- [ ] Sessão R (Codex, em paralelo à Q): antecipação que devolve 409 no cenário composto, assinatura que recusa `is_subscription` como true/false e backup automático diário dos bancos com dados reais no R2 (decisões, Infraestrutura).
+- [x] Sessão R (Codex, em paralelo à Q): antecipação que devolve 409 no cenário composto, assinatura que recusa `is_subscription` como true/false e backup automático diário dos bancos com dados reais no R2 (decisões, Infraestrutura).
+  - Ativação do backup na conta BFO conforme os passos em [docs/cloudflare.md](cloudflare.md#backup-diário-dos-d1).
 - [ ] Pagamento de fatura com data futura fica agendado até a data, em vez de pago na hora (decisões, Tabela de transações). Pequeno; entra na próxima sessão que mexer em fatura.
 - [ ] Histórico de alterações, desfazer e aviso de transação, depois da Q (decisões, Tabela de transações; brief em docs/briefs/historico-desfazer.md).
 

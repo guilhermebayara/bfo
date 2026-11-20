@@ -15,12 +15,12 @@ import type { Recurring } from '../shared/types';
 import { ptax } from './fx';
 import { installmentAmount, statementCycle, today } from './statements';
 import type { Account, Statement, Transaction } from '../shared/types';
+import { scheduledBackup, type BackupBindings } from './backup';
 type Bindings = {
-  DB: D1Database;
   DB_HOMOLOGACAO?: D1Database;
   ASSETS: Fetcher;
   ALLOW_TEST_CLOCK?: string;
-};
+} & BackupBindings;
 const app = new Hono<{
   Bindings: Bindings;
   Variables: { DB: D1Database; today: string };
@@ -314,6 +314,19 @@ async function resolvedCycle(
   respectEarly = true,
 ) {
   return (await cardCalendar(db, card)).resolve(day, offset, respectEarly);
+}
+async function advanceCycle(
+  db: D1Database,
+  card: Pick<Account, 'id' | 'closing_day' | 'due_day'>,
+  day: string,
+) {
+  const calendar = await cardCalendar(db, card);
+  const cycle = calendar.resolve(day);
+  const statement = calendar.statements.get(cycle.scheduledClosingDate);
+  // Depois da conferência no dia do fechamento, a antecipação entra no próximo ciclo.
+  if (statement && statement.status !== 'open' && day === cycle.closingDate)
+    return calendar.resolve(day, 1);
+  return cycle;
 }
 function insertCycle(
   db: D1Database,
@@ -1444,7 +1457,7 @@ app.get('/api/installment-plans/:id', async (c) => {
     .prepare('SELECT * FROM accounts WHERE id=?')
     .bind(plan.account_id)
     .first<Account>())!;
-  const cycle = await resolvedCycle(db, card, c.var.today);
+  const cycle = await advanceCycle(db, card, c.var.today);
   return c.json({
     plan,
     installments: results,
@@ -1483,7 +1496,7 @@ app.post('/api/installment-plans/:id/advance', async (c) => {
     day <= String(plan.cutoff_date)
   )
     fail('Conta indisponível.', 409);
-  const cycle = await resolvedCycle(
+  const cycle = await advanceCycle(
     db,
     {
       id: String(plan.account_id),
@@ -3302,6 +3315,11 @@ app.get('/api/subscriptions', async (c) => {
     })),
   );
 });
+function recurringFlag(value: unknown) {
+  if (value === true || value === 1) return 1;
+  if (value === false || value === 0) return 0;
+  return fail('Estado inválido.');
+}
 for (const method of ['post', 'patch'] as const)
   app[method](
     `/api/recurring${method === 'patch' ? '/:id' : ''}`,
@@ -3357,13 +3375,8 @@ for (const method of ['post', 'patch'] as const)
           Number(r.interval_days) > 3660)
       )
         fail('Informe o intervalo em dias, de 1 a 3660.');
-      r.is_subscription = r.is_subscription ?? 0;
-      r.active = r.active ?? 1;
-      if (
-        ![0, 1].includes(r.is_subscription as number) ||
-        ![0, 1].includes(r.active as number)
-      )
-        fail('Estado inválido.');
+      r.is_subscription = recurringFlag(r.is_subscription ?? 0);
+      r.active = recurringFlag(r.active ?? 1);
       if (r.subscription_type_id != null)
         await exists(db, 'subscription_types', r.subscription_type_id);
       if (
@@ -3439,4 +3452,4 @@ for (const method of ['post', 'patch'] as const)
   );
 app.all('/api/*', (c) => c.json({ error: 'Rota não encontrada.' }, 404));
 app.all('*', (c) => c.env.ASSETS.fetch(c.req.raw));
-export default app;
+export default Object.assign(app, { scheduled: scheduledBackup });

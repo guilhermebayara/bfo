@@ -14,6 +14,7 @@
     "db:seed:teste": "node scripts/seed.mjs bfo-teste",
     "db:seed:homologacao": "node scripts/seed.mjs bfo-homologacao",
     "test:e2e": "playwright test",
+    "test:backup": "npm run build && node --test tests/backup.e2e.mjs",
     "format": "prettier --write src scripts tests vite.config.ts vitest.config.ts playwright.config.ts tsconfig.json wrangler.jsonc package.json index.html"
   },
   "dependencies": {
