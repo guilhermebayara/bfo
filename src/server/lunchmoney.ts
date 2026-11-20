@@ -1,3 +1,7 @@
+import {
+  finishActionSql,
+  importActionStartSql,
+} from './transaction-history.ts';
 // Coleta e carga do Lunch Money. O token nunca entra neste módulo.
 const SOURCE = 'lunchmoney';
 const PAYMENT_TAG = 'pagamento de fatura';
@@ -203,7 +207,10 @@ export function buildImport(snapshot: LunchMoneySnapshot): {
     pendentes: 0,
     nao_mapeados: [],
   };
-  const statements: string[] = ['PRAGMA defer_foreign_keys = ON'];
+  const statements: string[] = [
+    'PRAGMA defer_foreign_keys = ON',
+    ...importActionStartSql,
+  ];
   const accounts = new Map<string, { id: string; currency: string }>();
   const categories = new Set<string>();
   const groups = new Set<string>();
@@ -635,11 +642,13 @@ export function buildImport(snapshot: LunchMoneySnapshot): {
   statements.push(
     `UPDATE preferences SET currencies_in_use=(SELECT json_group_array(code) FROM (SELECT value AS code FROM json_each((SELECT currencies_in_use FROM preferences WHERE id=1)) UNION ${codes.join(' UNION ')})) WHERE id=1`,
   );
+  statements.push(finishActionSql);
   return { statements, report };
 }
 
 export function wipeImportSql(): string[] {
   return [
+    ...importActionStartSql,
     'PRAGMA defer_foreign_keys = ON',
     `DELETE FROM transactions WHERE id IN (SELECT local_id FROM import_links WHERE source='lunchmoney' AND entity='transaction')`,
     `DELETE FROM recurring WHERE id IN (SELECT local_id FROM import_links WHERE source='lunchmoney' AND entity='recurring')`,
@@ -652,6 +661,7 @@ export function wipeImportSql(): string[] {
     `DELETE FROM institutions WHERE id IN (SELECT local_id FROM import_links WHERE source='lunchmoney' AND entity='institution') AND NOT EXISTS (SELECT 1 FROM accounts WHERE institution_id=institutions.id)`,
     `DELETE FROM payees WHERE id LIKE 'lm:payee:%' AND NOT EXISTS (SELECT 1 FROM transactions WHERE payee_id=payees.id) AND NOT EXISTS (SELECT 1 FROM payees other WHERE other.merged_into_id=payees.id)`,
     `DELETE FROM import_links WHERE source='lunchmoney'`,
+    finishActionSql,
   ];
 }
 

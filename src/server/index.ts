@@ -1,4 +1,12 @@
 import { Hono } from 'hono';
+import {
+  actionDatabase,
+  historySource,
+  restorableFields,
+  restoreSplits,
+  transactionHistory,
+  type TransactionSnapshot,
+} from './transaction-history';
 import { convertBetween } from '../shared/money';
 import { splitAmounts } from '../shared/splits';
 import {
@@ -134,7 +142,15 @@ app.use('/api/*', async (c, next) => {
       ? c.env.DB_HOMOLOGACAO
       : c.env.DB;
   if (!db) throw new Error('Binding D1 ausente para este endereço.');
-  c.set('DB', db);
+  const source = historySource(url.pathname, c.req.method);
+  c.set(
+    'DB',
+    source
+      ? actionDatabase(db, source, (id) => {
+          c.header('X-BFO-Acao', id);
+        })
+      : db,
+  );
   await next();
 });
 app.get('/api/health', async (c) => {
@@ -973,6 +989,101 @@ app.patch('/api/transactions/:id', async (c) => {
   return c.json({ ok: true });
 });
 
+app.get('/api/transactions/:id/history', async (c) =>
+  c.json(await transactionHistory(c.var.DB, c.req.param('id'))),
+);
+app.post('/api/transactions/:id/restore-field', async (c) => {
+  const db = c.var.DB;
+  const id = c.req.param('id');
+  const body = object(await c.req.json());
+  keys(body, ['action_id', 'field']);
+  const field = restorableFields.find((key) => key === body.field);
+  if (!field || typeof body.action_id !== 'string')
+    return fail('Campo do histórico inválido.');
+  const change = await db
+    .prepare(
+      'SELECT before_json FROM transaction_changes WHERE action_id=? AND transaction_id=?',
+    )
+    .bind(body.action_id, id)
+    .first<{ before_json: string | null }>();
+  if (!change?.before_json) return fail('Valor anterior indisponível.', 404);
+  const before = JSON.parse(change.before_json) as TransactionSnapshot;
+  const current = await db
+    .prepare('SELECT * FROM active_transactions WHERE id=?')
+    .bind(id)
+    .first<Transaction>();
+  if (!current) return fail('Transação indisponível.', 409);
+  if (field === 'splits') {
+    if (
+      before.splits.length &&
+      (before.amount_cents !== current.amount_cents ||
+        before.amount_brl_cents !== current.amount_brl_cents)
+    )
+      return fail(
+        'O valor mudou. Volte o valor anterior antes de recuperar a divisão.',
+        409,
+      );
+    await db.batch([
+      db
+        .prepare(
+          `INSERT INTO operation_guards VALUES('historico-divisao', CASE WHEN EXISTS (
+           SELECT 1 FROM active_transactions WHERE id=? AND amount_cents=? AND amount_brl_cents=?
+         ) THEN 1 ELSE 0 END)`,
+        )
+        .bind(id, current.amount_cents, current.amount_brl_cents),
+      ...restoreSplits(db, id, before.splits),
+      clearGuards(db),
+    ]);
+  } else if (field === 'recurring_id') {
+    if (before.recurring_id) {
+      const recurring = await db
+        .prepare('SELECT 1 FROM recurring WHERE id=? AND account_id=?')
+        .bind(before.recurring_id, current.account_id)
+        .first();
+      if (!recurring)
+        return fail(
+          'O recorrente anterior não está disponível nesta conta.',
+          409,
+        );
+    }
+    await db.batch([
+      db
+        .prepare('DELETE FROM recurring_sources WHERE transaction_id=?')
+        .bind(id),
+      ...(before.recurring_id
+        ? [
+            db
+              .prepare('INSERT INTO recurring_sources VALUES(?,?)')
+              .bind(before.recurring_id, id),
+          ]
+        : []),
+    ]);
+  } else if (
+    current.kind === 'installment' &&
+    current.installment_number &&
+    [
+      'date',
+      'amount_cents',
+      'payee',
+      'category_id',
+      'note',
+      'tag_ids',
+    ].includes(field)
+  ) {
+    await editInstallments(
+      db,
+      id,
+      { scope: 'one', [field]: before[field] },
+      c.var.today,
+    );
+  } else {
+    await db.batch(
+      await prepareTransactionPatch(db, id, { [field]: before[field] }),
+    );
+  }
+  return c.json({ ok: true });
+});
+
 async function activation(
   db: D1Database,
   id: string,
@@ -1799,11 +1910,11 @@ app.put('/api/transactions/:id/splits', async (c) => {
 });
 app.delete('/api/transactions/:id/splits', async (c) => {
   await exists(c.var.DB, 'transactions', c.req.param('id'));
-  await c.var.DB.prepare(
-    'DELETE FROM transaction_splits WHERE transaction_id=?',
-  )
-    .bind(c.req.param('id'))
-    .run();
+  await c.var.DB.batch([
+    c.var.DB.prepare(
+      'DELETE FROM transaction_splits WHERE transaction_id=?',
+    ).bind(c.req.param('id')),
+  ]);
   return c.json({ ok: true });
 });
 
@@ -1882,9 +1993,12 @@ function statementEvent(
     )
     .bind(crypto.randomUUID(), id, action, reason, day, before, id);
 }
-app.post('/api/transactions/:id/installment-edit', async (c) => {
-  const db = c.var.DB,
-    b = object(await c.req.json());
+async function editInstallments(
+  db: D1Database,
+  id: string,
+  b: Record<string, unknown>,
+  dayToday: string,
+) {
   keys(b, [
     'scope',
     'amount_cents',
@@ -1898,7 +2012,7 @@ app.post('/api/transactions/:id/installment-edit', async (c) => {
     fail('Escolha só esta ou esta e as futuras.');
   const t = await db
     .prepare('SELECT * FROM active_transactions WHERE id=?')
-    .bind(c.req.param('id'))
+    .bind(id)
     .first<Transaction>();
   if (
     !t ||
@@ -2005,13 +2119,22 @@ app.post('/api/transactions/:id/installment-edit', async (c) => {
         'edit',
         'Edição de parcela: ' +
           (b.scope === 'one' ? 'só esta' : 'esta e as futuras'),
-        c.var.today,
+        dayToday,
         snapshots[i],
       ),
     ),
   );
   await db.batch([...writes, clearGuards(db)]);
-  return c.json({ updated: rows.length });
+  return rows.length;
+}
+app.post('/api/transactions/:id/installment-edit', async (c) => {
+  const updated = await editInstallments(
+    c.var.DB,
+    c.req.param('id'),
+    object(await c.req.json()),
+    c.var.today,
+  );
+  return c.json({ updated });
 });
 app.post('/api/transactions/:id/cancel-future', async (c) => {
   const db = c.var.DB,
