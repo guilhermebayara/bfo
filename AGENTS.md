@@ -50,6 +50,8 @@ Mesmo modelo do acervo da família (repo bayaranascimento): um Worker só, com p
 - Cada sessão trabalha numa branch `tst-<assunto>` criada a partir de `homologacao` e envia a branch ao terminar.
 - O chat de gestão abre o PR, confere build e testes e faz o merge com squash na `homologacao`, depois que o dono olha.
 - Produção recebe `homologacao` por fast-forward, em rodadas, só quando o dono aprova.
+- Antes de cada rodada de produção, o chat de gestão abre um PR da `homologacao` para a `main` só para rodar os testes de navegador no GitHub. Com tudo verde, faz o fast-forward, e o PR fecha como mesclado.
+- Quem acrescenta exemplo ao seed fictício (`scripts/seed-data.mjs`) ou muda outro script listado em `scripts/confere-manifesto.json` atualiza o hash na mesma mudança, como descrito nas Conferências.
 - Nunca force push.
 - Access cobre bfo.bayara.design e *.bfo.bayara.design, só com o e-mail do dono.
 - Seed e importação são manuais, só quando pedidos.
