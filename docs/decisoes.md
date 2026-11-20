@@ -19,6 +19,8 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 - Cada conta tem a própria data de corte e um saldo de abertura nessa data, conferido com o extrato. As contas são ativadas uma a uma.
 - A diferença entre o saldo do arquivo e o saldo de abertura aparece como um ajuste visível na conta.
 - Transação importada: valor total e data ficam travados. A classificação pode ser editada: categoria, nota, tags e divisão em partes (a soma das partes sempre igual ao valor original). Decidido em 19/11/2026, resolvendo a ambiguidade levantada na Sessão G.
+- Valores com mais de duas casas decimais (comum em conversão de moeda) são arredondados para o centavo mais próximo. Se isso mudar a soma da conta, a diferença aparece no ajuste visível da data de corte. Decidido em 19/11/2026.
+- Transação marcada como pendente no Lunch Money (`is_pending`) entra como transação normal, com a nota "pendente no Lunch Money". O relatório da importação informa quantas vieram assim. Transações `delete_pending` ficam de fora. Decidido em 19/11/2026.
 - Durante as fases, a importação precisa poder ser apagada e refeita. A importação definitiva e as datas de corte acontecem quando o dono começar a usar.
 - Faturas no arquivo: o período importado fica sem faturas. Compras e pagamentos de cartão antigos entram como transações e transferências comuns. As faturas de cada cartão começam na data de corte dele.
 - Grupos do Lunch Money que não são transferência nem pagamento de fatura: cada transação do grupo entra separada, com uma nota indicando o grupo de origem.
