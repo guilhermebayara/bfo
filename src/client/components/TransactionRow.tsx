@@ -450,16 +450,17 @@ export function TransactionRow({
                     </Button>
                   </>
                 )}
-                {t.statement_status === 'closed' && (
-                  <>
-                    <Button onClick={() => setStatementAction('reopen')}>
-                      Reabrir fatura
-                    </Button>
-                    <Button onClick={() => setStatementAction('pay')}>
-                      Pagar fatura
-                    </Button>
-                  </>
-                )}
+                {t.statement_status === 'closed' &&
+                  !t.statement_scheduled_payment_date && (
+                    <>
+                      <Button onClick={() => setStatementAction('reopen')}>
+                        Reabrir fatura
+                      </Button>
+                      <Button onClick={() => setStatementAction('pay')}>
+                        Pagar fatura
+                      </Button>
+                    </>
+                  )}
               </>
             )}
             {t.installment_plan_id && (

@@ -99,6 +99,11 @@ export function TransactionHistory({
       (transaction.statement_status && transaction.statement_status !== 'open')
     )
       return false;
+    if (field === 'statement_id')
+      return (
+        !transaction.advance_id &&
+        ['regular', 'installment'].includes(transaction.kind)
+      );
     if (transaction.kind === 'installment' && transaction.installment_number)
       return ['date', 'amount_cents', 'payee'].includes(field);
     return (

@@ -55,6 +55,7 @@ const dependencies = {
   statement_carryovers: 'source_statement_id',
   reconciliations: 'id',
   statement_checks: 'id',
+  scheduled_statement_payments: 'payment_id',
 } as const;
 
 type Dependency = {
@@ -172,6 +173,20 @@ export async function reverseTransactionAction(
       );
     } else {
       const row = JSON.parse(before_json) as Record<string, unknown>;
+      if (
+        entity === 'scheduled_statement_payments' &&
+        !after_json &&
+        affected.some(
+          (dep) =>
+            dep.before_json &&
+            ((dep.entity === 'statements' &&
+              dep.entity_id === row.statement_id &&
+              JSON.parse(dep.before_json).status === 'paid') ||
+              (dep.entity === 'statement_carryovers' &&
+                dep.entity_id === row.statement_id)),
+        )
+      )
+        row.applied = 1;
       const bucket = parent ? restoreParents : restoreChildren;
       bucket.push(
         after_json

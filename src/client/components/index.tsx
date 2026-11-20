@@ -34,13 +34,15 @@ const states = {
 export function Badge({
   state,
   title,
+  label,
 }: {
   state: keyof typeof states;
   title?: string;
+  label?: string;
 }) {
   return (
     <span className={`badge badge-${state}`} title={title}>
-      {states[state]}
+      {label ?? states[state]}
     </span>
   );
 }

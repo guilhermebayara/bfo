@@ -61,7 +61,7 @@ export function historySource(path: string, method: string) {
   if (path.endsWith('/pay')) return 'pagamento de fatura';
   if (/^\/api\/(accounts\/[^/]+\/(activate|reconcile)|statements\/)/.test(path))
     return 'conferência';
-  if (path === '/api/recurring') return 'recorrente';
+  if (/^\/api\/recurring(\/|$)/.test(path)) return 'recorrente';
   if (path === '/api/transfers') return 'transferência';
   if (path === '/api/transactions') return 'lançamento';
   if (/^\/api\/transactions\/[^/]+$/.test(path)) return 'célula';
@@ -177,6 +177,7 @@ export const restorableFields = [
   'tag_ids',
   'splits',
   'recurring_id',
+  'statement_id',
 ] as const;
 
 export function restoreSplits(

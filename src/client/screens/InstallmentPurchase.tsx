@@ -34,10 +34,12 @@ type Purchase = {
 };
 export function InstallmentPurchase({
   id,
+  appRevision,
   accounts,
   onSaved,
 }: {
   id: string;
+  appRevision: number;
   accounts: Account[];
   onSaved: () => Promise<void>;
 }) {
@@ -58,7 +60,7 @@ export function InstallmentPurchase({
         if (!abort.signal.aborted) setError(e.message);
       });
     return () => abort.abort();
-  }, [id, revision]);
+  }, [id, revision, appRevision]);
   if (!purchase)
     return (
       <>

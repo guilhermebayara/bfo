@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { today } from '../shared/dates';
 import type { Account, Category, Recurring } from '../shared/types';
 import { Button, Notice, State } from './components';
 import { TransactionNotice } from './components/TransactionNotice';
@@ -82,13 +83,24 @@ export function App() {
     void load();
     const onPop = () => setPath(location.pathname);
     addEventListener('popstate', onPop);
+    let lastDay = today();
+    const refreshDay = () => {
+      const day = today();
+      if (day === lastDay) return false;
+      lastDay = day;
+      void load();
+      return true;
+    };
     const timer = setInterval(() => {
+      if (refreshDay()) return;
       api<Recurring[]>('/subscriptions')
         .then((rows) => setRenewals(rows.filter((r) => r.renewal_soon)))
         .catch(() => {});
     }, 60_000);
+    addEventListener('focus', refreshDay);
     return () => {
       removeEventListener('popstate', onPop);
+      removeEventListener('focus', refreshDay);
       clearInterval(timer);
     };
   }, []);
@@ -206,11 +218,12 @@ export function App() {
           ) : path === '/proximos' ? (
             <Upcoming revision={revision} />
           ) : path === '/cartao' ? (
-            <Cards accounts={accounts} onSaved={load} />
+            <Cards accounts={accounts} onSaved={load} revision={revision} />
           ) : path.startsWith('/parceladas/') ? (
             <InstallmentPurchase
               key={path}
               id={path.slice('/parceladas/'.length)}
+              appRevision={revision}
               onSaved={load}
               accounts={accounts}
             />

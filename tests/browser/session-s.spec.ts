@@ -98,3 +98,93 @@ test('aviso da edição mostra saldo e permite desfazer sem sair da tabela', asy
   await expect(notice).toContainText('88,00');
   await expect(cell).toContainText('12,00');
 });
+
+test('mostra pagamento agendado no cartão e em Próximos até a data', async ({
+  page,
+  request,
+}) => {
+  const { accountId } = await setup(request, 'Pagamento navegador S');
+  const card = await request.post('/api/accounts', {
+    headers: clock,
+    data: {
+      name: 'Cartão agendado navegador S',
+      kind: 'credit_card',
+      currency: 'BRL',
+      institution_id: 'horizonte',
+      closing_day: 20,
+      due_day: 28,
+    },
+  });
+  expect(card.status()).toBe(201);
+  const cardId = (await card.json()).id;
+  expect(
+    (
+      await request.post('/api/transactions', {
+        headers: clock,
+        data: {
+          account_id: cardId,
+          payee: 'Compra agendada navegador S',
+          date: '2026-11-15',
+          amount_cents: 5000,
+        },
+      })
+    ).status(),
+  ).toBe(201);
+  const bills = await (
+    await request.get(`/api/cards/${cardId}/statements`, { headers: clock })
+  ).json();
+  const bill = bills.find(
+    (b: { total_cents: number }) => b.total_cents === 5000,
+  );
+  expect(
+    (
+      await request.post(`/api/statements/${bill.id}/check`, {
+        headers: clock,
+        data: {
+          action: 'close',
+          expected_total_cents: 5000,
+          bank_amount_cents: 5000,
+        },
+      })
+    ).status(),
+  ).toBe(201);
+
+  const cardPage = `/cartao?account=${cardId}&statement=${encodeURIComponent(bill.id)}`;
+  await page.goto(cardPage);
+  await page.getByRole('button', { name: 'Pagar fatura' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Pagar fatura' });
+  await dialog.getByLabel('Conta corrente').selectOption(accountId);
+  await dialog.getByLabel('Data do pagamento').fill('2026-11-22');
+  await dialog.getByRole('button', { name: 'Registrar pagamento' }).click();
+  const invoice = page.locator('#selected-statement');
+  await expect(invoice).toContainText('Pagamento agendado para 22/11');
+  const notice = page.getByRole('status', { name: 'Aviso de transação' });
+  await expect(notice).toContainText('88,00');
+  await expect(notice).toContainText('50,00');
+
+  await page.getByRole('link', { name: 'Próximos', exact: true }).click();
+  const upcomingPayment = page
+    .getByRole('row')
+    .filter({ hasText: 'Cartão agendado navegador S' });
+  await expect(upcomingPayment).toHaveCount(1);
+  await expect(upcomingPayment).toContainText('22/11/2026');
+  await expect(upcomingPayment).toContainText('Pagamento agendado');
+
+  await page.clock.setFixedTime(new Date('2026-11-22T15:00:00.000Z'));
+  await page.setExtraHTTPHeaders({ 'x-bfo-data': '2026-11-22' });
+  await page.reload();
+  await expect(upcomingPayment).toHaveCount(0);
+  await page.goto(cardPage);
+  await expect(invoice.getByText('Paga', { exact: true })).toBeVisible();
+  const balances = await (
+    await request.get('/api/accounts', {
+      headers: { 'x-bfo-data': '2026-11-22' },
+    })
+  ).json();
+  expect(
+    balances.find((a: { id: string }) => a.id === accountId).balance_cents,
+  ).toBe(3800);
+  expect(
+    balances.find((a: { id: string }) => a.id === cardId).balance_cents,
+  ).toBe(0);
+});
