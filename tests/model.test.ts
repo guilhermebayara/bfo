@@ -26,7 +26,7 @@ beforeAll(async () => {
 });
 beforeEach(async () => {
   await db.exec(
-    `DELETE FROM reconciliations; DELETE FROM transaction_tags; DELETE FROM tags; DELETE FROM fx_rates; DELETE FROM transactions; UPDATE payees SET merged_into_id=NULL; DELETE FROM payees; DELETE FROM recurring; DELETE FROM installment_advances; DELETE FROM installment_plans; DELETE FROM statements; DELETE FROM accounts; DELETE FROM institutions; DELETE FROM categories; DELETE FROM category_groups; DELETE FROM allocation_groups; DELETE FROM subscription_types;`,
+    `DELETE FROM reconciliations; DELETE FROM transaction_tags; DELETE FROM payee_default_tags; DELETE FROM tags; DELETE FROM fx_rates; DELETE FROM transactions; UPDATE payees SET merged_into_id=NULL; DELETE FROM payees; DELETE FROM recurring; DELETE FROM installment_advances; DELETE FROM installment_plans; DELETE FROM statements; DELETE FROM accounts; DELETE FROM institutions; DELETE FROM categories; DELETE FROM category_groups; DELETE FROM allocation_groups; DELETE FROM subscription_types;`,
   );
   await db.exec(
     `INSERT INTO accounts(id,name,kind) VALUES ('a','Conta fictícia','checking'); INSERT INTO allocation_groups VALUES('g','Essencial',60,0); INSERT INTO category_groups(id,name,allocation_group_id,sort) VALUES('cg','Grupo','g',0); INSERT INTO categories(id,name,category_group_id,is_income,sort) VALUES('c','Categoria','cg',0,0);`,
@@ -476,13 +476,13 @@ describe('Sessão B', () => {
       await (
         await request('/payees/suggestion?name=loja%20fict%C3%ADcia')
       ).json(),
-    ).toEqual({ category_id: 'c', tag_ids: ['tag'] });
+    ).toEqual({ category_id: 'c', tag_ids: ['tag'], source: 'last' });
     const filtered = await (await request('/transactions?tag=tag')).json();
     expect(filtered.total).toBe(1);
     expect(filtered.items[0].tags[0].id).toBe('tag');
     expect(
       await (await request('/payees/suggestion?name=desconhecido')).json(),
-    ).toEqual({ category_id: null, tag_ids: [] });
+    ).toEqual({ category_id: null, tag_ids: [], source: 'none' });
   });
   it('usa o cache PTAX e permite cotação manual com valor original preservado', async () => {
     await activate();

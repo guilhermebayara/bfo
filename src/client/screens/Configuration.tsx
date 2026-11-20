@@ -5,6 +5,7 @@ import { AccountOptions } from '../components/AccountOptions';
 import type { Account } from '../../shared/types';
 import {
   Button,
+  CategoryOptions,
   Notice,
   PageHeader,
   Panel,
@@ -336,16 +337,70 @@ export function Tags() {
 }
 export function Payees() {
   const [rows, setRows] = useState<Payee[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [target, setTarget] = useState('');
+  const [editing, setEditing] = useState<string | null>(null);
+  const [category, setCategory] = useState('');
+  const [tagIds, setTagIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   async function load() {
-    setRows(await api<Payee[]>('/payees'));
+    const [payees, cats, tagRows] = await Promise.all([
+      api<Payee[]>('/payees'),
+      api<Category[]>('/categories'),
+      api<Tag[]>('/tags'),
+    ]);
+    setRows(payees);
+    setCategories(cats);
+    setTags(tagRows);
   }
   useEffect(() => {
     load().catch((e) => setError(e.message));
   }, []);
+  const current = rows.find((p) => p.id === editing);
+  function pattern(p: Payee) {
+    if (!p.has_default) return 'Sem padrão';
+    const name =
+      categories.find((c) => c.id === p.default_category_id)?.name ??
+      'Sem categoria';
+    const names = tags
+      .filter((t) => p.default_tag_ids.includes(t.id))
+      .map((t) => t.name);
+    return names.length ? `${name}, ${names.join(', ')}` : name;
+  }
+  function edit(p: Payee) {
+    setEditing(p.id);
+    setCategory(p.default_category_id ?? '');
+    setTagIds(p.default_tag_ids);
+    setError('');
+  }
+  async function saveDefault(categoryId: string | null, nextTags: string[]) {
+    if (!editing) return;
+    setBusy(true);
+    setError('');
+    try {
+      await api(`/payees/${editing}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ category_id: categoryId, tag_ids: nextTags }),
+      });
+      await load();
+      const removed = categoryId === null && !nextTags.length;
+      setCategory(categoryId ?? '');
+      setTagIds(nextTags);
+      setError(
+        removed
+          ? 'Padrão removido. A sugestão volta a usar o último lançamento.'
+          : 'Padrão salvo. No lançamento ele entra como sugestão, editável antes de salvar.',
+      );
+      if (removed) setEditing(null);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   async function merge(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -358,6 +413,7 @@ export function Payees() {
       await load();
       setSelected([]);
       setTarget('');
+      if (editing && selected.includes(editing)) setEditing(null);
       setError('Nomes unificados. O histórico original foi preservado.');
     } catch (e) {
       setError((e as Error).message);
@@ -370,8 +426,65 @@ export function Payees() {
       <PageHeader title="Beneficiários" context="Unificação de nomes" />
       <p>
         Selecione os nomes que serão unificados e escolha o nome de destino. As
-        sugestões passam a considerar o histórico conjunto.
+        sugestões passam a considerar o histórico conjunto. O padrão de
+        categoria e tags que permanece é o do destino.
       </p>
+      {current && (
+        <form
+          aria-label={`Padrão de ${current.name}`}
+          onSubmit={(e) => {
+            e.preventDefault();
+            void saveDefault(category || null, tagIds);
+          }}
+        >
+          <fieldset disabled={busy}>
+            <legend>Padrão de {current.name}</legend>
+            <label>
+              Categoria padrão
+              <select
+                aria-label="Categoria padrão"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              >
+                <option value="">Sem categoria</option>
+                <CategoryOptions categories={categories} />
+              </select>
+            </label>
+            <fieldset>
+              <legend>Tags padrão</legend>
+              {tags.map((t) => (
+                <label key={t.id}>
+                  <input
+                    type="checkbox"
+                    checked={tagIds.includes(t.id)}
+                    onChange={(e) =>
+                      setTagIds(
+                        e.target.checked
+                          ? [...tagIds, t.id]
+                          : tagIds.filter((id) => id !== t.id),
+                      )
+                    }
+                  />
+                  {t.name}
+                </label>
+              ))}
+            </fieldset>
+            <Button type="submit">Salvar padrão</Button>
+            {!!current.has_default && (
+              <Button
+                type="button"
+                variant="danger"
+                onClick={() => void saveDefault(null, [])}
+              >
+                Remover padrão
+              </Button>
+            )}
+            <Button type="button" onClick={() => setEditing(null)}>
+              Fechar
+            </Button>
+          </fieldset>
+        </form>
+      )}
       <form onSubmit={merge}>
         <fieldset disabled={busy}>
           <label>
@@ -396,8 +509,15 @@ export function Payees() {
             Unificar nomes selecionados
           </Button>
           <Table
-            headers={['Selecionar', 'Beneficiário', 'Quantidade', 'Período']}
-            widths={['16%', '40%', '15%', '29%']}
+            headers={[
+              'Selecionar',
+              'Beneficiário',
+              'Quantidade',
+              'Período',
+              'Padrão',
+              'Ação',
+            ]}
+            widths={['10%', '22%', '12%', '20%', '22%', '14%']}
             numeric={[2]}
             label="Beneficiários"
           >
@@ -426,6 +546,12 @@ export function Payees() {
                   {p.first_date
                     ? `${humanDate(p.first_date)} a ${humanDate(p.last_date!)}`
                     : 'Sem transações'}
+                </td>
+                <td>{pattern(p)}</td>
+                <td>
+                  <Button type="button" onClick={() => edit(p)}>
+                    {p.has_default ? 'Trocar padrão' : 'Definir padrão'}
+                  </Button>
                 </td>
               </tr>
             ))}

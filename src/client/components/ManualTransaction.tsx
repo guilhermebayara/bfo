@@ -35,6 +35,9 @@ export function ManualTransaction({
   const [installments, setInstallments] = useState('1');
   const [currentPart, setCurrentPart] = useState('1');
   const [payee, setPayee] = useState('');
+  const [hint, setHint] = useState(
+    'A sugestão aparece nos campos e pode ser alterada antes de salvar.',
+  );
   const [category, setCategory] = useState('');
   const [note, setNote] = useState('');
   const [tags, setTags] = useState<Tag[]>([]);
@@ -95,16 +98,26 @@ export function ManualTransaction({
     if (!payee.trim()) return;
     const abort = new AbortController();
     const timer = setTimeout(() => {
-      api<{ category_id: string | null; tag_ids: string[] }>(
-        `/payees/suggestion?name=${encodeURIComponent(payee)}`,
-        { signal: abort.signal },
-      )
+      api<{
+        category_id: string | null;
+        tag_ids: string[];
+        source: 'default' | 'last' | 'none';
+      }>(`/payees/suggestion?name=${encodeURIComponent(payee)}`, {
+        signal: abort.signal,
+      })
         .then((s) => {
           setCategory(s.category_id ?? '');
           setIncome(
             !!categories.find((c) => c.id === s.category_id)?.effective_income,
           );
           setSelected(s.tag_ids);
+          setHint(
+            s.source === 'default'
+              ? 'Sugestão pelo padrão. Dá para mudar antes de salvar.'
+              : s.source === 'last'
+                ? 'Sugestão pelo último lançamento. Dá para mudar antes de salvar.'
+                : 'Sem sugestão para este beneficiário. Preencha antes de salvar.',
+          );
         })
         .catch((e) => {
           if (e.name !== 'AbortError') setError(e.message);
@@ -215,7 +228,7 @@ export function ManualTransaction({
                 <option key={p.id} value={p.name} />
               ))}
             </datalist>
-            <small>Sugere a categoria e as tags do último lançamento.</small>
+            <small>{hint}</small>
           </label>
           <label>
             {canInstall && Number(installments) > 1

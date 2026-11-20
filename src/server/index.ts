@@ -3,7 +3,6 @@ import { convertBetween } from '../shared/money';
 import { splitAmounts } from '../shared/splits';
 import {
   matchRecurring,
-  currentMonth,
   shiftMonth,
   validMonth,
   monthBounds,
@@ -20,8 +19,12 @@ import { scheduledBackup, type BackupBindings } from './backup';
 type Bindings = {
   DB_HOMOLOGACAO?: D1Database;
   ASSETS: Fetcher;
+  ALLOW_TEST_CLOCK?: string;
 } & BackupBindings;
-const app = new Hono<{ Bindings: Bindings; Variables: { DB: D1Database } }>();
+const app = new Hono<{
+  Bindings: Bindings;
+  Variables: { DB: D1Database; today: string };
+}>();
 class InputError extends Error {
   constructor(
     message: string,
@@ -110,6 +113,22 @@ app.use('/api/*', async (c, next) => {
   }
   c.header('Cache-Control', 'no-store');
   c.header('X-Content-Type-Options', 'nosniff');
+  // O cabeçalho só vale no teste. Em produção a variável não existe e o dia real permanece.
+  const pinned = c.req.header('x-bfo-data');
+  const localHost =
+    url.hostname === '127.0.0.1' ||
+    url.hostname === 'localhost' ||
+    url.hostname === 'bfo.test' ||
+    c.env.ALLOW_TEST_CLOCK === '1';
+  c.set(
+    'today',
+    localHost &&
+      pinned &&
+      /^\d{4}-\d{2}-\d{2}$/.test(pinned) &&
+      new Date(`${pinned}T00:00:00Z`).toISOString().slice(0, 10) === pinned
+      ? pinned
+      : today(),
+  );
   const db =
     url.hostname === 'homologacao.bfo.bayara.design'
       ? c.env.DB_HOMOLOGACAO
@@ -122,12 +141,15 @@ app.get('/api/health', async (c) => {
   await c.var.DB.prepare('SELECT 1').first();
   return c.json({ ok: true });
 });
-const balanceSql = () => `CASE WHEN a.cutoff_date IS NULL THEN
- -COALESCE((SELECT SUM(t.amount_cents) FROM account_movements t WHERE t.account_id=a.id AND t.date<='${today()}'),0)
- ELSE a.opening_balance_cents-COALESCE((SELECT SUM(t.amount_cents) FROM account_movements t WHERE t.account_id=a.id AND t.date>a.cutoff_date AND t.date<='${today()}'),0) END`;
+const balanceSql = (day: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) fail('Data inválida.');
+  return `CASE WHEN a.cutoff_date IS NULL THEN
+ -COALESCE((SELECT SUM(t.amount_cents) FROM account_movements t WHERE t.account_id=a.id AND t.date<='${day}'),0)
+ ELSE a.opening_balance_cents-COALESCE((SELECT SUM(t.amount_cents) FROM account_movements t WHERE t.account_id=a.id AND t.date>a.cutoff_date AND t.date<='${day}'),0) END`;
+};
 app.get('/api/accounts', async (c) => {
   const { results } = await c.var.DB.prepare(
-    `SELECT a.*, i.name AS institution_name, ${balanceSql()} AS balance_cents FROM accounts a LEFT JOIN institutions i ON i.id=a.institution_id ORDER BY i.sort,i.name,a.name`,
+    `SELECT a.*, i.name AS institution_name, ${balanceSql(c.var.today)} AS balance_cents FROM accounts a LEFT JOIN institutions i ON i.id=a.institution_id ORDER BY i.sort,i.name,a.name`,
   ).all<Account>();
   return c.json(results);
 });
@@ -358,7 +380,6 @@ app.post('/api/transfers', async (c) => {
   const day = date(b.date),
     amount = cents(b.amount_cents);
   if (amount <= 0) fail('Informe um valor positivo.');
-  if (day > today()) fail('A data está no futuro.');
   const source = await db
     .prepare(
       "SELECT * FROM accounts WHERE id=? AND kind IN ('checking','cash') AND closed_at IS NULL AND archived=0 AND cutoff_date<?",
@@ -536,7 +557,7 @@ app.patch('/api/accounts/:id', async (c) => {
   return c.json({ ok: true });
 });
 app.get('/api/month-summary', async (c) => {
-  const month = c.req.query('month') ?? currentMonth();
+  const month = c.req.query('month') ?? c.var.today.slice(0, 7);
   if (!validMonth(month)) fail('Mês inválido.');
   const rows = await c.var.DB.prepare(
     `SELECT t.category_id,COALESCE(cat.name,'Sem categoria') AS category_name,COALESCE(g.name,'Sem grupo') AS group_name,t.is_income,t.exclude_budget,
@@ -956,10 +977,11 @@ async function activation(
   db: D1Database,
   id: string,
   body: Record<string, unknown>,
+  day: string,
 ) {
   keys(body, ['cutoff_date', 'opening_balance_cents', 'fx_rate']);
   const cutoff = date(body.cutoff_date);
-  if (cutoff > today()) fail('A data de corte não pode estar no futuro.');
+  if (cutoff > day) fail('A data de corte não pode estar no futuro.');
   const opening = cents(body.opening_balance_cents);
   const account = await db
     .prepare('SELECT * FROM accounts WHERE id=?')
@@ -987,6 +1009,7 @@ app.post('/api/accounts/:id/activation-preview', async (c) => {
     c.var.DB,
     c.req.param('id'),
     object(await c.req.json()),
+    c.var.today,
   );
   return c.json({
     archive_balance_cents: a.archive,
@@ -997,7 +1020,7 @@ app.post('/api/accounts/:id/activation-preview', async (c) => {
 app.post('/api/accounts/:id/activate', async (c) => {
   const body = object(await c.req.json());
   const accountId = c.req.param('id');
-  const a = await activation(c.var.DB, accountId, body);
+  const a = await activation(c.var.DB, accountId, body, c.var.today);
   const id = crypto.randomUUID();
   // O batch valida que o saldo do arquivo continua igual antes de gravar o ajuste.
   const result = await c.var.DB.batch([
@@ -1167,7 +1190,7 @@ app.post('/api/accounts', async (c) => {
       code,
       b.institution_id,
       opening,
-      today(),
+      c.var.today,
       b.closing_day ?? null,
       b.due_day ?? null,
       limit,
@@ -1434,7 +1457,7 @@ app.get('/api/installment-plans/:id', async (c) => {
     .prepare('SELECT * FROM accounts WHERE id=?')
     .bind(plan.account_id)
     .first<Account>())!;
-  const cycle = await advanceCycle(db, card, today());
+  const cycle = await advanceCycle(db, card, c.var.today);
   return c.json({
     plan,
     installments: results,
@@ -1465,7 +1488,7 @@ app.post('/api/installment-plans/:id/advance', async (c) => {
     .bind(c.req.param('id'))
     .first();
   if (!plan) return fail('Compra parcelada não encontrada.', 404);
-  const day = today();
+  const day = c.var.today;
   if (
     plan.closed_at ||
     plan.archived ||
@@ -1982,7 +2005,7 @@ app.post('/api/transactions/:id/installment-edit', async (c) => {
         'edit',
         'Edição de parcela: ' +
           (b.scope === 'one' ? 'só esta' : 'esta e as futuras'),
-        today(),
+        c.var.today,
         snapshots[i],
       ),
     ),
@@ -2029,7 +2052,7 @@ app.post('/api/transactions/:id/cancel-future', async (c) => {
           'INSERT INTO installment_cancellations(transaction_id,reason) VALUES(?,?)',
         )
         .bind(row.id, reason),
-      statementEvent(db, st.id, 'cancel', reason, today(), before),
+      statementEvent(db, st.id, 'cancel', reason, c.var.today, before),
     );
   }
   await db.batch([...writes, clearGuards(db)]);
@@ -2105,7 +2128,7 @@ app.post('/api/transactions/:id/move-statement', async (c) => {
       'move',
       'Compra movida para a fatura ' +
         (b.direction === 'previous' ? 'anterior' : 'seguinte'),
-      today(),
+      c.var.today,
       sourceBefore,
     ),
     statementEvent(
@@ -2113,7 +2136,7 @@ app.post('/api/transactions/:id/move-statement', async (c) => {
       targetId,
       'move',
       'Compra recebida de outra fatura',
-      today(),
+      c.var.today,
       targetBefore,
     ),
     clearGuards(db),
@@ -2126,7 +2149,7 @@ app.post('/api/statements/:id/reopen', async (c) => {
   keys(b, ['reason', 'date']);
   const reason = text(b.reason, 'Motivo', 2000),
     day = date(b.date);
-  if (day > today()) fail('A data está no futuro.');
+  if (day > c.var.today) fail('A data está no futuro.');
   const st = await readStatement(db, c.req.param('id'));
   if (st.status !== 'closed') fail('Selecione uma fatura fechada.', 409);
   const carried = await db
@@ -2161,7 +2184,7 @@ app.post('/api/statements/:id/early-close', async (c) => {
   const day = date(b.date);
   const st = await readStatement(db, c.req.param('id'));
   if (st.status !== 'open') fail('Selecione uma fatura aberta.', 409);
-  if (day < st.period_start || day >= st.closing_date || day > today())
+  if (day < st.period_start || day >= st.closing_date || day > c.var.today)
     fail('Escolha uma data dentro do ciclo e anterior ao fechamento.');
   const account = (await db
     .prepare('SELECT * FROM accounts WHERE id=?')
@@ -2241,7 +2264,7 @@ app.get('/api/cards/:id/statements', async (c) => {
   if (!card) return fail('Cartão não encontrado.', 404);
   if (!card.closing_day || !card.due_day)
     return fail('O cartão precisa de dias de fechamento e vencimento.', 409);
-  const current = await resolvedCycle(db, card, today());
+  const current = await resolvedCycle(db, card, c.var.today);
   // Datas extremas de cada mês bastam para identificar ciclos com compras antigas.
   const { results: legacy } = await db
     .prepare(
@@ -2440,7 +2463,7 @@ app.post('/api/statements/:id/check', async (c) => {
         statement.id,
         'close',
         'Conferência ao fechar a fatura',
-        today(),
+        c.var.today,
         before,
       ),
     );
@@ -2518,7 +2541,6 @@ app.post('/api/statements/:id/pay', async (c) => {
     .first<Account>();
   if (!source?.cutoff_date || day <= source.cutoff_date)
     return fail('Escolha uma conta corrente ativa na data do pagamento.');
-  if (day > today()) return fail('A data do pagamento está no futuro.');
   if (!statement.cutoff_date || day <= statement.cutoff_date)
     return fail('O pagamento deve ser posterior ao corte do cartão.');
   const total = cents(statement.bank_amount_cents ?? statement.total_cents);
@@ -2626,17 +2648,58 @@ app.post('/api/statements/:id/pay', async (c) => {
   return c.json({ id }, 201);
 });
 
-app.get('/api/payees', async (c) =>
-  c.json(
-    (
-      await c.var.DB.prepare(
-        `SELECT p.id,p.name,COUNT(t.id) AS count,MIN(t.date) AS first_date,MAX(t.date) AS last_date FROM payees p LEFT JOIN payees alias ON alias.id=p.id OR alias.merged_into_id=p.id LEFT JOIN transactions t ON t.payee_id=alias.id WHERE p.merged_into_id IS NULL GROUP BY p.id ORDER BY p.name`,
-      ).all()
-    ).results,
-  ),
-);
+function tagIdList(value: unknown) {
+  const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+  return (Array.isArray(parsed) ? parsed : [])
+    .filter((id): id is string => typeof id === 'string')
+    .sort();
+}
+app.get('/api/payees', async (c) => {
+  const { results } = await c.var.DB.prepare(
+    `SELECT p.id,p.name,p.has_default,p.default_category_id,COUNT(t.id) AS count,MIN(t.date) AS first_date,MAX(t.date) AS last_date,COALESCE((SELECT json_group_array(d.tag_id) FROM payee_default_tags d WHERE d.payee_id=p.id),'[]') AS default_tag_ids FROM payees p LEFT JOIN payees alias ON alias.id=p.id OR alias.merged_into_id=p.id LEFT JOIN transactions t ON t.payee_id=alias.id WHERE p.merged_into_id IS NULL GROUP BY p.id,p.name,p.has_default,p.default_category_id ORDER BY p.name`,
+  ).all<{
+    id: string;
+    name: string;
+    has_default: number;
+    default_category_id: string | null;
+    count: number;
+    first_date: string | null;
+    last_date: string | null;
+    default_tag_ids: string;
+  }>();
+  return c.json(
+    results.map((p) => ({
+      ...p,
+      default_tag_ids: tagIdList(p.default_tag_ids),
+    })),
+  );
+});
 app.get('/api/payees/suggestion', async (c) => {
   const name = text(c.req.query('name'), 'Beneficiário');
+  const canonical = await c.var.DB.prepare(
+    `SELECT id,has_default,default_category_id FROM payees WHERE id=(SELECT COALESCE(merged_into_id,id) FROM payees WHERE name=? COLLATE NOCASE)`,
+  )
+    .bind(name)
+    .first<{
+      id: string;
+      has_default: number;
+      default_category_id: string | null;
+    }>();
+  // O padrão, quando existe, substitui a última vez por inteiro, inclusive categoria vazia ou lista de tags vazia.
+  if (canonical?.has_default) {
+    const tags = (
+      await c.var.DB.prepare(
+        'SELECT tag_id FROM payee_default_tags WHERE payee_id=? ORDER BY tag_id',
+      )
+        .bind(canonical.id)
+        .all<{ tag_id: string }>()
+    ).results.map((t) => t.tag_id);
+    return c.json({
+      category_id: canonical.default_category_id,
+      tag_ids: tags,
+      source: 'default',
+    });
+  }
   const last = await c.var.DB.prepare(
     `SELECT t.id,t.category_id FROM transactions t JOIN payees p ON p.id=t.payee_id WHERE COALESCE(p.merged_into_id,p.id)=(SELECT COALESCE(merged_into_id,id) FROM payees WHERE name=? COLLATE NOCASE) AND t.origin<>'adjustment' ORDER BY t.date DESC,t.created_at DESC,t.id DESC LIMIT 1`,
   )
@@ -2651,7 +2714,45 @@ app.get('/api/payees/suggestion', async (c) => {
           .all<{ tag_id: string }>()
       ).results.map((t) => t.tag_id)
     : [];
-  return c.json({ category_id: last?.category_id ?? null, tag_ids: tags });
+  return c.json({
+    category_id: last?.category_id ?? null,
+    tag_ids: tags,
+    source: last ? 'last' : 'none',
+  });
+});
+app.patch('/api/payees/:id', async (c) => {
+  const b = object(await c.req.json());
+  keys(b, ['category_id', 'tag_ids']);
+  if (!('category_id' in b) || !('tag_ids' in b))
+    fail('Informe a categoria e as tags padrão.');
+  const db = c.var.DB;
+  const id = c.req.param('id');
+  const payee = await db
+    .prepare('SELECT id FROM payees WHERE id=? AND merged_into_id IS NULL')
+    .bind(id)
+    .first();
+  if (!payee) fail('Beneficiário não encontrado.', 404);
+  if (b.category_id !== null) await exists(db, 'categories', b.category_id);
+  const tags = await validatedTags(db, b.tag_ids);
+  const clear = b.category_id === null && !tags.length;
+  await db.batch([
+    db
+      .prepare(
+        'UPDATE payees SET has_default=?,default_category_id=? WHERE id=? AND merged_into_id IS NULL',
+      )
+      .bind(clear ? 0 : 1, clear ? null : b.category_id, id),
+    db.prepare('DELETE FROM payee_default_tags WHERE payee_id=?').bind(id),
+    ...(!clear
+      ? tags.map((tag) =>
+          db
+            .prepare(
+              'INSERT INTO payee_default_tags(payee_id,tag_id) VALUES(?,?)',
+            )
+            .bind(id, tag),
+        )
+      : []),
+  ]);
+  return c.json({ ok: true });
 });
 app.post('/api/payees/merge', async (c) => {
   const b = object(await c.req.json());
@@ -2687,6 +2788,7 @@ app.post('/api/payees/merge', async (c) => {
     if (imported)
       fail('Beneficiário de transação importada não pode mudar.', 409);
   }
+  // Na unificação em lote permanece o padrão do destino. O padrão dos nomes de origem deixa de valer.
   await c.var.DB.batch(
     sources.map((id) =>
       c.var.DB.prepare(
@@ -2708,14 +2810,14 @@ app.post('/api/accounts/:id/reconcile', async (c) => {
     fail('Confirmação inválida.');
   const bank = cents(b.bank_balance_cents);
   const a = await c.var.DB.prepare(
-    `SELECT a.*,${balanceSql()} AS balance_cents FROM accounts a WHERE id=?`,
+    `SELECT a.*,${balanceSql(c.var.today)} AS balance_cents FROM accounts a WHERE id=?`,
   )
     .bind(c.req.param('id'))
     .first<Account>();
   if (!a) fail('Conta não encontrada.', 404);
   if (a!.closed_at || a!.archived || !a!.cutoff_date)
     fail('Confira uma conta ativa.', 409);
-  if (a!.cutoff_date! >= today())
+  if (a!.cutoff_date! >= c.var.today)
     fail('A conferência deve ser posterior ao corte.', 409);
   const adjustment = cents(a!.balance_cents - bank);
   if (b.confirm !== true)
@@ -2726,14 +2828,14 @@ app.post('/api/accounts/:id/reconcile', async (c) => {
     });
   if (cents(b.expected_balance_cents) !== a!.balance_cents)
     fail('Saldo alterado. Confira novamente.', 409);
-  const day = today();
+  const day = c.var.today;
   const q = await fx(c.var.DB, a!.currency, day, b.fx_rate);
   const id = crypto.randomUUID();
   const tx = crypto.randomUUID();
   const brl = converted(adjustment, q.rate);
   const results = await c.var.DB.batch([
     c.var.DB.prepare(
-      `INSERT INTO reconciliations(id,account_id,date,bank_balance_cents,app_balance_cents) SELECT ?,a.id,?,?,? FROM accounts a WHERE a.id=? AND a.closed_at IS NULL AND a.archived=0 AND a.cutoff_date IS NOT NULL AND ${balanceSql()}=?`,
+      `INSERT INTO reconciliations(id,account_id,date,bank_balance_cents,app_balance_cents) SELECT ?,a.id,?,?,? FROM accounts a WHERE a.id=? AND a.closed_at IS NULL AND a.archived=0 AND a.cutoff_date IS NOT NULL AND ${balanceSql(c.var.today)}=?`,
     ).bind(id, day, bank, a!.balance_cents, a!.id, a!.balance_cents),
     c.var.DB.prepare(
       "INSERT INTO transactions(id,account_id,date,amount_cents,currency,fx_rate,amount_brl_cents,fx_source,payee,note,origin,kind) SELECT ?,account_id,date,app_balance_cents-bank_balance_cents,?,?,?,?,'Conferência de saldo','Ajuste visível da conferência de saldo.','adjustment','regular' FROM reconciliations WHERE id=? AND app_balance_cents<>bank_balance_cents",
@@ -2841,7 +2943,7 @@ const recurringSql = `SELECT r.*,a.name AS account_name,a.currency,c.name AS cat
  LEFT JOIN category_groups cg ON cg.id=c.category_group_id LEFT JOIN allocation_groups ag ON ag.id=cg.allocation_group_id
  LEFT JOIN subscription_types st ON st.id=r.subscription_type_id`;
 app.get('/api/recurring', async (c) => {
-  const month = c.req.query('month') ?? currentMonth();
+  const month = c.req.query('month') ?? c.var.today.slice(0, 7);
   if (!validMonth(month)) fail('Mês inválido.');
   const db = c.var.DB;
   const { results: rows } = await db
@@ -2851,7 +2953,7 @@ app.get('/api/recurring', async (c) => {
     return c.json({
       items: rows.map((r) => ({
         ...r,
-        due_date: nextOccurrence(r, today()),
+        due_date: nextOccurrence(r, c.var.today),
         arrived: false,
         actual_cents: 0,
         transaction_id: null,
@@ -2960,18 +3062,16 @@ app.get('/api/cards/:id/commitment', async (c) => {
       .bind(card.id)
       .first<{ last: string | null }>()
   )?.last;
+  const month = c.var.today.slice(0, 7);
   const horizon =
-    last && last > monthBounds(shiftMonth(currentMonth(), 1)).to
+    last && last > monthBounds(shiftMonth(month, 1)).to
       ? last
-      : monthBounds(shiftMonth(currentMonth(), 1)).to;
-  const projections = await projectedRecurring(
-    db,
-    currentMonth(),
-    horizon.slice(0, 7),
-  );
+      : monthBounds(shiftMonth(month, 1)).to;
+  const projections = await projectedRecurring(db, month, horizon.slice(0, 7));
   let expected = 0;
   for (const p of projections.filter(
-    (p) => p.r.account_id === card.id && p.date >= today() && p.date <= horizon,
+    (p) =>
+      p.r.account_id === card.id && p.date >= c.var.today && p.date <= horizon,
   )) {
     const cycle = await resolvedCycle(db, card, p.date);
     const st = await db
@@ -3004,7 +3104,7 @@ app.get('/api/cards/:id/commitment', async (c) => {
 });
 app.get('/api/upcoming', async (c) => {
   const db = c.var.DB,
-    from = today(),
+    from = c.var.today,
     to = monthBounds(shiftMonth(from.slice(0, 7), 1)).to;
   type Component = {
     id: string;
@@ -3138,6 +3238,53 @@ app.get('/api/upcoming', async (c) => {
       amount_cents: p.r.amount_cents,
     });
   }
+  const shown = new Set(
+    items.flatMap((item) => [item.id, ...item.components.map((p) => p.id)]),
+  );
+  const scheduled = await db
+    .prepare(
+      `SELECT t.id,t.date,t.amount_cents,t.payee,t.kind,t.statement_id,t.account_id,a.name AS account_name,a.currency,
+      (SELECT da.name FROM transactions pair JOIN accounts da ON da.id=pair.account_id WHERE pair.id=t.transfer_pair_id) AS destination_name
+      FROM active_transactions t JOIN accounts a ON a.id=t.account_id
+      WHERE t.date>? AND t.date<=? AND t.origin<>'adjustment' AND a.cutoff_date IS NOT NULL AND a.archived=0 AND a.closed_at IS NULL
+      AND (t.kind<>'transfer' OR t.amount_cents>0)`,
+    )
+    .bind(from, to)
+    .all<{
+      id: string;
+      date: string;
+      amount_cents: number;
+      payee: string;
+      kind: string;
+      statement_id: string | null;
+      account_id: string;
+      account_name: string;
+      currency: string;
+      destination_name: string | null;
+    }>();
+  for (const t of scheduled.results) {
+    if (shown.has(t.id) || (t.statement_id && shown.has(t.statement_id)))
+      continue;
+    items.push({
+      id: t.id,
+      type:
+        t.kind === 'transfer'
+          ? 'transfer'
+          : t.kind === 'card_payment'
+            ? 'payment'
+            : 'scheduled',
+      label:
+        t.kind === 'transfer'
+          ? `Transferência → ${t.destination_name ?? 'Destino'}`
+          : t.payee,
+      date: t.date,
+      amount_cents: t.amount_cents,
+      currency: t.currency,
+      account_id: t.account_id,
+      account_name: t.account_name,
+      components: [],
+    });
+  }
   return c.json({
     from,
     to,
@@ -3158,13 +3305,13 @@ app.get('/api/subscriptions', async (c) => {
   return c.json(
     results.map((r) => ({
       ...r,
-      next_charge: nextOccurrence(r, today()),
+      next_charge: nextOccurrence(r, c.var.today),
       monthly_cents: monthlyEquivalent(
         r.amount_cents,
         r.cadence,
         r.interval_days,
       ),
-      renewal_soon: renewalSoon(r.renewal_date, today(), r.notice_days),
+      renewal_soon: renewalSoon(r.renewal_date, c.var.today, r.notice_days),
     })),
   );
 });

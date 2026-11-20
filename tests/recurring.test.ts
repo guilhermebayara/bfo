@@ -24,7 +24,7 @@ beforeAll(async () => {
 });
 beforeEach(async () => {
   await db.exec(
-    'DELETE FROM recurring_sources; DELETE FROM recurring; DELETE FROM transaction_tags; DELETE FROM transactions; DELETE FROM statements; DELETE FROM accounts; DELETE FROM categories; DELETE FROM category_groups; DELETE FROM allocation_groups; DELETE FROM subscription_types; DELETE FROM payees;',
+    'DELETE FROM recurring_sources; DELETE FROM recurring; DELETE FROM transaction_tags; DELETE FROM payee_default_tags; DELETE FROM transactions; DELETE FROM statements; DELETE FROM accounts; DELETE FROM categories; DELETE FROM category_groups; DELETE FROM allocation_groups; DELETE FROM subscription_types; DELETE FROM payees;',
   );
   await db.exec(
     "INSERT INTO accounts(id,name,kind,cutoff_date) VALUES('a','Conta fictícia','checking','2026-01-01'); INSERT INTO subscription_types VALUES('type','Tipo fictício',0);",

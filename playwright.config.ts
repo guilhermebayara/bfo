@@ -12,7 +12,7 @@ export default defineConfig({
   },
   webServer: {
     command:
-      'node scripts/e2e-setup.mjs && npm run build && wrangler dev --port 8788 --persist-to .wrangler/e2e/state',
+      'node scripts/e2e-setup.mjs && npm run build && wrangler dev --port 8788 --persist-to .wrangler/e2e/state --var ALLOW_TEST_CLOCK:1',
     url: 'http://127.0.0.1:8788/api/health',
     timeout: 120000,
     reuseExistingServer: false,
