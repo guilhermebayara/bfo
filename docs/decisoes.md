@@ -47,7 +47,7 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 - Transações é o painel de gestão: tudo que mexe em dinheiro pode ser registrado ali. As outras telas (Cartão, Contas, Recorrentes) servem para ver e conferir e podem ter as mesmas ações, mas nenhuma ação é exclusiva delas.
 - Como cada tipo entra pela tabela:
   - Despesa e receita: linha normal, sinal automático pela categoria.
-  - Transferência: "Nova transferência" na seta do botão de adicionar, com conta de origem e de destino lado a lado, data e valor.
+  - Transferência: "Nova transferência" na seta do botão de adicionar, com conta de origem e de destino lado a lado, data e valor. Nota e tags funcionam como em qualquer lançamento. A categoria nasce como Transferência (fora dos totais) e pode ser trocada. O destino pode ser qualquer conta ativa, inclusive as contas de saldo, porque o aporte em investimento é uma transferência para a conta de investimento e é reconhecido pelo destino, sem categoria própria. Decidido em 19/11/2026.
   - Pagamento de fatura: transferência cujo destino é um cartão. A linha vira pagamento de fatura sozinha e pergunta qual fatura, sugerindo a mais antiga em aberto. Aceita pagamento parcial.
   - Compra parcelada: quando a conta da linha é um cartão, aparece a célula de parcelas (1x por padrão). Acima de 1x surge "parcela atual" (retroativa) e a prévia das parcelas.
   - Ações sobre transação existente no menu "..." da linha: dividir, antecipar, mover de fatura, cancelar parcelas futuras, criar recorrente.
@@ -57,7 +57,7 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 - A célula tem o mesmo tamanho em repouso, ao passar o mouse e em edição, como no Lunch Money: o campo de edição ocupa exatamente a célula, sem crescer nem encolher. Vale também para a linha de lançamento novo.
 - Isso é comportamento da interface e vale desde já, antes do conceito visual.
 - Campo de valor com um botão de sinal ao lado: [-] para saída e [+] para entrada. O valor é digitado sempre sem sinal. O sinal muda sozinho conforme a categoria (categoria de renda deixa [+], as demais deixam [-]) e o dono pode inverter com um clique.
-- Transferência entre contas aparece como uma linha só, com origem e destino na coluna da conta ("Conta A → Conta B") e o valor movido em cor neutra, sem sinal de gasto ou renda. Com filtro por uma das contas, a linha mostra o sinal do ponto de vista dela (saída na origem, entrada no destino). Sem a soma zerada do Lunch Money.
+- Transferência entre contas aparece como uma linha só: a coluna Conta mostra a origem e a coluna Beneficiário mostra o destino ("→ Conta B"), nas mesmas posições da linha de lançamento novo. Decidido em 19/11/2026, substituindo "Conta A → Conta B" na coluna da conta, que cortava o texto. O valor movido aparece em cor neutra, sem sinal de gasto ou renda. Com filtro por uma das contas, a linha mostra o sinal do ponto de vista dela (saída na origem, entrada no destino). Sem a soma zerada do Lunch Money.
 - Seleção múltipla abre um painel com total e média dos selecionados, edição em lote (data, beneficiário, categoria, nota, adicionar e remover tags, ligar a um recorrente) e exclusão em lote. Importadas selecionadas aceitam só a classificação. Ficam de fora: marcar como revisado (tudo é lançado pelo dono), trocar moeda e mover de conta em lote.
 - Novo lançamento entra como uma linha extra no topo da tabela. O botão de adicionar já traz a conta padrão do dono (definida nas configurações) e tem uma seta para escolher outra.
 - A lista de contas dessa seta mostra só contas de movimento, agrupadas por tipo (cartões, contas correntes, dinheiro), com a instituição em cada uma e em ordem alfabética dentro do grupo. Contas de saldo (investimento, imóvel, empréstimo) e contas encerradas ficam de fora, porque não recebem lançamentos.
@@ -151,6 +151,6 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 ## Infraestrutura
 
 - Cloudflare, conta BFO, dentro do login do dono. D1. Access fechado no e-mail do dono.
-- Homologação no endereço gratuito do Workers durante as fases.
+- Homologação em homologacao.bfo.bayara.design, como prévia da branch homologacao.
 - Produção em bfo.bayara.design. O domínio está sendo transferido para a Cloudflare e vai ficar na conta BFO.
 - Repositório público por enquanto, só com dados fictícios. Vira privado quando o token do Lunch Money entrar em uso.
