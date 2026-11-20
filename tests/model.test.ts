@@ -1,3 +1,4 @@
+import { today } from '../src/shared/dates';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { env } from 'cloudflare:workers';
 import { applyD1Migrations } from 'cloudflare:test';
@@ -28,7 +29,7 @@ beforeEach(async () => {
     `DELETE FROM reconciliations; DELETE FROM transaction_tags; DELETE FROM tags; DELETE FROM fx_rates; DELETE FROM transactions; UPDATE payees SET merged_into_id=NULL; DELETE FROM payees; DELETE FROM recurring; DELETE FROM installment_advances; DELETE FROM installment_plans; DELETE FROM statements; DELETE FROM accounts; DELETE FROM institutions; DELETE FROM categories; DELETE FROM category_groups; DELETE FROM allocation_groups; DELETE FROM subscription_types;`,
   );
   await db.exec(
-    `INSERT INTO accounts(id,name,kind) VALUES ('a','Conta fictícia','checking'); INSERT INTO allocation_groups VALUES('g','Essencial',60,0); INSERT INTO category_groups VALUES('cg','Grupo','g',0); INSERT INTO categories VALUES('c','Categoria','cg',0,0);`,
+    `INSERT INTO accounts(id,name,kind) VALUES ('a','Conta fictícia','checking'); INSERT INTO allocation_groups VALUES('g','Essencial',60,0); INSERT INTO category_groups(id,name,allocation_group_id,sort) VALUES('cg','Grupo','g',0); INSERT INTO categories(id,name,category_group_id,is_income,sort) VALUES('c','Categoria','cg',0,0);`,
   );
   await db.batch([
     db.prepare(
@@ -288,7 +289,7 @@ it('seed é repetível, cobre 14 meses e mantém edições e contas ativadas', a
   await db.exec(seed);
   const months = await db
     .prepare(
-      "SELECT COUNT(DISTINCT substr(date,1,7)) AS n FROM transactions WHERE origin='imported' AND id LIKE 'seed-%'",
+      "SELECT COUNT(DISTINCT substr(date,1,7)) AS n FROM transactions WHERE origin='imported' AND id LIKE 'seed-20%'",
     )
     .first();
   expect(months.n).toBe(7);
@@ -453,7 +454,7 @@ describe('Sessão B', () => {
       (
         await manual({
           account_id: id,
-          date: new Date().toISOString().slice(0, 10),
+          date: today(),
         })
       ).status,
     ).toBe(201);
@@ -540,9 +541,7 @@ describe('Sessão B', () => {
     ).toBe(201);
     const account = (await (await request('/accounts')).json())[0];
     expect(account.balance_cents).toBe(100000);
-    expect(account.last_reconciled_at).toBe(
-      new Date().toISOString().slice(0, 10),
-    );
+    expect(account.last_reconciled_at).toBe(today());
     const record = await db.prepare('SELECT * FROM reconciliations').first();
     expect(record.adjustment_transaction_id).toBeTruthy();
     expect(

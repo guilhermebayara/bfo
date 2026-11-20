@@ -1,8 +1,9 @@
+import { positionMenu } from './menu';
 import type { Account, Category, Transaction, Tag } from '../../shared/types';
 import { formatMoney, parseMoney } from '../../shared/money';
-import { Badge, Button, CategoryOptions, InstallmentLink } from './index';
-import { SplitDetails } from './SplitTransaction';
+import { Badge, Button, CategoryOptions } from './index';
 import { SpreadsheetCell } from './SpreadsheetCell';
+import { AccountOptions } from './AccountOptions';
 import { api, humanDate } from '../api';
 export function TransactionRow({
   t,
@@ -12,6 +13,9 @@ export function TransactionRow({
   onSaved,
   onRecurring,
   onSplit,
+  selected,
+  onSelect,
+  accountFilter,
 }: {
   t: Transaction;
   accounts: Account[];
@@ -20,11 +24,15 @@ export function TransactionRow({
   onSaved: () => Promise<void>;
   onRecurring: (t: Transaction) => void;
   onSplit: (t: Transaction) => void;
+  selected: boolean;
+  onSelect: () => void;
+  accountFilter: string;
 }) {
   const account = accounts.find((a) => a.id === t.account_id);
+  const transfer = t.kind === 'transfer' || t.kind === 'card_payment';
   const financialLock =
     t.origin === 'imported'
-      ? 'Importada: valor total e data protegidos. Classificação editável.'
+      ? 'Importada: valor, data, conta e beneficiário protegidos. Classificação editável.'
       : t.kind !== 'regular' || t.origin !== 'manual'
         ? 'Lançamento de sistema: valores protegidos.'
         : t.split_count
@@ -45,7 +53,7 @@ export function TransactionRow({
   const canSplit =
     ['regular', 'installment'].includes(t.kind) &&
     t.origin !== 'adjustment' &&
-    !t.advance_id;
+    (!t.advance_id || t.installment_number === null);
   async function patch(body: object) {
     await api(`/transactions/${t.id}`, {
       method: 'PATCH',
@@ -53,9 +61,21 @@ export function TransactionRow({
     });
     await onSaved();
   }
+  async function classify(category_id: string) {
+    const category = categories.find((c) => c.id === category_id);
+    await patch({
+      category_id: category_id || null,
+      ...(!financialLock
+        ? {
+            amount_cents:
+              Math.abs(t.amount_cents) * (category?.effective_income ? -1 : 1),
+          }
+        : {}),
+    });
+  }
   const categoryEditor = (
     draft: string,
-    change: (value: string, immediate?: boolean) => void,
+    change: (v: string, immediate?: boolean) => void,
   ) => (
     <select
       aria-label={`Categoria de ${t.payee}`}
@@ -66,12 +86,22 @@ export function TransactionRow({
       <CategoryOptions categories={categories} />
     </select>
   );
-  const noteTags = JSON.stringify({
-    note: t.note,
-    tag_ids: t.tags.map((tag) => tag.id),
-  });
+  const displayAmount = transfer
+    ? accountFilter === t.destination_account_id
+      ? -Math.abs(t.destination_amount_cents ?? t.amount_cents)
+      : Math.abs(t.amount_cents)
+    : t.amount_cents;
+  const showDirection = !transfer || !!accountFilter;
   return (
-    <tr data-transaction-id={t.id}>
+    <tr data-transaction-id={t.id} aria-selected={selected}>
+      <td>
+        <input
+          type="checkbox"
+          aria-label={`Selecionar ${t.payee}`}
+          checked={selected}
+          onChange={onSelect}
+        />
+      </td>
       <SpreadsheetCell
         column={0}
         label={`Data de ${t.payee}`}
@@ -93,7 +123,11 @@ export function TransactionRow({
         column={1}
         label={`Conta de ${t.payee}`}
         value={t.account_id}
-        display={t.account_name}
+        display={
+          transfer
+            ? `${t.account_name} → ${t.destination_name ?? 'Destino'}`
+            : t.account_name
+        }
         locked={financialLock}
         save={(account_id) => patch({ account_id })}
         editor={(draft, change) => (
@@ -102,17 +136,7 @@ export function TransactionRow({
             value={draft}
             onChange={(e) => change(e.target.value, true)}
           >
-            {accounts
-              .filter(
-                (a) =>
-                  a.id === draft ||
-                  (!a.closed_at && !a.archived && a.cutoff_date),
-              )
-              .map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
+            <AccountOptions accounts={accounts} />
           </select>
         )}
       />
@@ -124,17 +148,11 @@ export function TransactionRow({
         display={
           <>
             {t.payee}
-            <InstallmentLink item={t} />
-            {!!t.split_count && (
-              <SplitDetails
-                refresh={t}
-                id={t.id}
-                categories={categories}
-                currency={t.currency}
-              />
-            )}
-            {!!t.retroactive && <small>Retroativa: antes do corte</small>}
-            {!!t.added_to_closed && <small>Incluída após o fechamento</small>}
+            {t.installment_number
+              ? ` · ${t.installment_number}/${t.installment_count}`
+              : ''}
+            {t.retroactive ? ' · Retroativa' : ''}
+            {t.added_to_closed ? ' · Após fechamento' : ''}
           </>
         }
         save={(payee) => patch({ payee })}
@@ -152,28 +170,28 @@ export function TransactionRow({
         column={3}
         label={`Valor de ${t.payee}`}
         value={JSON.stringify({
-          amount: String(t.amount_cents / 100).replace('.', ','),
+          amount: String(Math.abs(t.amount_cents) / 100).replace('.', ','),
+          income: t.amount_cents < 0,
           rate: String(t.fx_rate),
         })}
         locked={financialLock}
         display={
-          <>
-            <span className="direction">
-              {t.amount_cents < 0 ? 'Entrada (+)' : 'Saída (−)'}
-            </span>
-            {formatMoney(Math.abs(t.amount_cents), t.currency)}
-            {t.currency !== 'BRL' && (
-              <small>
-                {formatMoney(Math.abs(t.amount_brl_cents))} · Cotação{' '}
-                {t.fx_rate}
-              </small>
+          <span className={!transfer && displayAmount < 0 ? 'income' : ''}>
+            {showDirection ? (displayAmount < 0 ? '+ ' : '− ') : ''}
+            {formatMoney(
+              Math.abs(displayAmount),
+              transfer && accountFilter === t.destination_account_id
+                ? (t.destination_currency ?? t.currency)
+                : t.currency,
             )}
-          </>
+          </span>
         }
         save={(value) => {
           const v = JSON.parse(value);
+          const amount = parseMoney(v.amount);
+          if (amount < 0) throw new Error('Digite o valor sem sinal.');
           return patch({
-            amount_cents: parseMoney(v.amount),
+            amount_cents: amount * (v.income ? -1 : 1),
             ...(v.rate !== String(t.fx_rate)
               ? { fx_rate: Number(v.rate.replace(',', '.')) }
               : {}),
@@ -183,8 +201,18 @@ export function TransactionRow({
           const v = JSON.parse(draft);
           return (
             <>
-              <label>
-                Valor ({t.currency})
+              <div className="signed-value">
+                <span>{t.currency}</span>
+                <Button
+                  type="button"
+                  aria-label="Inverter sinal"
+                  aria-pressed={v.income}
+                  onClick={() =>
+                    change(JSON.stringify({ ...v, income: !v.income }))
+                  }
+                >
+                  {v.income ? '[+]' : '[-]'}
+                </Button>
                 <input
                   required
                   aria-label={`Valor (${t.currency})`}
@@ -194,20 +222,27 @@ export function TransactionRow({
                     change(JSON.stringify({ ...v, amount: e.target.value }))
                   }
                 />
-              </label>
+              </div>
               {t.currency !== 'BRL' && (
-                <label>
-                  Cotação manual
-                  <input
-                    inputMode="decimal"
-                    value={v.rate}
-                    onChange={(e) =>
-                      change(JSON.stringify({ ...v, rate: e.target.value }))
-                    }
-                  />
-                </label>
+                <details className="row-menu fx-menu" onToggle={positionMenu}>
+                  <summary>Cotação</summary>
+                  <div className="menu-panel">
+                    <label>
+                      Cotação manual
+                      <input
+                        inputMode="decimal"
+                        value={v.rate}
+                        onChange={(e) =>
+                          change(JSON.stringify({ ...v, rate: e.target.value }))
+                        }
+                      />
+                    </label>
+                    <small>
+                      {formatMoney(t.amount_brl_cents)} · PTAX ou cotação manual
+                    </small>
+                  </div>
+                </details>
               )}
-              <small>Negativo para entrada.</small>
             </>
           );
         }}
@@ -224,7 +259,7 @@ export function TransactionRow({
               'Sem categoria')
         }
         open={t.split_count ? () => onSplit(t) : undefined}
-        save={(category_id) => patch({ category_id: category_id || null })}
+        save={classify}
         editor={categoryEditor}
       />
       <SpreadsheetCell
@@ -233,103 +268,124 @@ export function TransactionRow({
         value={t.category_id ?? ''}
         locked={categoryLock}
         display={
-          t.split_count ? 'Por parte' : (t.allocation_name ?? 'Sem alocação')
+          t.split_count
+            ? 'Por parte'
+            : categories.find((c) => c.id === t.category_id)
+                  ?.effective_exclude_budget
+              ? 'Fora do orçamento'
+              : (t.allocation_name ?? 'Sem alocação')
         }
         open={t.split_count ? () => onSplit(t) : undefined}
-        save={(category_id) => patch({ category_id: category_id || null })}
-        editor={(draft, change) => (
-          <>
-            <small>A alocação acompanha a categoria escolhida.</small>
-            {categoryEditor(draft, change)}
-          </>
-        )}
+        save={classify}
+        editor={(draft, change) => <>{categoryEditor(draft, change)}</>}
       />
       <SpreadsheetCell
         column={6}
-        label={`Notas e tags de ${t.payee}`}
-        value={noteTags}
-        display={
-          <>
-            {t.note}
-            {!t.split_count &&
-              t.tags.map((tag) => (
-                <span className="badge" key={tag.id}>
-                  {tag.name}
-                </span>
-              ))}
-          </>
+        label={`Nota de ${t.payee}`}
+        value={t.note}
+        display={t.note || 'Adicionar nota'}
+        save={(note) => patch({ note })}
+        editor={(draft, change) => (
+          <input
+            aria-label={`Nota de ${t.payee}`}
+            maxLength={2000}
+            value={draft}
+            onChange={(e) => change(e.target.value)}
+          />
+        )}
+      />
+      <SpreadsheetCell
+        column={7}
+        label={`Tags de ${t.payee}`}
+        value={JSON.stringify(t.tags.map((tag) => tag.id))}
+        locked={
+          tagEditable
+            ? undefined
+            : t.split_count
+              ? undefined
+              : 'Tags protegidas neste lançamento.'
         }
-        save={(value) => {
-          const v = JSON.parse(value);
-          return patch({
-            note: v.note,
-            ...(JSON.stringify(v.tag_ids) !==
-            JSON.stringify(t.tags.map((tag) => tag.id))
-              ? { tag_ids: v.tag_ids }
-              : {}),
-          });
-        }}
+        open={t.split_count ? () => onSplit(t) : undefined}
+        display={
+          t.split_count
+            ? 'Por parte'
+            : t.tags.map((t) => t.name).join(', ') || 'Sem tags'
+        }
+        save={(value) => patch({ tag_ids: JSON.parse(value) })}
         editor={(draft, change) => {
-          const v = JSON.parse(draft) as { note: string; tag_ids: string[] };
+          const ids = JSON.parse(draft) as string[];
           return (
-            <>
-              <input
-                aria-label={`Nota de ${t.payee}`}
-                maxLength={2000}
-                value={v.note}
-                onChange={(e) =>
-                  change(JSON.stringify({ ...v, note: e.target.value }))
-                }
-              />
-              {tagEditable &&
-                tags.map((tag) => (
+            <details className="row-menu" open onToggle={positionMenu}>
+              <summary>Tags</summary>
+              <div className="menu-panel">
+                {tags.map((tag) => (
                   <label className="tag-choice" key={tag.id}>
                     <input
                       type="checkbox"
-                      checked={v.tag_ids.includes(tag.id)}
+                      checked={ids.includes(tag.id)}
                       onChange={(e) =>
                         change(
-                          JSON.stringify({
-                            ...v,
-                            tag_ids: e.target.checked
-                              ? [...v.tag_ids, tag.id]
-                              : v.tag_ids.filter((id) => id !== tag.id),
-                          }),
+                          JSON.stringify(
+                            e.target.checked
+                              ? [...ids, tag.id]
+                              : ids.filter((id) => id !== tag.id),
+                          ),
                         )
                       }
                     />
                     {tag.name}
                   </label>
                 ))}
-              {!tagEditable && <small>Tags protegidas neste lançamento.</small>}
-            </>
+              </div>
+            </details>
           );
         }}
       />
       <SpreadsheetCell
-        column={7}
+        column={8}
         label={`Origem de ${t.payee}`}
         value={t.origin}
         locked="Origem definida pelo sistema."
         display={
           <>
             <Badge origin={t.origin} />
-            <small>Origem de sistema</small>
-            {t.origin === 'imported' && (
-              <small>Categoria, nota, tags e divisão editáveis.</small>
+            {financialLock && (
+              <span
+                className="row-lock"
+                title={financialLock}
+                aria-label={financialLock}
+              >
+                {' '}
+                · Protegida
+              </span>
             )}
           </>
         }
       />
       <td>
-        {canSplit && (
-          <Button onClick={() => onSplit(t)}>
-            {t.split_count ? 'Editar divisão' : 'Dividir transação'}
-          </Button>
-        )}
-        {t.kind === 'regular' && t.origin !== 'adjustment' && (
-          <Button onClick={() => onRecurring(t)}>Criar recorrente</Button>
-        )}
+        <details onToggle={positionMenu} className="row-menu">
+          <summary aria-label={`Ações de ${t.payee}`}>⋯</summary>
+          <div className="menu-panel">
+            {canSplit && (
+              <Button onClick={() => onSplit(t)}>
+                {t.split_count ? 'Editar divisão' : 'Dividir transação'}
+              </Button>
+            )}
+            {t.kind === 'regular' && t.origin !== 'adjustment' && (
+              <Button onClick={() => onRecurring(t)}>Criar recorrente</Button>
+            )}
+            {t.installment_plan_id && (
+              <>
+                <a href={`/parceladas/${t.installment_plan_id}`}>
+                  Ver compra original
+                </a>
+                <a href={`/parceladas/${t.installment_plan_id}`}>
+                  Antecipar parcelas
+                </a>
+              </>
+            )}
+          </div>
+        </details>
       </td>
     </tr>
   );

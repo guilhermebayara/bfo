@@ -4,6 +4,8 @@ test('lança retroativa pela parcela atual e mostra recálculo da fatura fechada
   page,
 }) => {
   await page.goto('/transacoes/2026-11');
+  await page.getByText('Mais opções', { exact: true }).click();
+  await page.getByRole('button', { name: 'Lançar compra parcelada' }).click();
   const form = page.getByRole('form', { name: 'Lançar transação' });
   await form
     .getByRole('combobox', { name: 'Conta', exact: true })
@@ -23,12 +25,15 @@ test('lança retroativa pela parcela atual e mostra recálculo da fatura fechada
   await expect(form).toContainText('1.234,50');
   await form.getByRole('button', { name: 'Salvar lançamento' }).click();
   await expect(form.getByRole('status').last()).toHaveText('Lançamento salvo.');
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Fechar', exact: true })
+    .click();
   const row = page
     .getByRole('row')
     .filter({ hasText: 'Retroativa do navegador' });
-  await row
-    .getByRole('link', { name: 'Compra original, parcela 3 de 10' })
-    .click();
+  await row.locator('details.row-menu > summary').click();
+  await row.getByRole('link', { name: 'Ver compra original' }).click();
   await expect(
     page.getByRole('table', { name: 'Parcelas da compra' }).getByRole('row'),
   ).toHaveCount(11);
@@ -82,6 +87,7 @@ test('divide por valor e percentual com soma fechada e desfaz na interface', asy
   expect(created.status()).toBe(201);
   await page.goto('/transacoes/2026-11?account=seed-f-account');
   const row = page.getByRole('row').filter({ hasText: 'Divisão no navegador' });
+  await row.locator('details.row-menu > summary').click();
   await row
     .getByRole('button', { name: 'Dividir transação', exact: true })
     .click();
@@ -105,8 +111,13 @@ test('divide por valor e percentual com soma fechada e desfaz na interface', asy
     .check();
   await modal.getByRole('button', { name: 'Salvar divisão' }).click();
   await expect(modal).toHaveCount(0);
-  await expect(row).toContainText('Nota própria');
-  await expect(row).toContainText('Planejado');
+  const txid = (await created.json()).id;
+  let parts = await (
+    await request.get(`/api/transactions/${txid}/splits`)
+  ).json();
+  expect(parts[0].note).toBe('Nota própria');
+  expect(parts[1].tags[0].name).toBe('Planejado');
+  await expect(row).toContainText('Dividida em 2 partes');
   await row
     .getByRole('button', { name: 'Editar divisão', exact: true })
     .click();
@@ -122,8 +133,10 @@ test('divide por valor e percentual com soma fechada e desfaz na interface', asy
     .fill('66,67');
   await modal.getByRole('button', { name: 'Salvar divisão' }).click();
   await expect(modal).toHaveCount(0);
-  await expect(row).toContainText('33,33');
-  await expect(row).toContainText('66,68');
+  parts = await (await request.get(`/api/transactions/${txid}/splits`)).json();
+  expect(parts.map((p: { amount_cents: number }) => p.amount_cents)).toEqual([
+    3333, 6668,
+  ]);
   await row
     .getByRole('button', { name: 'Editar divisão', exact: true })
     .click();

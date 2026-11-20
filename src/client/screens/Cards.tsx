@@ -130,8 +130,11 @@ function StatementAction({
           {pay ? (
             <>
               <p>
-                Valor da fatura{' '}
-                {money(statement.bank_amount_cents ?? statement.total_cents)}
+                Saldo a pagar{' '}
+                {money(
+                  (statement.bank_amount_cents ?? statement.total_cents) -
+                    (statement.paid_cents ?? 0),
+                )}
               </p>
               {checking.length === 0 && (
                 <p>
@@ -395,6 +398,15 @@ export function Cards({
             {humanDate(statement.closing_date)} · {statuses[statement.status]} ·{' '}
             {money(statement.total_cents)}
           </p>
+          {!!statement.paid_cents && (
+            <p>
+              Pago: {money(statement.paid_cents)} · Saldo a pagar:{' '}
+              {money(
+                (statement.bank_amount_cents ?? statement.total_cents) -
+                  statement.paid_cents,
+              )}
+            </p>
+          )}
           {!card.closed_at && !card.archived && statement.status === 'open' && (
             <Button onClick={() => setMode('check')}>Conferir e fechar</Button>
           )}

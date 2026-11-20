@@ -637,5 +637,63 @@ export function seedSql() {
   sql.push(
     "INSERT INTO seed_fixtures(id) VALUES('session-f') ON CONFLICT DO NOTHING;",
   );
+  sessionF = false;
+  insert('accounts', {
+    id: 'seed-h-destination',
+    name: 'Dinheiro fictício H',
+    kind: 'cash',
+    currency: 'BRL',
+    institution_id: 'horizonte',
+    cutoff_date: '2026-01-01',
+    opening_balance_cents: 0,
+  });
+  insert('transactions', {
+    id: 'seed-h-transfer-out',
+    account_id: 'seed-f-account',
+    date: '2026-11-19',
+    amount_cents: 15000,
+    payee: 'Transferência fictícia',
+    origin: 'manual',
+    kind: 'transfer',
+  });
+  insert('transactions', {
+    id: 'seed-h-transfer-in',
+    account_id: 'seed-h-destination',
+    date: '2026-11-19',
+    amount_cents: -15000,
+    payee: 'Transferência fictícia',
+    origin: 'manual',
+    kind: 'transfer',
+    transfer_pair_id: 'seed-h-transfer-out',
+  });
+  sql.push(
+    "UPDATE transactions SET transfer_pair_id='seed-h-transfer-in' WHERE id='seed-h-transfer-out' AND transfer_pair_id IS NULL;",
+  );
+  insert('accounts', {
+    id: 'seed-i-card',
+    name: 'Cartão de pagamento fictício',
+    kind: 'credit_card',
+    currency: 'BRL',
+    institution_id: 'horizonte',
+    cutoff_date: '2026-01-01',
+    opening_balance_cents: 0,
+    closing_day: 20,
+    due_day: 27,
+  });
+  sql.push(
+    `INSERT INTO statements(id,account_id,period_start,closing_date,due_date,status,bank_amount_cents) SELECT 'seed-i-statement','seed-i-card','2026-10-21','2026-11-20','2026-11-27','closed',10000 WHERE NOT EXISTS(SELECT 1 FROM seed_fixtures WHERE id='session-i') ON CONFLICT DO NOTHING;`,
+  );
+  sql.push(
+    `INSERT INTO transactions(id,account_id,date,amount_cents,amount_brl_cents,currency,payee,origin,kind,statement_id) SELECT 'seed-i-purchase','seed-i-card','2026-11-10',10000,10000,'BRL','Compra para pagamento fictício','imported','regular','seed-i-statement' WHERE NOT EXISTS(SELECT 1 FROM seed_fixtures WHERE id='session-i') ON CONFLICT DO NOTHING;`,
+  );
+  sql.push(
+    `INSERT INTO transactions(id,account_id,date,amount_cents,amount_brl_cents,currency,payee,origin,kind,statement_id,card_amount_cents) SELECT 'seed-i-payment','seed-f-account','2026-11-19',4000,4000,'BRL','Fatura Cartão de pagamento fictício novembro','manual','card_payment','seed-i-statement',4000 WHERE NOT EXISTS(SELECT 1 FROM seed_fixtures WHERE id='session-i') ON CONFLICT DO NOTHING;`,
+  );
+  sql.push(
+    "INSERT INTO seed_fixtures(id) VALUES('session-i') ON CONFLICT DO NOTHING;",
+  );
+  sql.push(
+    `UPDATE preferences SET currencies_in_use=(SELECT json_group_array(code) FROM (SELECT value AS code FROM json_each(preferences.currencies_in_use) UNION SELECT currency FROM accounts));`,
+  );
   return sql.map((line) => line.replaceAll('\n', ' ')).join('\n');
 }

@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { api } from '../api';
 import { parseMoney } from '../../shared/money';
 import type { Named } from '../../shared/types';
+import { CurrencyPicker } from './CurrencyPicker';
 import { Button } from './index';
 export function CreateAccount({ onSaved }: { onSaved: () => Promise<void> }) {
   const [institutions, setInstitutions] = useState<Named[]>([]);
@@ -16,6 +17,9 @@ export function CreateAccount({ onSaved }: { onSaved: () => Promise<void> }) {
   const [closing, setClosing] = useState('20');
   const [due, setDue] = useState('27');
   useEffect(() => {
+    api<{ primary_currency: string }>('/preferences')
+      .then((p) => setCurrency(p.primary_currency))
+      .catch((e) => setError(e.message));
     api<Named[]>('/institutions')
       .then(setInstitutions)
       .catch((e) => setError(e.message));
@@ -106,13 +110,7 @@ export function CreateAccount({ onSaved }: { onSaved: () => Promise<void> }) {
           </label>
           <label>
             Moeda
-            <input
-              required
-              pattern="[A-Z]{3}"
-              maxLength={3}
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value.toUpperCase())}
-            />
+            <CurrencyPicker value={currency} onChange={setCurrency} />
           </label>
           <label>
             Saldo inicial ({currency})

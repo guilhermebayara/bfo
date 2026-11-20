@@ -8,12 +8,16 @@ export function MonthNavigation({
   onChange: (month: string) => void;
 }) {
   return (
-    <section className="filters" aria-label="Navegação por mês">
+    <section
+      className="filters month-navigation"
+      aria-label="Navegação por mês"
+    >
       <Button
+        aria-label="Mês anterior"
         disabled={month === '1900-01'}
         onClick={() => onChange(shiftMonth(month, -1))}
       >
-        Mês anterior
+        ←
       </Button>
       <strong>
         {new Intl.DateTimeFormat('pt-BR', {
@@ -23,10 +27,11 @@ export function MonthNavigation({
         }).format(new Date(`${month}-01T12:00:00Z`))}
       </strong>
       <Button
+        aria-label="Próximo mês"
         disabled={month === '9998-12'}
         onClick={() => onChange(shiftMonth(month, 1))}
       >
-        Próximo mês
+        →
       </Button>
       <label>
         Ir para o mês

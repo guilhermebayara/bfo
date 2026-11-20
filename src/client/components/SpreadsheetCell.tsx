@@ -65,8 +65,31 @@ export function SpreadsheetCell({
     if (active)
       ref.current?.querySelector<HTMLElement>('input,select')?.focus();
   }, [active]);
+  function positionEditor() {
+    const cell = ref.current;
+    if (!cell) return;
+    const rect = cell.getBoundingClientRect();
+    cell.style.setProperty(
+      '--editor-left',
+      `${Math.min(rect.left, window.innerWidth - 260)}px`,
+    );
+    cell.style.setProperty(
+      '--editor-top',
+      `${Math.min(rect.top, window.innerHeight - 160)}px`,
+    );
+    cell.style.setProperty('--editor-width', `${rect.width}px`);
+    cell.style.setProperty(
+      '--message-top',
+      `${Math.min(rect.top + 100, window.innerHeight - 60)}px`,
+    );
+  }
   function start() {
-    if (locked || saving.current) return;
+    positionEditor();
+    if (locked) {
+      setError(locked);
+      return;
+    }
+    if (saving.current) return;
     if (open) {
       open();
       return;
@@ -117,12 +140,13 @@ export function SpreadsheetCell({
       aria-readonly={Boolean(locked)}
       aria-label={label}
       aria-busy={busy}
-      title={locked ?? 'Clique para editar. Salva ao sair da célula.'}
-      className={`sheet-cell ${locked ? 'sheet-locked' : ''}`}
+      title={`${typeof display === 'string' ? `${display}\n` : ''}${locked ?? 'Clique para editar. Salva ao sair da célula.'}`}
+      className={`sheet-cell ${active ? 'sheet-editing' : ''} ${locked ? 'sheet-locked' : ''}`}
       onClick={(e) => {
         if (!(e.target as HTMLElement).closest('a,button')) start();
       }}
       onBlur={(e) => {
+        if (locked) setError('');
         if (!e.currentTarget.contains(e.relatedTarget)) void commit(draft);
       }}
       onKeyDown={(e) => {
@@ -170,10 +194,14 @@ export function SpreadsheetCell({
           })}
         </fieldset>
       ) : (
-        display
+        <span className="cell-value">{display}</span>
       )}
-      {locked && <span className="sr-only">{locked}</span>}
-      {error && <small role="alert">{error}</small>}
+
+      {error && (
+        <small className="cell-message" role="alert">
+          {error}
+        </small>
+      )}
     </td>
   );
 }

@@ -277,3 +277,46 @@ it('paga em reais uma fatura estrangeira e credita o valor original no cartão',
       .first(),
   ).toEqual({ total: 5000 });
 });
+
+it('registra pagamentos parciais, rejeita excesso e quita apenas quando soma o total', async () => {
+  const id = await buy();
+  expect(
+    (
+      await check(id, {
+        action: 'close',
+        bank_amount_cents: 1000,
+        expected_total_cents: 1000,
+      })
+    ).status,
+  ).toBe(201);
+  const pay = (amount_cents: number) =>
+    request(`/statements/${id}/pay`, {
+      account_id: 'checking',
+      date: '2026-03-05',
+      amount_cents,
+    });
+  expect((await pay(400)).status).toBe(201);
+  expect(
+    await db
+      .prepare('SELECT status,bank_amount_cents FROM statements WHERE id=?')
+      .bind(id)
+      .first(),
+  ).toEqual({ status: 'closed', bank_amount_cents: 1000 });
+  expect((await pay(601)).status).toBe(400);
+  expect((await pay(0)).status).toBe(400);
+  expect((await pay(-1)).status).toBe(400);
+  expect(
+    (await (await request('/accounts')).json()).find((a) => a.id === 'credit')
+      .balance_cents,
+  ).toBe(-600);
+  expect((await pay(600)).status).toBe(201);
+  expect(
+    await db
+      .prepare('SELECT status FROM statements WHERE id=?')
+      .bind(id)
+      .first(),
+  ).toEqual({ status: 'paid' });
+  expect(
+    (await (await request('/accounts')).json()).map((a) => a.balance_cents),
+  ).toEqual([0, -1000]);
+});

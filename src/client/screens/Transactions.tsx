@@ -1,3 +1,5 @@
+import { NewTransferRow } from '../components/NewTransferRow';
+import { positionMenu } from '../components/menu';
 import { useEffect, useState } from 'react';
 import type { Account, Category, Transaction, Tag } from '../../shared/types';
 import { Button, Table, CategoryOptions } from '../components';
@@ -7,6 +9,11 @@ import { MonthNavigation } from '../components/MonthNavigation';
 import { SplitTransaction } from '../components/SplitTransaction';
 import { TransactionRow } from '../components/TransactionRow';
 import { RecurringEditor } from './Recurring';
+import { NewTransactionRow } from '../components/NewTransactionRow';
+import { AccountOptions, movementAccounts } from '../components/AccountOptions';
+import { MonthSummary } from '../components/MonthSummary';
+import { BulkTransactions } from '../components/BulkTransactions';
+import { Modal } from '../components';
 import { ManualTransaction } from '../components/ManualTransaction';
 type Page = {
   items: Transaction[];
@@ -31,12 +38,33 @@ export function Transactions({
 }) {
   const rawMonth = path.split('/')[2] ?? currentMonth();
   const month = validMonth(rawMonth) ? rawMonth : currentMonth();
+  const [showFilters, setShowFilters] = useState(false);
+  const [search, setSearch] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [transfer, setTransfer] = useState(false);
+  const [purchase, setPurchase] = useState(false);
+  const [defaultAccount, setDefaultAccount] = useState('');
+  const [chosenAccount, setChosenAccount] = useState('');
+  const [selected, setSelected] = useState<string[]>([]);
+  const active = movementAccounts(accounts);
+  const entryAccount =
+    chosenAccount ||
+    active.find((a) => a.id === defaultAccount)?.id ||
+    active[0]?.id ||
+    '';
+  useEffect(() => {
+    api<{ default_account_id: string | null }>('/preferences')
+      .then((p) => setDefaultAccount(p.default_account_id ?? ''))
+      .catch((e) => setError(e.message));
+  }, [revision]);
   const [splitting, setSplitting] = useState<Transaction | null>(null);
   const [recurring, setRecurring] = useState<Transaction | null>(null);
   useEffect(() => {
     if (path === '/transacoes' || path === '/')
       navigate(`/transacoes/${month}${location.search}`, true);
     setPage(1);
+    setSelected([]);
+    setAdding(false);
   }, [path]);
   const [filters, setFilters] = useState({
     tag: '',
@@ -55,10 +83,17 @@ export function Transactions({
   const [page, setPage] = useState(1);
   const [data, setData] = useState<Page | null>(null);
   const [error, setError] = useState('');
+  useEffect(() => {
+    if (data)
+      setSelected((ids) =>
+        ids.filter((id) => data.items.some((t) => t.id === id)),
+      );
+  }, [data]);
   const [loading, setLoading] = useState(true);
   const [retry, setRetry] = useState(0);
   const query = new URLSearchParams({
     ...filters,
+    search,
     month,
     page: String(page),
   }).toString();
@@ -78,6 +113,7 @@ export function Transactions({
   }, [query, revision, retry]);
   function filter(key: keyof typeof filters, value: string) {
     setFilters({ ...filters, [key]: value });
+    setSelected([]);
     setPage(1);
   }
   return (
@@ -99,168 +135,314 @@ export function Transactions({
         month={month}
         onChange={(m) => navigate(`/transacoes/${m}${location.search}`)}
       />
-      <section className="filters" aria-label="Filtros de transações">
-        <label>
-          Conta
-          <select
-            value={filters.account}
-            onChange={(e) => filter('account', e.target.value)}
+      <div className="toolbar">
+        <div className="add-control">
+          <Button
+            disabled={!entryAccount}
+            onClick={() => {
+              setTransfer(false);
+              setAdding(true);
+            }}
           >
-            <option value="">Todas</option>
-            {accounts
-              .filter((a) => !a.closed_at && !a.archived)
-              .map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-          </select>
-        </label>
-        <label>
-          Categoria
+            Adicionar em{' '}
+            {accounts.find((a) => a.id === entryAccount)?.name ?? 'conta'}
+          </Button>
           <select
-            value={filters.category}
-            onChange={(e) => filter('category', e.target.value)}
+            aria-label="Escolher conta para adicionar"
+            value={entryAccount}
+            onChange={(e) => {
+              if (e.target.value === 'transfer') {
+                setTransfer(true);
+                setAdding(true);
+                return;
+              }
+              setTransfer(false);
+              setChosenAccount(e.target.value);
+              setAdding(true);
+            }}
           >
-            <option value="">Todas</option>
-            <CategoryOptions categories={categories} />
+            <option value="transfer">Nova transferência</option>
+            <AccountOptions accounts={accounts} />
           </select>
-        </label>
-        <label>
-          Tag
-          <select
-            value={filters.tag}
-            onChange={(e) => filter('tag', e.target.value)}
-          >
-            <option value="">Todas</option>
-            {tags.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          De
+        </div>
+        <label className="quick-search">
+          <span className="sr-only">Busca rápida</span>
           <input
-            aria-label="Data inicial"
-            type="date"
-            value={filters.from}
-            onChange={(e) => filter('from', e.target.value)}
+            type="search"
+            placeholder="Buscar beneficiário ou nota"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+              setSelected([]);
+            }}
           />
-        </label>
-        <label>
-          Até
-          <input
-            aria-label="Data final"
-            type="date"
-            value={filters.to}
-            onChange={(e) => filter('to', e.target.value)}
-          />
-        </label>
-        <label>
-          Origem
-          <select
-            value={filters.origin}
-            onChange={(e) => filter('origin', e.target.value)}
-          >
-            <option value="">Todas</option>
-            <option value="imported">Importado</option>
-            <option value="manual">Manual</option>
-            <option value="adjustment">Ajuste</option>
-          </select>
         </label>
         <Button
-          onClick={() => {
-            setFilters({
-              tag: '',
-              account: '',
-              category: '',
-              origin: '',
-              from: '',
-              to: '',
-            });
-            setPage(1);
-          }}
+          aria-expanded={showFilters}
+          aria-controls="transaction-filters"
+          onClick={() => setShowFilters(!showFilters)}
         >
-          Limpar filtros
+          Filtros
+          {Object.values(filters).filter(Boolean).length
+            ? ` (${Object.values(filters).filter(Boolean).length})`
+            : ''}
         </Button>
-      </section>
-      {loading && !data ? (
-        <p role="status">Carregando transações…</p>
-      ) : error ? (
-        <div role="alert" className="error">
-          {error}{' '}
-          <Button onClick={() => setRetry(retry + 1)}>Tentar novamente</Button>
-        </div>
-      ) : (
-        data && (
-          <>
-            <p className="count" role="status">
-              {data.total} transações · Entrada soma ao saldo; saída reduz o
-              saldo.
-            </p>
-            <Table
-              headers={[
-                'Data',
-                'Conta',
-                'Beneficiário',
-                'Valor',
-                'Categoria',
-                'Alocação',
-                'Notas / Tags',
-                'Origem',
-                'Ações',
-              ]}
-              label="Transações"
+        <details onToggle={positionMenu} className="row-menu">
+          <summary>Mais opções</summary>
+          <div className="menu-panel">
+            <Button onClick={() => setPurchase(true)}>
+              Lançar compra parcelada
+            </Button>
+          </div>
+        </details>
+      </div>
+      {showFilters && (
+        <section
+          id="transaction-filters"
+          className="filters"
+          aria-label="Filtros de transações"
+        >
+          <label>
+            Conta
+            <select
+              value={filters.account}
+              onChange={(e) => filter('account', e.target.value)}
             >
+              <option value="">Todas</option>
+              {accounts
+                .filter((a) => !a.closed_at && !a.archived)
+                .map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <label>
+            Categoria
+            <select
+              value={filters.category}
+              onChange={(e) => filter('category', e.target.value)}
+            >
+              <option value="">Todas</option>
+              <CategoryOptions categories={categories} />
+            </select>
+          </label>
+          <label>
+            Tag
+            <select
+              value={filters.tag}
+              onChange={(e) => filter('tag', e.target.value)}
+            >
+              <option value="">Todas</option>
+              {tags.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            De
+            <input
+              aria-label="Data inicial"
+              type="date"
+              value={filters.from}
+              onChange={(e) => filter('from', e.target.value)}
+            />
+          </label>
+          <label>
+            Até
+            <input
+              aria-label="Data final"
+              type="date"
+              value={filters.to}
+              onChange={(e) => filter('to', e.target.value)}
+            />
+          </label>
+          <label>
+            Origem
+            <select
+              value={filters.origin}
+              onChange={(e) => filter('origin', e.target.value)}
+            >
+              <option value="">Todas</option>
+              <option value="imported">Importado</option>
+              <option value="manual">Manual</option>
+              <option value="adjustment">Ajuste</option>
+            </select>
+          </label>
+          <Button
+            onClick={() => {
+              setFilters({
+                tag: '',
+                account: '',
+                category: '',
+                origin: '',
+                from: '',
+                to: '',
+              });
+              setPage(1);
+            }}
+          >
+            Limpar filtros
+          </Button>
+        </section>
+      )}
+      <div className="transactions-layout">
+        <section className="transactions-main">
+          {loading && !data ? (
+            <p role="status">Carregando transações…</p>
+          ) : error ? (
+            <div role="alert" className="error">
+              {error}{' '}
+              <Button onClick={() => setRetry(retry + 1)}>
+                Tentar novamente
+              </Button>
+            </div>
+          ) : (
+            data && (
               <>
-                <ManualTransaction
-                  key={month}
-                  table
-                  month={month}
-                  accounts={accounts}
-                  categories={categories}
-                  onSaved={onSaved}
-                />
-                {data.items.map((t) => (
-                  <TransactionRow
-                    key={t.id}
-                    t={t}
-                    accounts={accounts}
+                <p className="count" role="status">
+                  {data.total} transações · Entrada soma ao saldo; saída reduz o
+                  saldo.
+                </p>
+                {!!selected.length && (
+                  <BulkTransactions
+                    items={data.items.filter((t) => selected.includes(t.id))}
                     categories={categories}
                     tags={tags}
                     onSaved={onSaved}
-                    onRecurring={setRecurring}
-                    onSplit={setSplitting}
+                    onClear={() => setSelected([])}
                   />
-                ))}
-                {!data.items.length && (
-                  <tr>
-                    <td colSpan={9}>
-                      Nenhuma transação encontrada para estes filtros.
-                    </td>
-                  </tr>
                 )}
+                <div className="sheet-table">
+                  <label className="select-page">
+                    <input
+                      type="checkbox"
+                      aria-label="Selecionar página"
+                      checked={
+                        data.items.length > 0 &&
+                        data.items.every((t) => selected.includes(t.id))
+                      }
+                      onChange={(e) =>
+                        setSelected(
+                          e.target.checked ? data.items.map((t) => t.id) : [],
+                        )
+                      }
+                    />
+                    Selecionar página
+                  </label>
+                  <Table
+                    headers={[
+                      '',
+                      'Data',
+                      'Conta',
+                      'Beneficiário',
+                      'Valor',
+                      'Categoria',
+                      'Alocação',
+                      'Notas',
+                      'Tags',
+                      'Origem',
+                      'Ações',
+                    ]}
+                    label="Transações"
+                  >
+                    <>
+                      {adding &&
+                        (transfer ? (
+                          <NewTransferRow
+                            key={month}
+                            initialAccount={entryAccount}
+                            month={month}
+                            accounts={accounts}
+                            onSaved={onSaved}
+                            onCancel={() => setAdding(false)}
+                          />
+                        ) : (
+                          <NewTransactionRow
+                            key={month}
+                            initialAccount={entryAccount}
+                            month={month}
+                            accounts={accounts}
+                            categories={categories}
+                            tags={tags}
+                            onSaved={onSaved}
+                            onCancel={() => setAdding(false)}
+                          />
+                        ))}
+                      {data.items.map((t) => (
+                        <TransactionRow
+                          key={t.id}
+                          t={t}
+                          selected={selected.includes(t.id)}
+                          onSelect={() =>
+                            setSelected(
+                              selected.includes(t.id)
+                                ? selected.filter((id) => id !== t.id)
+                                : [...selected, t.id],
+                            )
+                          }
+                          accountFilter={filters.account}
+                          accounts={accounts}
+                          categories={categories}
+                          tags={tags}
+                          onSaved={onSaved}
+                          onRecurring={setRecurring}
+                          onSplit={setSplitting}
+                        />
+                      ))}
+                      {!data.items.length && (
+                        <tr>
+                          <td colSpan={11}>
+                            Nenhuma transação encontrada para estes filtros.
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  </Table>
+                </div>
+                <div className="pagination">
+                  <Button
+                    disabled={page <= 1}
+                    onClick={() => {
+                      setPage(page - 1);
+                      setSelected([]);
+                    }}
+                  >
+                    Anterior
+                  </Button>
+                  <span>
+                    Página {page} de{' '}
+                    {Math.max(1, Math.ceil(data.total / data.page_size))}
+                  </span>
+                  <Button
+                    disabled={page * data.page_size >= data.total}
+                    onClick={() => {
+                      setPage(page + 1);
+                      setSelected([]);
+                    }}
+                  >
+                    Próxima
+                  </Button>
+                </div>
               </>
-            </Table>
-            <div className="pagination">
-              <Button disabled={page <= 1} onClick={() => setPage(page - 1)}>
-                Anterior
-              </Button>
-              <span>
-                Página {page} de{' '}
-                {Math.max(1, Math.ceil(data.total / data.page_size))}
-              </span>
-              <Button
-                disabled={page * data.page_size >= data.total}
-                onClick={() => setPage(page + 1)}
-              >
-                Próxima
-              </Button>
-            </div>
-          </>
-        )
+            )
+          )}
+        </section>
+        <MonthSummary month={month} revision={revision} />
+      </div>
+      {purchase && (
+        <Modal title="Compra parcelada" onClose={() => setPurchase(false)}>
+          <ManualTransaction
+            accounts={accounts}
+            categories={categories}
+            onSaved={onSaved}
+            month={month}
+          />
+        </Modal>
       )}
       {splitting && (
         <SplitTransaction
