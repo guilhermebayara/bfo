@@ -3888,7 +3888,12 @@ app.get('/api/home', async (c) => {
     projectAvailable(c.var.DB, day, to, accounts, recurring, items),
     attentionItems(c.var.DB, day, accounts, recurring),
   ]);
-  return c.json({ day, projection, attention });
+  const dueTo = shiftDay(day, 6);
+  const due = {
+    to: dueTo,
+    items: items.filter((item) => item.date >= day && item.date <= dueTo),
+  };
+  return c.json({ day, projection, attention, due });
 });
 
 app.get('/api/subscriptions', async (c) => {

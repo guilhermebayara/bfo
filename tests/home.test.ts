@@ -2,7 +2,7 @@ import { env } from 'cloudflare:workers';
 import { applyD1Migrations } from 'cloudflare:test';
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import app from '../src/server/index';
-import type { AttentionItem, Projection } from '../src/shared/home';
+import type { AttentionItem, DueItem, Projection } from '../src/shared/home';
 
 const db = env.DB as D1Database;
 const day = '2026-11-28';
@@ -124,4 +124,33 @@ it('avisa sobre conferências, renovação e a última ocorrência com janela ve
     ['recurring', 'x-overdue', '2026-11-20'],
     ['renewal', 'x-pending', '2026-12-08'],
   ]);
+});
+
+it('mostra os mesmos itens de Próximos nas sete datas que incluem hoje', async () => {
+  await db.batch([
+    db.prepare(`INSERT INTO accounts(id,name,kind,currency,cutoff_date,closing_day,due_day) VALUES
+      ('x-due-card','Cartão da semana X','credit_card','BRL','2026-11-01',21,3)`),
+    db.prepare(`INSERT INTO statements(id,account_id,period_start,closing_date,due_date,status) VALUES
+      ('x-due-in','x-due-card','2026-11-01','2026-11-21','2026-12-04','open'),
+      ('x-due-last','x-due-card','2026-11-22','2026-11-25','2026-12-03','open')`),
+    db.prepare(`INSERT INTO transactions(id,account_id,date,amount_cents,amount_brl_cents,payee,origin,kind,statement_id) VALUES
+      ('x-due-purchase','x-due-card','2026-11-25',4000,4000,'Compra da semana X','manual','regular','x-due-last'),
+      ('x-due-purchase-out','x-due-card','2026-11-19',3000,3000,'Compra depois da semana X','manual','regular','x-due-in')`),
+  ]);
+  const [{ due }, { items }] = await Promise.all([
+    request('/home').then((r) =>
+      r.json<{ due: { to: string; items: DueItem[] } }>(),
+    ),
+    request('/upcoming').then((r) => r.json<{ items: DueItem[] }>()),
+  ]);
+  expect(due.to).toBe('2026-12-04');
+  expect(due.items).toEqual(items.filter((item) => item.date <= due.to));
+  expect(due.items.map((item) => item.id)).toEqual(
+    expect.arrayContaining(['x-internal', 'x-due-last', 'x-due-in']),
+  );
+  expect(due.items.find((item) => item.id === 'x-due-last')).toMatchObject({
+    amount_cents: 4000,
+    components: [{ id: 'x-due-purchase', amount_cents: 4000 }],
+  });
+  expect(due.items.some((item) => item.id === 'x-open-invoice')).toBe(false);
 });
