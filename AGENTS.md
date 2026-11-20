@@ -22,6 +22,7 @@ Este arquivo vale para qualquer agente (Codex, Claude Code). O CLAUDE.md aponta 
 - Nunca colocar no repositório, commit, log ou relatório: tokens, segredos, e-mails reais, nomes reais de bancos do dono, valores reais, arquivos de importação.
 - O arquivo gerado pela importação do Lunch Money fica fora do repo (pasta listada no `.gitignore`).
 - Segredos vão para `wrangler secret` ou variáveis do painel da Cloudflare, digitados pelo dono.
+- Siga as [Conferências](docs/cloudflare.md#conferências). Nenhuma sessão desliga ou afrouxa a guarda sem decisão do dono.
 
 ## Stack
 

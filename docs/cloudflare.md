@@ -22,6 +22,17 @@ Na conta BFO, o Worker `bfo` usa a zona ativa `bayara.design` e os três D1 exis
 3. Depois das migrações, rode o seed manualmente se precisar de dados fictícios. Na raiz do checkout, rode `npm ci`, autentique-se com `npx wrangler login` e confirme a conta BFO com `npx wrangler whoami`. Use `npm run db:seed:teste` ou `npm run db:seed:homologacao`. O seed usa IDs estáveis e preserva edições existentes. O script bloqueia produção.
 4. Confira o domínio próprio e as prévias no painel após a publicação. Até o fast-forward aprovado para `main`, uma falha no build de produção por falta do código é esperada. Após o primeiro deploy de produção e a confirmação de que `homologacao.bfo.bayara.design` responde com Access e o D1 de homologação, apague o Worker antigo `bfo-homologacao`. Preserve o D1 de mesmo nome.
 
+## Conferências
+
+Com as dependências instaladas (`npm ci`), rode `npm run confere` na raiz do checkout. Adicione ao Git os arquivos novos que pretende enviar para incluí-los na conferência. O `prebuild` roda a guarda antes de compilar e de aplicar as migrações. No painel da Cloudflare, mantenha os comandos de build e prévia da tabela acima para que a conferência aconteça antes da publicação.
+
+- A configuração do Wrangler precisa manter `DB` de produção em `bfo-producao`, o cron de backup na produção e `BACKUPS` no bucket `bfo-backups`. Nas prévias, `DB` fica separado de produção e homologação, e `DB_HOMOLOGACAO` aponta para `bfo-homologacao`.
+- O seed, a importação e a restauração manual bloqueiam produção como destino. O build da branch `main` continua aplicando as migrações de produção. A guarda compara os scripts com os hashes revisados em `scripts/confere-manifesto.json`. Ao mudar ou criar um script, confira os caminhos de escrita e calcule o hash com `sha256sum scripts/NOME` para registrar a versão revisada.
+- As migrações que já estão na homologação são conferidas pelo conteúdo com Git. Use `git fetch origin +refs/heads/homologacao:refs/remotes/origin/homologacao` para atualizar a referência local. Sem ela, a guarda local usa a branch local `homologacao` quando existir e sempre protege as migrações registradas no manifesto. O Workers Builds tenta obter `origin/homologacao` e interrompe o build se a referência estiver indisponível. A CI também confere a homologação anterior em pushes nessa branch.
+- A guarda procura `private-data/`, `.dev.vars`, `.env` e variantes, exportações do Lunch Money pelo nome ou formato, e-mails fora de `example.com`, `example.org` e `teste`, além de padrões comuns de tokens e chaves. Para e-mails e credenciais, a saída mostra arquivo e linha.
+
+Se a guarda falhar, corrija cada motivo listado e rode `npm run confere` de novo. Para corrigir uma migração já compartilhada, restaure o arquivo original e adicione uma migração nova. Para arquivos privados, retire-os do Git e guarde-os localmente. Se uma credencial já tiver sido enviada, revogue-a e substitua-a no serviço de origem. Se o build da Cloudflare falhar ao buscar a homologação, confira o acesso da integração ao repositório e à branch, especialmente depois de tornar o repositório privado.
+
 ## Seed da Sessão E
 
 Na branch `tst-recorrentes`, após autenticar o Wrangler na conta BFO, aplique as migrações e o seed nos dois bancos autorizados, nesta ordem:
@@ -83,5 +94,7 @@ node scripts/restore-backup.mjs bfo-homologacao AAAA-MM-DD NOME_DO_D1 --cloud
 ```
 
 O script baixa o SQL do bucket privado, confere a origem e a data no arquivo e pede que você digite o nome do D1 de destino. Com a confirmação, aplica em uma operação o descarte do esquema anterior e a importação do backup. Os arquivos temporários são removidos ao terminar. O D1 pode ficar indisponível enquanto o arquivo é aplicado.
+
+O script permite ler um backup de `bfo-producao` e bloqueia esse banco como destino da restauração.
 
 Para usar D1 e R2 locais, troque `--cloud` por `--local` e informe `--persist-to PASTA` se o estado local estiver em uma pasta própria. O destino local deve constar na configuração do Wrangler, selecionável com `--config ARQUIVO`. `npm run test:backup` usa estado isolado, popula os bancos com o seed fictício, aciona o cron local, restaura um arquivo em um D1 vazio e compara o esquema, a contagem de cada tabela, as somas de `amount_cents` e as chaves estrangeiras. Também verifica o cancelamento e a substituição com confirmação.
