@@ -80,7 +80,10 @@ export function TransactionAction({
               </select>
             </label>
           )}
-          <Button type="submit">
+          <Button
+            type="submit"
+            variant={mode === 'cancel-future' ? 'danger' : 'primary'}
+          >
             {mode === 'cancel-future'
               ? 'Confirmar cancelamento'
               : 'Mover compra'}

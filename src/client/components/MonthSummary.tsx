@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import { SidePanel, State, Truncated } from './index';
 import { formatMoney } from '../../shared/money';
 type Item = {
   category_id: string | null;
@@ -16,11 +17,12 @@ export function MonthSummary({
   month: string;
   revision: number;
 }) {
-  const [items, setItems] = useState<Item[]>([]),
+  const [items, setItems] = useState<Item[] | null>(null),
     [error, setError] = useState('');
   useEffect(() => {
     const abort = new AbortController();
     setError('');
+    setItems(null);
     api<Item[]>(`/month-summary?month=${month}`, { signal: abort.signal })
       .then(setItems)
       .catch((e) => {
@@ -29,11 +31,13 @@ export function MonthSummary({
     return () => abort.abort();
   }, [month, revision]);
   return (
-    <section className="month-summary" aria-label="Resumo do mês">
+    <SidePanel className="month-summary" aria-label="Resumo do mês">
       <h2>Resumo do mês</h2>
       <small>Em reais · mês completo</small>
       {error ? (
-        <p role="alert">{error}</p>
+        <State kind="error">{error}</State>
+      ) : !items ? (
+        <State kind="loading">Carregando resumo…</State>
       ) : (
         [1, 0].map((income) => {
           const list = items.filter((i) => i.is_income === income),
@@ -49,7 +53,9 @@ export function MonthSummary({
               {[...new Set(list.map((i) => i.group_name))].map((group) => (
                 <div key={group}>
                   <div className="summary-group">
-                    <strong>{group}</strong>
+                    <strong>
+                      <Truncated>{group}</Truncated>
+                    </strong>
                     <span>
                       {formatMoney(
                         list
@@ -66,7 +72,7 @@ export function MonthSummary({
                         className="summary-category"
                       >
                         <div>
-                          <span>{i.category_name}</span>
+                          <Truncated>{i.category_name}</Truncated>
                           <span>{formatMoney(i.amount_cents)}</span>
                         </div>
                         <progress
@@ -82,6 +88,6 @@ export function MonthSummary({
           );
         })
       )}
-    </section>
+    </SidePanel>
   );
 }

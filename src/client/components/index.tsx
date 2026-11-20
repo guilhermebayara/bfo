@@ -1,29 +1,202 @@
+import { positionMenu } from './menu';
 import { createPortal } from 'react-dom';
 import type { Transaction } from '../../shared/types';
 import {
   useEffect,
+  useId,
   useRef,
   type ButtonHTMLAttributes,
+  type ComponentPropsWithoutRef,
   type ReactNode,
 } from 'react';
-export function Button(props: ButtonHTMLAttributes<HTMLButtonElement>) {
-  return <button {...props} className={`button ${props.className ?? ''}`} />;
+type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'danger';
+
+export function Button({
+  variant = 'secondary',
+  className = '',
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant }) {
+  return (
+    <button {...props} className={`button button-${variant} ${className}`} />
+  );
 }
+
+const states = {
+  open: 'Aberta',
+  closed: 'Fechada',
+  paid: 'Paga',
+  imported: 'Importada',
+  manual: 'Manual',
+  adjustment: 'Ajuste',
+  retroactive: 'Retroativa',
+} as const;
+
 export function Badge({
-  origin,
+  state,
+  title,
 }: {
-  origin: 'imported' | 'manual' | 'adjustment';
+  state: keyof typeof states;
+  title?: string;
 }) {
   return (
-    <span className="badge">
-      {
-        { imported: 'Importado', manual: 'Manual', adjustment: 'Ajuste' }[
-          origin
-        ]
-      }
+    <span className={`badge badge-${state}`} title={title}>
+      {states[state]}
     </span>
   );
 }
+
+export function PageHeader({
+  title,
+  context,
+  actions,
+}: {
+  title: string;
+  context?: ReactNode;
+  actions?: ReactNode;
+}) {
+  return (
+    <header className="page-header">
+      <div className="page-heading">
+        <h1>{title}</h1>
+        {context && <div className="page-context">{context}</div>}
+      </div>
+      {actions && <div className="page-actions">{actions}</div>}
+    </header>
+  );
+}
+
+export function Panel({
+  className = '',
+  ...props
+}: ComponentPropsWithoutRef<'section'>) {
+  return <section {...props} className={`panel ${className}`} />;
+}
+
+export function SidePanel({
+  className = '',
+  ...props
+}: ComponentPropsWithoutRef<'aside'>) {
+  return <aside {...props} className={`panel side-panel ${className}`} />;
+}
+
+export function Field(props: ComponentPropsWithoutRef<'input'>) {
+  return <input {...props} />;
+}
+
+export function Select(props: ComponentPropsWithoutRef<'select'>) {
+  return <select {...props} />;
+}
+
+export function Truncated({ children }: { children: string }) {
+  return (
+    <span className="cell-value" title={children}>
+      {children}
+    </span>
+  );
+}
+
+export function Notice({
+  tone = 'neutral',
+  children,
+  className = '',
+  ...props
+}: ComponentPropsWithoutRef<'div'> & {
+  tone?: 'neutral' | 'warning' | 'success' | 'error';
+}) {
+  return (
+    <div {...props} className={`notice notice-${tone} ${className}`}>
+      {children}
+    </div>
+  );
+}
+
+export function ConfirmationNotice({
+  children,
+  onConfirm,
+  onCancel,
+  confirmLabel,
+  cancelLabel,
+  busy = false,
+}: {
+  children: ReactNode;
+  onConfirm: () => void;
+  onCancel: () => void;
+  confirmLabel: string;
+  cancelLabel: string;
+  busy?: boolean;
+}) {
+  return (
+    <Notice tone="warning" className="confirmation-notice">
+      <strong>{children}</strong>
+      <div className="inline-actions">
+        <Button
+          type="button"
+          variant="danger"
+          disabled={busy}
+          onClick={onConfirm}
+        >
+          {confirmLabel}
+        </Button>
+        <Button
+          type="button"
+          variant="quiet"
+          disabled={busy}
+          onClick={onCancel}
+        >
+          {cancelLabel}
+        </Button>
+      </div>
+    </Notice>
+  );
+}
+
+export function State({
+  kind,
+  children,
+  action,
+}: {
+  kind: 'empty' | 'loading' | 'error';
+  children: ReactNode;
+  action?: ReactNode;
+}) {
+  return (
+    <Notice
+      tone={kind === 'error' ? 'error' : 'neutral'}
+      role={
+        kind === 'error' ? 'alert' : kind === 'loading' ? 'status' : undefined
+      }
+      className={`state state-${kind}`}
+    >
+      <span>{children}</span>
+      {action}
+    </Notice>
+  );
+}
+
+export function Menu({
+  label,
+  trigger,
+  children,
+  className = '',
+  panelClassName = '',
+  ...props
+}: ComponentPropsWithoutRef<'details'> & {
+  label?: string;
+  trigger: ReactNode;
+  panelClassName?: string;
+}) {
+  return (
+    <details
+      {...props}
+      className={`row-menu ${className}`}
+      onToggle={positionMenu}
+    >
+      <summary aria-label={label}>{trigger}</summary>
+      <div className={`menu-panel ${panelClassName}`}>{children}</div>
+    </details>
+  );
+}
+
 export function MoneyField({
   value,
   onChange,
@@ -38,7 +211,7 @@ export function MoneyField({
   return (
     <label htmlFor={id}>
       {label}
-      <input
+      <Field
         id={id}
         aria-label={label}
         inputMode="decimal"
@@ -57,22 +230,33 @@ export function Table({
   headers,
   children,
   label,
+  widths,
+  numeric = [],
 }: {
   headers: string[];
+  widths?: string[];
+  numeric?: number[];
   children: ReactNode;
   label: string;
 }) {
   return (
     <div className="table-scroll" tabIndex={0} role="region" aria-label={label}>
-      <table>
+      <table className={widths ? 'table-fixed' : undefined}>
+        {widths && (
+          <colgroup>
+            {widths.map((width, index) => (
+              <col key={index} style={{ width }} />
+            ))}
+          </colgroup>
+        )}
         <caption className="sr-only">{label}</caption>
         <thead>
           <tr>
-            {headers.map((h) => (
+            {headers.map((h, index) => (
               <th
                 key={h}
                 scope="col"
-                className={h === 'Valor' || h === 'Saldo' ? 'numeric' : ''}
+                className={numeric.includes(index) ? 'numeric' : undefined}
               >
                 {h}
               </th>
@@ -95,6 +279,7 @@ export function Modal({
   onClose: () => void;
   busy?: boolean;
 }) {
+  const titleId = useId();
   const ref = useRef<HTMLDialogElement>(null);
   const close = useRef(onClose);
   close.current = onClose;
@@ -110,19 +295,20 @@ export function Modal({
   return createPortal(
     <dialog
       ref={ref}
-      aria-labelledby="modal-title"
+      aria-labelledby={titleId}
       onCancel={(e) => {
         e.preventDefault();
         if (!busy) close.current();
       }}
     >
       <div className="modal-header">
-        <h2 id="modal-title">{title}</h2>
+        <h2 id={titleId}>{title}</h2>
         <Button
           type="button"
           onClick={onClose}
           disabled={busy}
           aria-label="Fechar"
+          variant="quiet"
         >
           Fechar
         </Button>

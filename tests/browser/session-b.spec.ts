@@ -268,10 +268,8 @@ test('edita categorias e tags e unifica beneficiários em lote', async ({
 });
 test('conta criada pela interface nasce ativa', async ({ page }) => {
   await page.goto('/contas');
-  await page.getByText('Nova conta', { exact: true }).click();
-  const form = page
-    .locator('details')
-    .filter({ has: page.getByText('Nova conta', { exact: true }) });
+  await page.getByRole('button', { name: 'Nova conta', exact: true }).click();
+  const form = page.getByRole('region', { name: 'Nova conta' });
   await form
     .getByLabel('Nome da conta', { exact: true })
     .fill('Conta criada na tela B');

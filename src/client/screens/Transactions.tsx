@@ -1,8 +1,16 @@
 import { NewTransferRow } from '../components/NewTransferRow';
-import { positionMenu } from '../components/menu';
 import { useEffect, useState } from 'react';
 import type { Account, Category, Transaction, Tag } from '../../shared/types';
-import { Button, Table, CategoryOptions } from '../components';
+import {
+  PageHeader,
+  Select,
+  Field,
+  State,
+  Menu,
+  Button,
+  Table,
+  CategoryOptions,
+} from '../components';
 import { api } from '../api';
 import { currentMonth, validMonth } from '../../shared/recurring';
 import { MonthNavigation } from '../components/MonthNavigation';
@@ -116,58 +124,57 @@ export function Transactions({
     setSelected([]);
     setPage(1);
   }
+  const entryAccountName = accounts.find((a) => a.id === entryAccount)?.name;
   return (
     <>
-      <div className="page-header">
-        <div>
-          <h1>Transações</h1>
-          <p>
-            Clique na célula para editar. Salva ao sair. Enter avança para
-            baixo; Tab para a próxima célula; Esc cancela. Setas movem a
-            seleção.
-          </p>
-        </div>
-      </div>
-      {!validMonth(rawMonth) && (
-        <p role="alert">Mês inválido. Mostrando o mês atual.</p>
-      )}
-      <MonthNavigation
-        month={month}
-        onChange={(m) => navigate(`/transacoes/${m}${location.search}`)}
-      />
-      <div className="toolbar">
-        <div className="add-control">
-          <Button
-            disabled={!entryAccount}
-            onClick={() => {
-              setTransfer(false);
-              setAdding(true);
-            }}
-          >
-            Adicionar em{' '}
-            {accounts.find((a) => a.id === entryAccount)?.name ?? 'conta'}
-          </Button>
-          <select
-            aria-label="Escolher conta para adicionar"
-            value={entryAccount}
-            onChange={(e) => {
-              if (e.target.value === 'transfer') {
-                setTransfer(true);
+      <PageHeader
+        title="Transações"
+        context={
+          <MonthNavigation
+            month={month}
+            onChange={(m) => navigate(`/transacoes/${m}${location.search}`)}
+          />
+        }
+        actions={
+          <div className="add-control">
+            <Button
+              variant="primary"
+              title={entryAccountName}
+              disabled={!entryAccount}
+              onClick={() => {
+                setTransfer(false);
                 setAdding(true);
-                return;
-              }
-              setTransfer(false);
-              setChosenAccount(e.target.value);
-              setAdding(true);
-            }}
-          >
-            <option value="transfer">Nova transferência</option>
-            <AccountOptions accounts={accounts} />
-          </select>
-        </div>
+              }}
+            >
+              Adicionar em {entryAccountName ?? 'conta'}
+            </Button>
+            <Select
+              aria-label="Escolher conta para adicionar"
+              value={entryAccount}
+              onChange={(e) => {
+                if (e.target.value === 'transfer') {
+                  setTransfer(true);
+                  setAdding(true);
+                  return;
+                }
+                setTransfer(false);
+                setChosenAccount(e.target.value);
+                setAdding(true);
+              }}
+            >
+              <option value="transfer">Nova transferência</option>
+              <AccountOptions accounts={accounts} />
+            </Select>
+          </div>
+        }
+      />
+      {!validMonth(rawMonth) && (
+        <State kind="error">Mês inválido. Mostrando o mês atual.</State>
+      )}
+      <div className="toolbar">
         <label className="quick-search">
           <span className="sr-only">Busca rápida</span>
-          <input
+          <Field
             type="search"
             placeholder="Buscar beneficiário ou nota"
             value={search}
@@ -188,15 +195,17 @@ export function Transactions({
             ? ` (${Object.values(filters).filter(Boolean).length})`
             : ''}
         </Button>
-        <details onToggle={positionMenu} className="row-menu">
-          <summary>Mais opções</summary>
-          <div className="menu-panel">
-            <Button onClick={() => setPurchase(true)}>
-              Lançar compra parcelada
-            </Button>
-          </div>
-        </details>
+        <Menu trigger="Mais opções">
+          <Button onClick={() => setPurchase(true)}>
+            Lançar compra parcelada
+          </Button>
+        </Menu>
       </div>
+      <p className="sheet-help">
+        Clique na célula para editar. Salva ao sair. Enter avança para baixo,
+        Tab para a próxima célula e Esc cancela. Use as setas para mover a
+        seleção.
+      </p>
       {showFilters && (
         <section
           id="transaction-filters"
@@ -293,14 +302,18 @@ export function Transactions({
       <div className="transactions-layout">
         <section className="transactions-main">
           {loading && !data ? (
-            <p role="status">Carregando transações…</p>
+            <State kind="loading">Carregando transações…</State>
           ) : error ? (
-            <div role="alert" className="error">
-              {error}{' '}
-              <Button onClick={() => setRetry(retry + 1)}>
-                Tentar novamente
-              </Button>
-            </div>
+            <State
+              kind="error"
+              action={
+                <Button onClick={() => setRetry(retry + 1)}>
+                  Tentar novamente
+                </Button>
+              }
+            >
+              {error}
+            </State>
           ) : (
             data && (
               <>
@@ -349,6 +362,7 @@ export function Transactions({
                       'Parcelas',
                       'Ações',
                     ]}
+                    numeric={[4]}
                     label="Transações"
                   >
                     <>
@@ -399,7 +413,9 @@ export function Transactions({
                       {!data.items.length && (
                         <tr>
                           <td colSpan={12}>
-                            Nenhuma transação encontrada para estes filtros.
+                            <State kind="empty">
+                              Nenhuma transação encontrada para estes filtros.
+                            </State>
                           </td>
                         </tr>
                       )}

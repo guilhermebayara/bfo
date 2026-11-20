@@ -1,5 +1,5 @@
 import { currentMonth, shiftMonth, validMonth } from '../../shared/recurring';
-import { Button } from './index';
+import { Button, Field } from './index';
 export function MonthNavigation({
   month,
   onChange,
@@ -8,11 +8,9 @@ export function MonthNavigation({
   onChange: (month: string) => void;
 }) {
   return (
-    <section
-      className="filters month-navigation"
-      aria-label="Navegação por mês"
-    >
+    <section className="month-navigation" aria-label="Navegação por mês">
       <Button
+        variant="quiet"
         aria-label="Mês anterior"
         disabled={month === '1900-01'}
         onClick={() => onChange(shiftMonth(month, -1))}
@@ -27,6 +25,7 @@ export function MonthNavigation({
         }).format(new Date(`${month}-01T12:00:00Z`))}
       </strong>
       <Button
+        variant="quiet"
         aria-label="Próximo mês"
         disabled={month === '9998-12'}
         onClick={() => onChange(shiftMonth(month, 1))}
@@ -35,7 +34,7 @@ export function MonthNavigation({
       </Button>
       <label>
         Ir para o mês
-        <input
+        <Field
           type="month"
           min="1900-01"
           max="9998-12"
@@ -45,7 +44,7 @@ export function MonthNavigation({
           }}
         />
       </label>
-      <Button onClick={() => onChange(currentMonth())}>
+      <Button variant="quiet" onClick={() => onChange(currentMonth())}>
         Voltar para este mês
       </Button>
     </section>

@@ -50,8 +50,13 @@ test('células mantêm dimensões em repouso, hover e edição; campos novos ocu
   for (let column = 1; column < 11; column++) {
     const td = fresh.locator('td').nth(column),
       existing = row.locator('td').nth(column);
+    await td.scrollIntoViewIfNeeded();
     const a = (await td.boundingBox())!,
       b = (await existing.boundingBox())!;
+    await td.hover();
+    const hover = (await td.boundingBox())!;
+    expect(hover.width).toBe(a.width);
+    expect(hover.height).toBe(a.height);
     expect(a.width).toBe(b.width);
     expect(a.height).toBe(b.height);
     const control = td.locator(

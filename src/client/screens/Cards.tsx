@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type {
   Account,
   Statement,
@@ -8,7 +8,13 @@ import type {
 import { formatMoney, parseMoney } from '../../shared/money';
 import { api, humanDate } from '../api';
 import {
+  Badge,
   Button,
+  PageHeader,
+  Panel,
+  Select,
+  State,
+  Truncated,
   InstallmentLink,
   Modal,
   MoneyField,
@@ -449,8 +455,6 @@ function HistoryChanges({
   );
 }
 
-const statuses = { open: 'Aberta', closed: 'Fechada', paid: 'Paga' };
-
 export function Cards({
   accounts,
   onSaved,
@@ -466,10 +470,12 @@ export function Cards({
     new URLSearchParams(location.search).get('statement') ?? '',
   );
   const [statements, setStatements] = useState<Statement[]>([]);
+  const [loadingStatements, setLoadingStatements] = useState(true);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [error, setError] = useState('');
   const [revision, setRevision] = useState(0);
   const [mode, setMode] = useState<StatementMode | null>(null);
+  const selectedStatementHeading = useRef<HTMLHeadingElement>(null);
   const card =
     cards.find((a) => a.id === cardId) ??
     cards.find((a) => !a.archived && !a.closed_at) ??
@@ -508,12 +514,16 @@ export function Cards({
     if (!card) return;
     const abort = new AbortController();
     setError('');
+    setLoadingStatements(true);
     api<Statement[]>(`/cards/${encodeURIComponent(card.id)}/statements`, {
       signal: abort.signal,
     })
       .then(setStatements)
       .catch((e) => {
         if (!abort.signal.aborted) setError(e.message);
+      })
+      .finally(() => {
+        if (!abort.signal.aborted) setLoadingStatements(false);
       });
     return () => abort.abort();
   }, [card?.id, revision]);
@@ -531,19 +541,28 @@ export function Cards({
   if (!card)
     return (
       <>
-        <h1>Cartão</h1>
-        <p>
-          Cadastre um cartão na tela de <a href="/contas">Contas</a>.
-        </p>
+        <PageHeader title="Cartão" />
+        <State
+          kind="empty"
+          action={
+            <a className="action-link" href="/contas">
+              Ver Contas
+            </a>
+          }
+        >
+          Nenhum cartão cadastrado.
+        </State>
       </>
     );
   const money = (amount: number) => formatMoney(amount, card.currency);
   const summary = (label: string, list: Statement[]) =>
     list.length > 0 && (
-      <section className="statement-section">
+      <Panel className="statement-section">
         <h2>{label}</h2>
         <Table
           label={label}
+          numeric={[3, 4]}
+          widths={['20%', '19%', '19%', '20%', '22%']}
           headers={[
             'Fechamento',
             'Vencimento',
@@ -560,13 +579,16 @@ export function Cards({
                   onClick={() => {
                     if (s.id !== statementId) setDetail(null);
                     setSelected(s.id);
+                    selectedStatementHeading.current?.focus();
                   }}
                 >
                   {humanDate(s.closing_date)}
                 </Button>
               </td>
               <td>{humanDate(s.due_date)}</td>
-              <td>{statuses[s.status]}</td>
+              <td>
+                <Badge state={s.status} />
+              </td>
               <td className="numeric">{money(s.total_cents)}</td>
               <td className="numeric">
                 {s.difference_cents === null
@@ -576,104 +598,96 @@ export function Cards({
             </tr>
           ))}
         </Table>
-      </section>
+      </Panel>
     );
   const list = statements.filter((s) => s.account_id === card.id);
   const current = list.find((s) => s.is_current);
   return (
     <>
-      <h1>Cartão</h1>
-      <label>
-        Cartão
-        <select
-          value={card.id}
-          onChange={(e) => {
-            setCardId(e.target.value);
-            setSelected('');
-            setDetail(null);
-          }}
-        >
-          {cards.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-              {a.archived || a.closed_at ? ' (encerrado)' : ''}
-            </option>
-          ))}
-        </select>
-      </label>
-      {error && (
-        <p role="alert" className="error">
-          {error}
-        </p>
-      )}
-      {commitment && (
-        <section aria-label="Limite do cartão">
-          <h2>Compromisso do cartão</h2>
-          <p>Comprometido: {money(commitment.committed_cents)}</p>
-          {commitment.credit_limit_cents !== null && (
+      <PageHeader
+        title="Cartão"
+        context={
+          <>
+            <label className="compact-field">
+              Cartão
+              <Select
+                value={card.id}
+                onChange={(e) => {
+                  setCardId(e.target.value);
+                  setCommitment(null);
+                  setLoadingStatements(true);
+                  setSelected('');
+                  setDetail(null);
+                }}
+              >
+                {cards.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                    {a.archived || a.closed_at ? ' (encerrado)' : ''}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            {statement && (
+              <p>
+                Fatura selecionada com vencimento em{' '}
+                {humanDate(statement.due_date)}
+              </p>
+            )}
+          </>
+        }
+        actions={
+          statement &&
+          !card.closed_at &&
+          !card.archived && (
             <>
-              <p>Limite: {money(commitment.credit_limit_cents)}</p>
-              <p>Disponível: {money(commitment.available_cents!)}</p>
+              {statement.status === 'open' && (
+                <>
+                  <Button variant="primary" onClick={() => setMode('check')}>
+                    Conferir e fechar
+                  </Button>
+                  <Button onClick={() => setMode('early-close')}>
+                    Antecipar fechamento
+                  </Button>
+                </>
+              )}
+              {statement.status === 'closed' && (
+                <Button onClick={() => setMode('reopen')}>
+                  Reabrir fatura
+                </Button>
+              )}
+              {statement.status === 'closed' &&
+                (statement.remaining_cents ?? 1) > 0 &&
+                (statement.bank_amount_cents ?? statement.total_cents) >= 0 && (
+                  <Button variant="primary" onClick={() => setMode('pay')}>
+                    Pagar fatura
+                  </Button>
+                )}
             </>
-          )}
-          <small>
-            Inclui compras e parcelas lançadas, saldos anteriores e recorrentes
-            ainda previstos até {humanDate(commitment.recurring_until)}.
-          </small>
-          <details>
-            <summary>Configurar limite</summary>
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                setLimitMessage('');
-                try {
-                  await api(`/accounts/${card.id}`, {
-                    method: 'PATCH',
-                    body: JSON.stringify({
-                      credit_limit_cents: limit.trim()
-                        ? parseMoney(limit)
-                        : null,
-                    }),
-                  });
-                  await onSaved();
-                  setRevision((v) => v + 1);
-                  setLimitMessage('Limite salvo.');
-                } catch (e) {
-                  setLimitMessage((e as Error).message);
-                }
-              }}
-            >
-              <label>
-                Limite opcional ({card.currency})
-                <input
-                  inputMode="decimal"
-                  value={limit}
-                  onChange={(e) => setLimit(e.target.value)}
-                />
-              </label>
-              <small>Deixe vazio para cartão sem limite definido.</small>
-              <Button type="submit">Salvar limite</Button>
-              <p role="status">{limitMessage}</p>
-            </form>
-          </details>
-        </section>
-      )}
-      {summary('Fatura atual', current ? [current] : [])}
-      {summary(
-        'Faturas anteriores',
-        list.filter(
-          (s) =>
-            !s.is_current &&
-            (!current || s.closing_date < current.closing_date),
-        ),
+          )
+        }
+      />
+      {error && <State kind="error">{error}</State>}
+      {loadingStatements && <State kind="loading">Carregando faturas…</State>}
+      {!loadingStatements && !error && !list.length && (
+        <State kind="empty">Nenhuma fatura para este cartão.</State>
       )}
       {statement && (
-        <section className="statement-section">
-          <h2>Fatura com vencimento em {humanDate(statement.due_date)}</h2>
-          <p>
+        <Panel className="statement-section">
+          <div className="section-heading">
+            <h2 ref={selectedStatementHeading} tabIndex={-1}>
+              Fatura com vencimento em {humanDate(statement.due_date)}
+            </h2>
+            <div className="statement-total">
+              <Badge state={statement.status} />
+              <strong className="amount-total">
+                {money(statement.total_cents)}
+              </strong>
+            </div>
+          </div>
+          <p className="section-help">
             Ciclo de {humanDate(statement.period_start)} a{' '}
-            {humanDate(statement.closing_date)} · {statuses[statement.status]} ·{' '}
-            {money(statement.total_cents)}
+            {humanDate(statement.closing_date)}
           </p>
           {!!statement.previous_balance_cents && (
             <p>Saldo anterior: {money(statement.previous_balance_cents)}</p>
@@ -694,30 +708,46 @@ export function Cards({
               )}
             </p>
           )}
-          {!card.closed_at && !card.archived && statement.status === 'open' && (
-            <>
-              <Button onClick={() => setMode('check')}>
-                Conferir e fechar
-              </Button>
-              <Button onClick={() => setMode('early-close')}>
-                Antecipar fechamento
-              </Button>
-            </>
+          {!detail && !error && (
+            <State kind="loading">Carregando fatura…</State>
           )}
-          {!card.closed_at &&
-            !card.archived &&
-            statement.status === 'closed' && (
-              <Button onClick={() => setMode('reopen')}>Reabrir fatura</Button>
-            )}
-          {!card.closed_at &&
-            !card.archived &&
-            statement.status === 'closed' &&
-            (statement.remaining_cents ?? 1) > 0 &&
-            (statement.bank_amount_cents ?? statement.total_cents) >= 0 && (
-              <Button onClick={() => setMode('pay')}>Pagar fatura</Button>
-            )}
           {detail && (
             <>
+              <h3>Compras do ciclo</h3>
+              {detail.items.length ? (
+                <Table
+                  label="Compras do ciclo"
+                  numeric={[2]}
+                  widths={['18%', '60%', '22%']}
+                  headers={['Data', 'Lançamento', 'Valor']}
+                >
+                  {detail.items.map((item) => (
+                    <tr key={item.id}>
+                      <td>{humanDate(item.date)}</td>
+                      <td>
+                        <Truncated>{item.payee}</Truncated>
+                        <InstallmentLink item={item} />
+                        {!!item.retroactive && (
+                          <small>
+                            <Badge state="retroactive" />: antes do corte
+                          </small>
+                        )}
+                        {!!item.added_to_closed && (
+                          <small>Incluída após o fechamento</small>
+                        )}
+                      </td>
+                      <td className="numeric">
+                        {money(item.amount_cents)}
+                        {card.currency !== 'BRL' && (
+                          <small>{formatMoney(item.amount_brl_cents)}</small>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </Table>
+              ) : (
+                <State kind="empty">Nenhuma compra neste ciclo.</State>
+              )}
               {detail.events?.length > 0 && (
                 <>
                   <h3>Histórico da fatura</h3>
@@ -755,37 +785,6 @@ export function Cards({
                   </Table>
                 </>
               )}
-              <h3>Compras do ciclo</h3>
-              {detail.items.length ? (
-                <Table
-                  label="Compras do ciclo"
-                  headers={['Data', 'Lançamento', 'Valor']}
-                >
-                  {detail.items.map((item) => (
-                    <tr key={item.id}>
-                      <td>{humanDate(item.date)}</td>
-                      <td>
-                        {item.payee}
-                        <InstallmentLink item={item} />
-                        {!!item.retroactive && (
-                          <small>Retroativa: antes do corte</small>
-                        )}
-                        {!!item.added_to_closed && (
-                          <small>Incluída após o fechamento</small>
-                        )}
-                      </td>
-                      <td className="numeric">
-                        {money(item.amount_cents)}
-                        {card.currency !== 'BRL' && (
-                          <small>{formatMoney(item.amount_brl_cents)}</small>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </Table>
-              ) : (
-                <p>Nenhuma compra neste ciclo.</p>
-              )}
               {detail.revisions.length > 0 && (
                 <>
                   <h3>Alterações após o fechamento</h3>
@@ -796,6 +795,7 @@ export function Cards({
                   </p>
                   <Table
                     label="Alterações após o fechamento"
+                    numeric={[1, 2, 3, 4]}
                     headers={[
                       'Data',
                       'Total anterior',
@@ -807,14 +807,14 @@ export function Cards({
                     {detail.revisions.map((r) => (
                       <tr key={r.id}>
                         <td>{humanDate(r.created_at.slice(0, 10))}</td>
-                        <td>{money(r.previous_cents)}</td>
-                        <td>{money(r.current_cents)}</td>
-                        <td>
+                        <td className="numeric">{money(r.previous_cents)}</td>
+                        <td className="numeric">{money(r.current_cents)}</td>
+                        <td className="numeric">
                           {r.bank_amount_cents === null
                             ? 'Sem conferência'
                             : money(r.bank_amount_cents)}
                         </td>
-                        <td>
+                        <td className="numeric">
                           {r.bank_amount_cents === null
                             ? 'Sem conferência'
                             : money(r.bank_amount_cents - r.current_cents)}
@@ -828,6 +828,7 @@ export function Cards({
               {detail.checks.length ? (
                 <Table
                   label="Histórico de conferência"
+                  numeric={[1, 2, 3]}
                   headers={[
                     'Data',
                     'Total lançado',
@@ -839,9 +840,13 @@ export function Cards({
                   {detail.checks.map((check) => (
                     <tr key={check.id}>
                       <td>{humanDate(check.created_at.slice(0, 10))}</td>
-                      <td>{money(check.app_amount_cents)}</td>
-                      <td>{money(check.bank_amount_cents)}</td>
-                      <td>
+                      <td className="numeric">
+                        {money(check.app_amount_cents)}
+                      </td>
+                      <td className="numeric">
+                        {money(check.bank_amount_cents)}
+                      </td>
+                      <td className="numeric">
                         {money(
                           check.bank_amount_cents - check.app_amount_cents,
                         )}
@@ -857,11 +862,82 @@ export function Cards({
                   ))}
                 </Table>
               ) : (
-                <p>Nenhuma conferência registrada.</p>
+                <State kind="empty">Nenhuma conferência registrada.</State>
               )}
             </>
           )}
-        </section>
+        </Panel>
+      )}
+      {commitment && (
+        <Panel className="card-commitment" aria-label="Limite do cartão">
+          <h2>Compromisso do cartão</h2>
+          <div className="commitment-totals">
+            <p>
+              Comprometido: <strong>{money(commitment.committed_cents)}</strong>
+            </p>
+            {commitment.credit_limit_cents !== null && (
+              <>
+                <p>
+                  Limite:{' '}
+                  <strong>{money(commitment.credit_limit_cents)}</strong>
+                </p>
+                <p>
+                  Disponível:{' '}
+                  <strong>{money(commitment.available_cents!)}</strong>
+                </p>
+              </>
+            )}
+          </div>
+          <small>
+            Inclui compras e parcelas lançadas, saldos anteriores e recorrentes
+            ainda previstos até {humanDate(commitment.recurring_until)}.
+          </small>
+          <details>
+            <summary>Configurar limite</summary>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setLimitMessage('');
+                try {
+                  await api(`/accounts/${card.id}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({
+                      credit_limit_cents: limit.trim()
+                        ? parseMoney(limit)
+                        : null,
+                    }),
+                  });
+                  await onSaved();
+                  setRevision((v) => v + 1);
+                  setLimitMessage('Limite salvo.');
+                } catch (e) {
+                  setLimitMessage((e as Error).message);
+                }
+              }}
+            >
+              <label className="compact-field">
+                Limite opcional ({card.currency})
+                <input
+                  inputMode="decimal"
+                  value={limit}
+                  onChange={(e) => setLimit(e.target.value)}
+                />
+              </label>
+              <small>Deixe vazio para cartão sem limite definido.</small>
+              <Button type="submit">Salvar limite</Button>
+              <p role="status">{limitMessage}</p>
+            </form>
+          </details>
+        </Panel>
+      )}
+      {summary('Fatura atual', current ? [current] : [])}
+      {summary(
+        'Faturas anteriores',
+        list.filter(
+          (s) =>
+            !s.is_current &&
+            (!current || s.closing_date < current.closing_date),
+        ),
       )}
       {summary(
         'Faturas futuras',

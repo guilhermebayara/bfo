@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, humanDate } from '../api';
 import { formatMoney } from '../../shared/money';
-import { Table } from '../components';
+import { PageHeader, Panel, State, Truncated, Table } from '../components';
 type Due = {
   id: string;
   type: string;
@@ -36,18 +36,21 @@ export function Upcoming({ revision }: { revision: number }) {
   }, [revision]);
   return (
     <>
-      <h1>Próximos</h1>
+      <PageHeader
+        title="Próximos"
+        context={
+          data
+            ? `De ${humanDate(data.from)} a ${humanDate(data.to)}`
+            : 'Vencimentos deste mês e do próximo'
+        }
+      />
       {error ? (
-        <p role="alert">{error}</p>
+        <State kind="error">{error}</State>
       ) : !data ? (
-        <p role="status">Carregando próximos vencimentos...</p>
+        <State kind="loading">Carregando próximos vencimentos…</State>
       ) : (
         <>
-          <p>
-            De {humanDate(data.from)} a {humanDate(data.to)}, no restante deste
-            mês e no mês seguinte.
-          </p>
-          <p>
+          <p className="section-help">
             Parcelas e recorrentes do cartão compõem as faturas. Cada valor
             entra uma vez no total.
           </p>
@@ -57,7 +60,7 @@ export function Upcoming({ revision }: { revision: number }) {
             for (const i of list)
               totals[i.currency] = (totals[i.currency] ?? 0) + i.amount_cents;
             return (
-              <section key={month}>
+              <Panel className="account-group" key={month}>
                 <h2>
                   {new Intl.DateTimeFormat('pt-BR', {
                     month: 'long',
@@ -66,14 +69,16 @@ export function Upcoming({ revision }: { revision: number }) {
                   }).format(new Date(month + '-01T12:00:00Z'))}
                 </h2>
                 {Object.entries(totals).map(([currency, amount]) => (
-                  <p key={currency}>
-                    Saldo previsto de saídas e entradas:{' '}
-                    {formatMoney(amount, currency)}
+                  <p className="section-total" key={currency}>
+                    Saldo previsto de saídas e entradas{' '}
+                    <strong>{formatMoney(amount, currency)}</strong>
                   </p>
                 ))}
                 {list.length ? (
                   <Table
                     label={`Vencimentos de ${month}`}
+                    numeric={[3]}
+                    widths={['16%', '42%', '25%', '17%']}
                     headers={['Vencimento', 'Lançamento', 'Conta', 'Valor']}
                   >
                     {list.map((i) => (
@@ -84,10 +89,10 @@ export function Upcoming({ revision }: { revision: number }) {
                             <a
                               href={`/cartao?account=${encodeURIComponent(i.account_id)}&statement=${encodeURIComponent(i.id)}`}
                             >
-                              {i.label}
+                              <Truncated>{i.label}</Truncated>
                             </a>
                           ) : (
-                            i.label
+                            <Truncated>{i.label}</Truncated>
                           )}
                           {i.components.length > 0 && (
                             <details>
@@ -106,15 +111,19 @@ export function Upcoming({ revision }: { revision: number }) {
                             </details>
                           )}
                         </td>
-                        <td>{i.account_name}</td>
-                        <td>{formatMoney(i.amount_cents, i.currency)}</td>
+                        <td>
+                          <Truncated>{i.account_name}</Truncated>
+                        </td>
+                        <td className="numeric">
+                          {formatMoney(i.amount_cents, i.currency)}
+                        </td>
                       </tr>
                     ))}
                   </Table>
                 ) : (
-                  <p>Nenhum vencimento previsto.</p>
+                  <State kind="empty">Nenhum vencimento previsto.</State>
                 )}
-              </section>
+              </Panel>
             );
           })}
         </>

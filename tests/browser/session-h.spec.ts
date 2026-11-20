@@ -254,7 +254,7 @@ test('marcas herdadas aparecem e resumo atualiza ao excluir categoria dos totais
     cats.getByLabel('Tratar como renda (herdada do grupo)', { exact: true }),
   ).toBeDisabled();
   await page.goto('/transacoes/2026-11');
-  const summary = page.getByRole('region', { name: 'Resumo do mês' });
+  const summary = page.getByRole('complementary', { name: 'Resumo do mês' });
   await expect(summary).toContainText('Renda herdada H');
   await request.patch(`/api/category-groups/${g.id}`, {
     data: { exclude_totals: 1 },
@@ -267,10 +267,8 @@ test('moeda é uma lista ao criar e editar a conta e conta padrão reaparece ap�
   request,
 }) => {
   await page.goto('/contas');
-  await page.getByText('Nova conta', { exact: true }).click();
-  const form = page
-    .locator('details')
-    .filter({ has: page.getByText('Nova conta', { exact: true }) });
+  await page.getByRole('button', { name: 'Nova conta', exact: true }).click();
+  const form = page.getByRole('region', { name: 'Nova conta' });
   await expect(
     form.getByRole('combobox', { name: 'Moeda', exact: true }),
   ).toHaveValue('BRL');

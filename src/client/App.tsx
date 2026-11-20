@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { Account, Category, Recurring } from '../shared/types';
-import { Button } from './components';
+import { Button, Notice, State } from './components';
+import { Foundations } from './screens/Foundations';
 import { api } from './api';
 import { Transactions } from './screens/Transactions';
 import { RecurringScreen, SubscriptionTypes } from './screens/Recurring';
@@ -9,6 +10,36 @@ import { InstallmentPurchase } from './screens/InstallmentPurchase';
 import { Upcoming } from './screens/Upcoming';
 import { Accounts } from './screens/Accounts';
 import { Categories, Tags, Payees, Preferences } from './screens/Configuration';
+const navigation = [
+  {
+    label: 'Movimento',
+    links: [
+      ['/transacoes', 'Transações'],
+      ['/contas', 'Contas'],
+      ['/cartao', 'Cartão'],
+      ['/proximos', 'Próximos'],
+      ['/recorrentes', 'Recorrentes'],
+      ['/assinaturas', 'Assinaturas'],
+    ],
+  },
+  {
+    label: 'Cadastros',
+    links: [
+      ['/categorias', 'Categorias'],
+      ['/tags', 'Tags'],
+      ['/beneficiarios', 'Beneficiários'],
+      ['/tipos-assinatura', 'Tipos de assinatura'],
+    ],
+  },
+  {
+    label: 'Aplicativo',
+    links: [
+      ['/configuracoes', 'Configurações'],
+      ['/fundacoes', 'Fundações'],
+    ],
+  },
+];
+
 export function App() {
   const [path, setPath] = useState(location.pathname);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -18,6 +49,14 @@ export function App() {
   const [error, setError] = useState('');
   const [revision, setRevision] = useState(0);
   const loadSequence = useRef(0);
+  const main = useRef<HTMLElement>(null);
+  const focusMain = useRef(false);
+  useEffect(() => {
+    if (focusMain.current) {
+      focusMain.current = false;
+      main.current?.focus();
+    }
+  }, [path]);
   async function load() {
     const sequence = ++loadSequence.current;
     try {
@@ -60,62 +99,60 @@ export function App() {
     if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey)
       return;
     event.preventDefault();
-    go(to);
+    if (path !== to) {
+      focusMain.current = true;
+      window.scrollTo(0, 0);
+      go(to);
+    }
   }
   return (
     <div className="app">
       <a className="skip" href="#main">
         Pular para o conteúdo
       </a>
-      <aside>
-        <div className="brand">
-          BFO<small>Finanças pessoais</small>
-        </div>
+      <aside className="app-navigation">
+        <div className="brand">BFO</div>
         <nav aria-label="Navegação principal">
-          <a
-            href="/transacoes"
-            aria-current={
-              path.startsWith('/transacoes') || path === '/'
-                ? 'page'
-                : undefined
-            }
-            onClick={(e) => navigate(e, '/transacoes')}
-          >
-            Transações
-          </a>
-          <a
-            href="/contas"
-            aria-current={path === '/contas' ? 'page' : undefined}
-            onClick={(e) => navigate(e, '/contas')}
-          >
-            Contas
-          </a>
-          {[
-            ['/cartao', 'Cartão'],
-            ['/proximos', 'Próximos'],
-            ['/recorrentes', 'Recorrentes'],
-            ['/assinaturas', 'Assinaturas'],
-            ['/tipos-assinatura', 'Tipos de assinatura'],
-            ['/categorias', 'Categorias'],
-            ['/configuracoes', 'Configurações'],
-            ['/tags', 'Tags'],
-            ['/beneficiarios', 'Beneficiários'],
-          ].map(([url, label]) => (
-            <a
-              key={url}
-              href={url}
-              aria-current={path === url ? 'page' : undefined}
-              onClick={(e) => navigate(e, url)}
-            >
-              {label}
-            </a>
+          {navigation.map(({ label, links }) => (
+            <div className="nav-group" key={label}>
+              <span className="nav-label">{label}</span>
+              {links.map(([url, name]) => {
+                const current =
+                  path === url ||
+                  (url === '/transacoes' &&
+                    (path === '/' || path.startsWith('/transacoes/')));
+                const purchase =
+                  url === '/cartao' && path.startsWith('/parceladas/');
+                return (
+                  <React.Fragment key={url}>
+                    <a
+                      href={url}
+                      aria-current={current ? 'page' : undefined}
+                      onClick={(e) => navigate(e, url)}
+                    >
+                      {name}
+                    </a>
+                    {purchase && (
+                      <a
+                        className="nav-child"
+                        href={path}
+                        aria-current="page"
+                        onClick={(e) => navigate(e, path)}
+                      >
+                        Compra parcelada
+                      </a>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </div>
           ))}
         </nav>
-        <p className="environment">Dados fictícios · Sessão J</p>
       </aside>
       <div className="workspace">
         {renewals.length > 0 && (
-          <div
+          <Notice
+            tone="warning"
             className="alert-space"
             role="status"
             aria-label="Aviso de renovação"
@@ -130,16 +167,22 @@ export function App() {
             <a href="/assinaturas" onClick={(e) => navigate(e, '/assinaturas')}>
               Ver assinaturas
             </a>
-          </div>
+          </Notice>
         )}
-        <main id="main">
-          {error ? (
-            <div role="alert" className="error">
-              {error}{' '}
-              <Button onClick={() => void load()}>Tentar novamente</Button>
-            </div>
+        <main id="main" ref={main} tabIndex={-1}>
+          {path === '/fundacoes' ? (
+            <Foundations />
+          ) : error ? (
+            <State
+              kind="error"
+              action={
+                <Button onClick={() => void load()}>Tentar novamente</Button>
+              }
+            >
+              {error}
+            </State>
           ) : !ready ? (
-            <p role="status">Carregando contas…</p>
+            <State kind="loading">Carregando contas…</State>
           ) : path === '/recorrentes' || path === '/assinaturas' ? (
             <RecurringScreen
               key={path}

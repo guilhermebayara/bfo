@@ -2,7 +2,13 @@ import { useEffect, useState } from 'react';
 import type { Category, Recurring, Tag, Transaction } from '../../shared/types';
 import { formatMoney, roundRatio } from '../../shared/money';
 import { api } from '../api';
-import { Button, CategoryOptions } from './index';
+import {
+  Button,
+  CategoryOptions,
+  ConfirmationNotice,
+  Panel,
+  State,
+} from './index';
 export function BulkTransactions({
   items,
   categories,
@@ -74,7 +80,7 @@ export function BulkTransactions({
     }
   }
   return (
-    <section className="bulk-panel notice" aria-label="Seleção múltipla">
+    <Panel className="bulk-panel" aria-label="Seleção múltipla">
       <div className="toolbar">
         <strong>{items.length} selecionadas</strong>
         <span>
@@ -188,6 +194,7 @@ export function BulkTransactions({
         )}
         <Button onClick={() => void save()}>Aplicar aos selecionados</Button>
         <Button
+          variant="danger"
           disabled={!!protectedFinancial}
           onClick={() => setDeleting(true)}
         >
@@ -200,17 +207,17 @@ export function BulkTransactions({
         </small>
       )}
       {deleting && (
-        <div className="notice">
-          Excluir {items.length} transações?{' '}
-          <Button disabled={busy} onClick={() => void save(true)}>
-            Confirmar exclusão
-          </Button>
-          <Button disabled={busy} onClick={() => setDeleting(false)}>
-            Cancelar exclusão
-          </Button>
-        </div>
+        <ConfirmationNotice
+          busy={busy}
+          confirmLabel="Confirmar exclusão"
+          cancelLabel="Cancelar exclusão"
+          onConfirm={() => void save(true)}
+          onCancel={() => setDeleting(false)}
+        >
+          Excluir {items.length} transações?
+        </ConfirmationNotice>
       )}
-      {error && <p role="alert">{error}</p>}
-    </section>
+      {error && <State kind="error">{error}</State>}
+    </Panel>
   );
 }
