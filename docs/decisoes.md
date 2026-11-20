@@ -79,6 +79,7 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 - Tags continuam: nome e cor, várias por transação, filtro em Transações. São importadas do Lunch Money. A tag "Pagamento de fatura" do Lunch Money vira o tipo próprio de lançamento na importação.
 - Sem regras automáticas. No lugar, ao digitar o beneficiário, o app sugere a categoria e as tags usadas da última vez com ele.
 - Tela de beneficiários para unificar nomes repetidos em lote.
+- O beneficiário pode ter categoria e tags padrão. Quando houver, a sugestão usa o padrão no lugar da última vez; continua sendo sugestão visível, editável antes de salvar. Motor de regras segue fora. Se um dia existir a importação de extrato (OFX ou CSV), regras podem vir junto, só como regras de importação aplicadas na tela de revisão, com prévia antes de salvar. Decidido em 20/11/2026.
 
 ## Cartão e fatura
 
