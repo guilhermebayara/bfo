@@ -339,7 +339,7 @@ export function ManualTransaction({
                           <th>Parcela</th>
                           <th>Data</th>
                           <th>Fatura</th>
-                          <th>Valor</th>
+                          <th className="numeric">Valor</th>
                           <th>Marcação</th>
                         </tr>
                       </thead>
@@ -353,7 +353,9 @@ export function ManualTransaction({
                             <td>
                               {cycle.dueDate.split('-').reverse().join('/')}
                             </td>
-                            <td>{formatMoney(value, code)}</td>
+                            <td className="numeric">
+                              {formatMoney(value, code)}
+                            </td>
                             <td>
                               {number < current
                                 ? 'Retroativa'

@@ -7,7 +7,7 @@ import type {
 } from '../../shared/types';
 import { formatMoney, parseMoney } from '../../shared/money';
 import { api, humanDate } from '../api';
-import { Button, Table } from '../components';
+import { Badge, PageHeader, Panel, State, Button, Table } from '../components';
 type Purchase = {
   plan: InstallmentPlan;
   installments: (Pick<
@@ -62,8 +62,19 @@ export function InstallmentPurchase({
   if (!purchase)
     return (
       <>
-        <h1>Compra parcelada</h1>
-        <p role="status">{error || 'Carregando compra…'}</p>
+        <PageHeader
+          title="Compra parcelada"
+          actions={
+            <a className="action-link" href="/transacoes">
+              Voltar a Transações
+            </a>
+          }
+        />
+        {error ? (
+          <State kind="error">{error}</State>
+        ) : (
+          <State kind="loading">Carregando compra…</State>
+        )}
       </>
     );
   const { plan } = purchase,
@@ -107,17 +118,96 @@ export function InstallmentPurchase({
   }
   return (
     <>
-      <a href="/transacoes">Voltar a Transações</a>
-      <h1>Compra parcelada</h1>
-      <h2>{plan.description}</h2>
-      <p>
-        {accounts.find((a) => a.id === plan.account_id)?.name} ·{' '}
-        {humanDate(plan.first_date)} · {money(plan.total_cents)} em {plan.count}{' '}
-        parcelas
-      </p>
-      <p>Custo real: {money(purchase.real_cost_cents)}</p>
+      <PageHeader
+        title="Compra parcelada"
+        context={accounts.find((a) => a.id === plan.account_id)?.name}
+        actions={
+          <>
+            <a className="action-link" href="/transacoes">
+              Voltar a Transações
+            </a>
+            {!!future.length && (
+              <a
+                className="action-link button button-primary"
+                href="#antecipar-parcelas"
+              >
+                Antecipar parcelas
+              </a>
+            )}
+          </>
+        }
+      />
+      <Panel className="purchase-overview">
+        <div className="section-heading">
+          <h2>{plan.description}</h2>
+          <div className="section-total">
+            Custo real: <strong>{money(purchase.real_cost_cents)}</strong>
+          </div>
+        </div>
+        <p>
+          {humanDate(plan.first_date)} · {money(plan.total_cents)} em{' '}
+          {plan.count} parcelas
+        </p>
+      </Panel>
+      {error && <State kind="error">{error}</State>}
+      <Panel className="account-group">
+        <h2>Parcelas da compra</h2>
+        <Table
+          label="Parcelas da compra"
+          numeric={[2]}
+          widths={['13%', '15%', '18%', '22%', '32%']}
+          headers={['Parcela', 'Data', 'Valor', 'Fatura', 'Marcação / Nota']}
+        >
+          {purchase.installments.map((t) => (
+            <tr key={t.id}>
+              <td>
+                {t.installment_number
+                  ? `${t.installment_number}/${plan.count}`
+                  : 'Antecipação'}
+              </td>
+              <td>{humanDate(t.date)}</td>
+              <td className="numeric">
+                {money(t.amount_cents)}
+                {plan.currency !== 'BRL' && (
+                  <small>{formatMoney(t.amount_brl_cents)}</small>
+                )}
+              </td>
+              <td>
+                {t.cancelled_reason ? (
+                  'Cancelada: ' + t.cancelled_reason
+                ) : t.advance_id && t.installment_number ? (
+                  'Antecipada'
+                ) : t.statement_id && t.due_date ? (
+                  <a
+                    href={`/cartao?${new URLSearchParams({ account: plan.account_id, statement: t.statement_id })}`}
+                  >
+                    {humanDate(t.due_date)}
+                  </a>
+                ) : (
+                  'Sem vínculo'
+                )}
+              </td>
+              <td>
+                {!!t.retroactive && (
+                  <small>
+                    <Badge state="retroactive" />: antes do corte
+                  </small>
+                )}
+                {!!t.added_to_closed && (
+                  <small>Incluída após o fechamento</small>
+                )}
+                {t.note}
+              </td>
+            </tr>
+          ))}
+        </Table>
+      </Panel>
       {future.length > 0 && (
-        <section>
+        <Panel
+          id="antecipar-parcelas"
+          className="account-group purchase-advance"
+          tabIndex={-1}
+        >
           <h2>Antecipar parcelas</h2>
           <form onSubmit={advance}>
             <fieldset disabled={busy}>
@@ -162,6 +252,7 @@ export function InstallmentPurchase({
                   : money(discount)}
               </p>
               <Button
+                variant="primary"
                 type="submit"
                 disabled={
                   discount === null ||
@@ -175,75 +266,38 @@ export function InstallmentPurchase({
               </Button>
             </fieldset>
           </form>
-        </section>
+        </Panel>
       )}
-      <p role="alert">{error}</p>
-      <Table
-        label="Parcelas da compra"
-        headers={['Parcela', 'Data', 'Valor', 'Fatura', 'Marcação / Nota']}
-      >
-        {purchase.installments.map((t) => (
-          <tr key={t.id}>
-            <td>
-              {t.installment_number
-                ? `${t.installment_number}/${plan.count}`
-                : 'Antecipação'}
-            </td>
-            <td>{humanDate(t.date)}</td>
-            <td>
-              {money(t.amount_cents)}
-              {plan.currency !== 'BRL' && (
-                <small>{formatMoney(t.amount_brl_cents)}</small>
-              )}
-            </td>
-            <td>
-              {t.cancelled_reason ? (
-                'Cancelada: ' + t.cancelled_reason
-              ) : t.advance_id && t.installment_number ? (
-                'Antecipada'
-              ) : t.statement_id && t.due_date ? (
-                <a
-                  href={`/cartao?${new URLSearchParams({ account: plan.account_id, statement: t.statement_id })}`}
-                >
-                  {humanDate(t.due_date)}
-                </a>
-              ) : (
-                'Sem vínculo'
-              )}
-            </td>
-            <td>
-              {!!t.retroactive && <small>Retroativa: antes do corte</small>}
-              {!!t.added_to_closed && <small>Incluída após o fechamento</small>}
-              {t.note}
-            </td>
-          </tr>
-        ))}
-      </Table>
-      <h2>Histórico de antecipações</h2>
-      {purchase.advances.length ? (
-        <Table
-          label="Histórico de antecipações"
-          headers={[
-            'Data',
-            'Parcelas',
-            'Valor cheio',
-            'Valor pago',
-            'Desconto',
-          ]}
-        >
-          {purchase.advances.map((a) => (
-            <tr key={a.id}>
-              <td>{humanDate(a.created_at.slice(0, 10))}</td>
-              <td>{a.count}</td>
-              <td>{money(a.face_cents)}</td>
-              <td>{money(a.paid_cents)}</td>
-              <td>{money(a.face_cents - a.paid_cents)}</td>
-            </tr>
-          ))}
-        </Table>
-      ) : (
-        <p>Nenhuma antecipação registrada.</p>
-      )}
+      <Panel className="account-group">
+        <h2>Histórico de antecipações</h2>
+        {purchase.advances.length ? (
+          <Table
+            label="Histórico de antecipações"
+            numeric={[1, 2, 3, 4]}
+            headers={[
+              'Data',
+              'Parcelas',
+              'Valor cheio',
+              'Valor pago',
+              'Desconto',
+            ]}
+          >
+            {purchase.advances.map((a) => (
+              <tr key={a.id}>
+                <td>{humanDate(a.created_at.slice(0, 10))}</td>
+                <td className="numeric">{a.count}</td>
+                <td className="numeric">{money(a.face_cents)}</td>
+                <td className="numeric">{money(a.paid_cents)}</td>
+                <td className="numeric">
+                  {money(a.face_cents - a.paid_cents)}
+                </td>
+              </tr>
+            ))}
+          </Table>
+        ) : (
+          <State kind="empty">Nenhuma antecipação registrada.</State>
+        )}
+      </Panel>
     </>
   );
 }

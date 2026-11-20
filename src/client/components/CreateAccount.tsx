@@ -3,8 +3,14 @@ import { api } from '../api';
 import { parseMoney } from '../../shared/money';
 import type { Named } from '../../shared/types';
 import { CurrencyPicker } from './CurrencyPicker';
-import { Button } from './index';
-export function CreateAccount({ onSaved }: { onSaved: () => Promise<void> }) {
+import { Panel, Button } from './index';
+export function CreateAccount({
+  open,
+  onSaved,
+}: {
+  open: boolean;
+  onSaved: () => Promise<void>;
+}) {
   const [institutions, setInstitutions] = useState<Named[]>([]);
   const [institution, setInstitution] = useState('');
   const [newInstitution, setNewInstitution] = useState('');
@@ -68,8 +74,7 @@ export function CreateAccount({ onSaved }: { onSaved: () => Promise<void> }) {
     }
   }
   return (
-    <details>
-      <summary>Nova conta</summary>
+    <Panel id="create-account" hidden={!open} aria-label="Nova conta">
       <form onSubmit={submit}>
         <fieldset disabled={busy} className="filters">
           <label>
@@ -167,10 +172,12 @@ export function CreateAccount({ onSaved }: { onSaved: () => Promise<void> }) {
               </label>
             </>
           )}
-          <Button type="submit">Criar conta ativa</Button>
+          <Button variant="primary" type="submit">
+            Criar conta ativa
+          </Button>
         </fieldset>
         <p role="status">{error}</p>
       </form>
-    </details>
+    </Panel>
   );
 }

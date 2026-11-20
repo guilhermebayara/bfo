@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { Modal } from './index';
+import { Menu, Modal } from './index';
 import { TransactionAction } from './TransactionAction';
 import { StatementFromTable } from '../screens/Cards';
-import { positionMenu } from './menu';
 import type { Account, Category, Transaction, Tag } from '../../shared/types';
 import { formatMoney, parseMoney } from '../../shared/money';
 import { Badge, Button, CategoryOptions } from './index';
@@ -123,6 +122,22 @@ export function TransactionRow({
       : Math.abs(t.amount_cents)
     : t.amount_cents;
   const showDirection = !transfer || !!accountFilter;
+  const payeeText = [
+    transfer ? `→ ${t.destination_name ?? 'Destino'}` : t.payee,
+    t.installment_number
+      ? `${t.installment_number}/${t.installment_count}`
+      : '',
+    t.retroactive ? 'Retroativa' : '',
+    t.added_to_closed ? 'Após fechamento' : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const amountText = `${showDirection ? (displayAmount < 0 ? '+ ' : '− ') : ''}${formatMoney(
+    Math.abs(displayAmount),
+    transfer && accountFilter === t.destination_account_id
+      ? (t.destination_currency ?? t.currency)
+      : t.currency,
+  )}`;
   return (
     <>
       <tr data-transaction-id={t.id} aria-selected={selected}>
@@ -175,16 +190,7 @@ export function TransactionRow({
           label={`Beneficiário de ${t.payee}`}
           value={t.payee}
           locked={financialLock}
-          display={
-            <>
-              {transfer ? `→ ${t.destination_name ?? 'Destino'}` : t.payee}
-              {t.installment_number
-                ? ` · ${t.installment_number}/${t.installment_count}`
-                : ''}
-              {t.retroactive ? ' · Retroativa' : ''}
-              {t.added_to_closed ? ' · Após fechamento' : ''}
-            </>
-          }
+          display={payeeText}
           save={(payee) => patch({ payee })}
           editor={(draft, change) => (
             <input
@@ -205,17 +211,8 @@ export function TransactionRow({
             rate: String(t.fx_rate),
           })}
           locked={financialLock}
-          display={
-            <span className={!transfer && displayAmount < 0 ? 'income' : ''}>
-              {showDirection ? (displayAmount < 0 ? '+ ' : '− ') : ''}
-              {formatMoney(
-                Math.abs(displayAmount),
-                transfer && accountFilter === t.destination_account_id
-                  ? (t.destination_currency ?? t.currency)
-                  : t.currency,
-              )}
-            </span>
-          }
+          className={`numeric ${!showDirection ? 'amount-transfer' : displayAmount < 0 ? 'amount-in' : 'amount-out'}`}
+          display={amountText}
           save={(value) => {
             const v = JSON.parse(value);
             const amount = parseMoney(v.amount);
@@ -254,27 +251,21 @@ export function TransactionRow({
                   />
                 </div>
                 {t.currency !== 'BRL' && !installment && (
-                  <details className="row-menu fx-menu" onToggle={positionMenu}>
-                    <summary>Cotação</summary>
-                    <div className="menu-panel">
-                      <label>
-                        Cotação manual
-                        <input
-                          inputMode="decimal"
-                          value={v.rate}
-                          onChange={(e) =>
-                            change(
-                              JSON.stringify({ ...v, rate: e.target.value }),
-                            )
-                          }
-                        />
-                      </label>
-                      <small>
-                        {formatMoney(t.amount_brl_cents)} · PTAX ou cotação
-                        manual
-                      </small>
-                    </div>
-                  </details>
+                  <Menu trigger="Cotação" className="fx-menu">
+                    <label>
+                      Cotação manual
+                      <input
+                        inputMode="decimal"
+                        value={v.rate}
+                        onChange={(e) =>
+                          change(JSON.stringify({ ...v, rate: e.target.value }))
+                        }
+                      />
+                    </label>
+                    <small>
+                      {formatMoney(t.amount_brl_cents)} · PTAX ou cotação manual
+                    </small>
+                  </Menu>
                 )}
               </>
             );
@@ -348,29 +339,26 @@ export function TransactionRow({
           editor={(draft, change) => {
             const ids = JSON.parse(draft) as string[];
             return (
-              <details className="row-menu" open onToggle={positionMenu}>
-                <summary>Tags</summary>
-                <div className="menu-panel">
-                  {tags.map((tag) => (
-                    <label className="tag-choice" key={tag.id}>
-                      <input
-                        type="checkbox"
-                        checked={ids.includes(tag.id)}
-                        onChange={(e) =>
-                          change(
-                            JSON.stringify(
-                              e.target.checked
-                                ? [...ids, tag.id]
-                                : ids.filter((id) => id !== tag.id),
-                            ),
-                          )
-                        }
-                      />
-                      {tag.name}
-                    </label>
-                  ))}
-                </div>
-              </details>
+              <Menu trigger="Tags" open>
+                {tags.map((tag) => (
+                  <label className="tag-choice" key={tag.id}>
+                    <input
+                      type="checkbox"
+                      checked={ids.includes(tag.id)}
+                      onChange={(e) =>
+                        change(
+                          JSON.stringify(
+                            e.target.checked
+                              ? [...ids, tag.id]
+                              : ids.filter((id) => id !== tag.id),
+                          ),
+                        )
+                      }
+                    />
+                    {tag.name}
+                  </label>
+                ))}
+              </Menu>
             );
           }}
         />
@@ -379,9 +367,10 @@ export function TransactionRow({
           label={`Origem de ${t.payee}`}
           value={t.origin}
           locked="Origem definida pelo sistema."
+          fullText={financialLock}
           display={
             <>
-              <Badge origin={t.origin} />
+              <Badge state={t.origin} />
               {financialLock && (
                 <span
                   className="row-lock"
@@ -420,70 +409,65 @@ export function TransactionRow({
           }
         />
         <td>
-          <details onToggle={positionMenu} className="row-menu">
-            <summary aria-label={`Ações de ${t.payee}`}>⋯</summary>
-            <div className="menu-panel">
-              {canSplit && (
-                <Button onClick={() => onSplit(t)}>
-                  {t.split_count ? 'Editar divisão' : 'Dividir transação'}
+          <Menu trigger="⋯" label={`Ações de ${t.payee}`}>
+            {canSplit && (
+              <Button onClick={() => onSplit(t)}>
+                {t.split_count ? 'Editar divisão' : 'Dividir transação'}
+              </Button>
+            )}
+            {['regular', 'installment'].includes(t.kind) &&
+              t.origin !== 'adjustment' &&
+              !t.advance_id && (
+                <Button onClick={() => onRecurring(t)}>Criar recorrente</Button>
+              )}
+            {account?.kind === 'credit_card' &&
+              ['regular', 'installment'].includes(t.kind) &&
+              t.origin === 'manual' &&
+              !t.advance_id && (
+                <Button onClick={() => setAction('move-statement')}>
+                  Mover de fatura
                 </Button>
               )}
-              {['regular', 'installment'].includes(t.kind) &&
-                t.origin !== 'adjustment' &&
-                !t.advance_id && (
-                  <Button onClick={() => onRecurring(t)}>
-                    Criar recorrente
-                  </Button>
+            {installment && (
+              <Button onClick={() => setAction('cancel-future')}>
+                Cancelar parcelas futuras
+              </Button>
+            )}
+            {(t.statement_id || account?.kind === 'credit_card') && (
+              <>
+                {t.statement_status === 'open' && (
+                  <>
+                    <Button onClick={() => setStatementAction('check')}>
+                      Conferir e fechar fatura
+                    </Button>
+                    <Button onClick={() => setStatementAction('early-close')}>
+                      Antecipar fechamento
+                    </Button>
+                  </>
                 )}
-              {account?.kind === 'credit_card' &&
-                ['regular', 'installment'].includes(t.kind) &&
-                t.origin === 'manual' &&
-                !t.advance_id && (
-                  <Button onClick={() => setAction('move-statement')}>
-                    Mover de fatura
-                  </Button>
+                {t.statement_status === 'closed' && (
+                  <>
+                    <Button onClick={() => setStatementAction('reopen')}>
+                      Reabrir fatura
+                    </Button>
+                    <Button onClick={() => setStatementAction('pay')}>
+                      Pagar fatura
+                    </Button>
+                  </>
                 )}
-              {installment && (
-                <Button onClick={() => setAction('cancel-future')}>
-                  Cancelar parcelas futuras
-                </Button>
-              )}
-              {(t.statement_id || account?.kind === 'credit_card') && (
-                <>
-                  {t.statement_status === 'open' && (
-                    <>
-                      <Button onClick={() => setStatementAction('check')}>
-                        Conferir e fechar fatura
-                      </Button>
-                      <Button onClick={() => setStatementAction('early-close')}>
-                        Antecipar fechamento
-                      </Button>
-                    </>
-                  )}
-                  {t.statement_status === 'closed' && (
-                    <>
-                      <Button onClick={() => setStatementAction('reopen')}>
-                        Reabrir fatura
-                      </Button>
-                      <Button onClick={() => setStatementAction('pay')}>
-                        Pagar fatura
-                      </Button>
-                    </>
-                  )}
-                </>
-              )}
-              {t.installment_plan_id && (
-                <>
-                  <a href={`/parceladas/${t.installment_plan_id}`}>
-                    Ver compra original
-                  </a>
-                  <a href={`/parceladas/${t.installment_plan_id}`}>
-                    Antecipar parcelas
-                  </a>
-                </>
-              )}
-            </div>
-          </details>
+              </>
+            )}
+            {t.installment_plan_id && (
+              <>
+                <a href={`/parceladas/${t.installment_plan_id}`}>
+                  Ver compra original
+                </a>
+                <a href={`/parceladas/${t.installment_plan_id}`}>
+                  Antecipar parcelas
+                </a>
+              </>
+            )}
+          </Menu>
         </td>
       </tr>
       {scope && (

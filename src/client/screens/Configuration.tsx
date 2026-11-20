@@ -3,7 +3,16 @@ import type { Named, Payee, Category, Tag } from '../../shared/types';
 import { api, humanDate } from '../api';
 import { AccountOptions } from '../components/AccountOptions';
 import type { Account } from '../../shared/types';
-import { Button, Table } from '../components';
+import {
+  Button,
+  Notice,
+  PageHeader,
+  Panel,
+  Select,
+  State,
+  Table,
+  Truncated,
+} from '../components';
 const EMPTY: Named[] = [];
 type Row = Named & Partial<Category> & Partial<Tag>;
 export function Editor({
@@ -96,7 +105,7 @@ export function Editor({
     }
   }
   return (
-    <section className="account-group">
+    <Panel className="account-group">
       <h2>{title}</h2>
       <form onSubmit={submit}>
         <fieldset disabled={busy} className="filters">
@@ -186,7 +195,7 @@ export function Editor({
               ))}
             </>
           )}
-          <Button type="submit">
+          <Button variant="primary" type="submit">
             {id ? 'Salvar alterações' : 'Adicionar'}
           </Button>
           {id && (
@@ -197,16 +206,25 @@ export function Editor({
         </fieldset>
         <p role="alert">{error}</p>
       </form>
-      <Table headers={['Nome', 'Detalhe', 'Ação']} label={title}>
+      <Table
+        headers={['Nome', 'Detalhe', 'Ação']}
+        widths={['29%', '53%', '18%']}
+        numeric={route === 'allocation-groups' ? [1] : []}
+        label={title}
+      >
         {rows.map((r) => (
           <tr key={r.id}>
             <td>
-              {route === 'tags' && (
-                <span className="tag-dot" style={{ background: r.color }} />
-              )}
-              {r.name}
+              <div className="table-identity">
+                {route === 'tags' && (
+                  <span className="tag-dot" style={{ background: r.color }} />
+                )}
+                <Truncated>{r.name}</Truncated>
+              </div>
             </td>
-            <td>
+            <td
+              className={route === 'allocation-groups' ? 'numeric' : undefined}
+            >
               {parentField
                 ? parents.find(
                     (p) =>
@@ -253,7 +271,7 @@ export function Editor({
           </tr>
         ))}
       </Table>
-    </section>
+    </Panel>
   );
 }
 export function Categories({ onSaved }: { onSaved: () => Promise<void> }) {
@@ -278,8 +296,10 @@ export function Categories({ onSaved }: { onSaved: () => Promise<void> }) {
   }, []);
   return (
     <>
-      <h1>Categorias</h1>
-      <p>Organize grupos de alocação, grupos de categoria e categorias.</p>
+      <PageHeader
+        title="Categorias"
+        context="Grupos de alocação e categorias"
+      />
       <p role="alert">{error}</p>
       <Editor
         title="Grupos de alocação"
@@ -309,8 +329,7 @@ export function Tags() {
   const saved = () => {};
   return (
     <>
-      <h1>Tags</h1>
-      <p>Use tags para recortes transversais das transações.</p>
+      <PageHeader title="Tags" context="Classificação de transações" />
       <Editor title="Tags cadastradas" route="tags" onSaved={saved} />
     </>
   );
@@ -348,7 +367,7 @@ export function Payees() {
   }
   return (
     <>
-      <h1>Beneficiários</h1>
+      <PageHeader title="Beneficiários" context="Unificação de nomes" />
       <p>
         Selecione os nomes que serão unificados e escolha o nome de destino. As
         sugestões passam a considerar o histórico conjunto.
@@ -378,6 +397,8 @@ export function Payees() {
           </Button>
           <Table
             headers={['Selecionar', 'Beneficiário', 'Quantidade', 'Período']}
+            widths={['16%', '40%', '15%', '29%']}
+            numeric={[2]}
             label="Beneficiários"
           >
             {rows.map((p) => (
@@ -397,8 +418,10 @@ export function Payees() {
                     }
                   />
                 </td>
-                <td>{p.name}</td>
-                <td>{p.count}</td>
+                <td>
+                  <Truncated>{p.name}</Truncated>
+                </td>
+                <td className="numeric">{p.count}</td>
                 <td>
                   {p.first_date
                     ? `${humanDate(p.first_date)} a ${humanDate(p.last_date!)}`
@@ -426,6 +449,7 @@ export function Preferences({
   const names = new Intl.DisplayNames(['pt-BR'], { type: 'currency' });
   const [account, setAccount] = useState(''),
     [message, setMessage] = useState(''),
+    [error, setError] = useState(''),
     [busy, setBusy] = useState(false),
     [ready, setReady] = useState(false);
   useEffect(() => {
@@ -440,15 +464,41 @@ export function Preferences({
         setUsed(p.currencies_in_use);
         setReady(true);
       })
-      .catch((e) => setMessage(e.message));
+      .catch((e) => setError(e.message));
   }, []);
   return (
     <>
-      <h1>Configurações</h1>
+      <PageHeader
+        title="Configurações"
+        context="Preferências de lançamento e moedas"
+        actions={
+          <Button
+            variant="primary"
+            type="submit"
+            form="preferences"
+            disabled={busy || !ready}
+          >
+            Salvar configurações
+          </Button>
+        }
+      />
+      {error && <State kind="error">{error}</State>}
+      {!ready && !error && (
+        <State kind="loading">Carregando configurações…</State>
+      )}
+      {message && (
+        <Notice tone="success" role="status">
+          {message}
+        </Notice>
+      )}
       <form
+        id="preferences"
+        hidden={!ready}
         onSubmit={async (e) => {
           e.preventDefault();
           setBusy(true);
+          setError('');
+          setMessage('');
           try {
             await api('/preferences', {
               method: 'PATCH',
@@ -461,72 +511,78 @@ export function Preferences({
             await onSaved();
             setMessage('Configurações salvas.');
           } catch (e) {
-            setMessage((e as Error).message);
+            setError((e as Error).message);
           } finally {
             setBusy(false);
           }
         }}
       >
-        <fieldset disabled={busy || !ready}>
-          <label>
-            Conta padrão para lançamentos
-            <select
-              value={account}
-              onChange={(e) => setAccount(e.target.value)}
-            >
-              <option value="">Escolher ao lançar</option>
-              <AccountOptions accounts={accounts} />
-            </select>
-          </label>
-          <label>
-            Moeda principal
-            <select
-              aria-label="Moeda principal"
-              value={primary}
-              onChange={(e) => setPrimary(e.target.value)}
-            >
-              {used.map((code) => (
-                <option key={code}>{code}</option>
-              ))}
-            </select>
-            <small>Padrão para contas novas. Totais e relatórios em BRL.</small>
-          </label>
-          <fieldset>
-            <legend>Moedas em uso</legend>
-            {used.map((code) => (
-              <label className="tag-choice" key={code}>
-                <input
-                  type="checkbox"
-                  checked
-                  onChange={() => setUsed(used.filter((c) => c !== code))}
-                />
-                {code} · {names.of(code)}
-              </label>
-            ))}
+        <fieldset disabled={busy || !ready} className="preference-panels">
+          <Panel>
+            <h2>Lançamentos</h2>
             <label>
-              Adicionar moeda
-              <select
-                aria-label="Adicionar moeda"
-                value=""
-                onChange={(e) => {
-                  if (e.target.value) setUsed([...used, e.target.value]);
-                }}
+              Conta padrão para lançamentos
+              <Select
+                value={account}
+                onChange={(e) => setAccount(e.target.value)}
               >
-                <option value="">Escolha</option>
-                {Intl.supportedValuesOf('currency')
-                  .filter((c) => !used.includes(c))
-                  .map((c) => (
-                    <option key={c} value={c}>
-                      {c} · {names.of(c)}
-                    </option>
-                  ))}
-              </select>
+                <option value="">Escolher ao lançar</option>
+                <AccountOptions accounts={accounts} />
+              </Select>
             </label>
-          </fieldset>
-          <Button type="submit">Salvar configurações</Button>
+          </Panel>
+          <Panel>
+            <h2>Moedas</h2>
+            <label>
+              Moeda principal
+              <Select
+                aria-label="Moeda principal"
+                value={primary}
+                onChange={(e) => setPrimary(e.target.value)}
+              >
+                {used.map((code) => (
+                  <option key={code}>{code}</option>
+                ))}
+              </Select>
+              <small>
+                Padrão para contas novas. Totais e relatórios em BRL.
+              </small>
+            </label>
+            <fieldset className="currency-options">
+              <legend>Moedas em uso</legend>
+              {used.map((code) => (
+                <label className="tag-choice" key={code}>
+                  <input
+                    type="checkbox"
+                    checked
+                    onChange={() => setUsed(used.filter((c) => c !== code))}
+                  />
+                  {code} · {names.of(code)}
+                </label>
+              ))}
+              <label>
+                Adicionar moeda
+                <Select
+                  aria-label="Adicionar moeda"
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value) setUsed([...used, e.target.value]);
+                  }}
+                >
+                  <option value="">Escolha</option>
+                  {Intl.supportedValuesOf('currency')
+                    .filter((c) => !used.includes(c))
+                    .map((c) => (
+                      <option key={c} value={c}>
+                        {c} · {names.of(c)}
+                      </option>
+                    ))}
+                </Select>
+              </label>
+            </fieldset>
+          </Panel>
         </fieldset>
       </form>
-      <p role="status">{message}</p>
     </>
   );
 }

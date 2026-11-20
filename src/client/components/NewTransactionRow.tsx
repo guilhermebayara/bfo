@@ -1,10 +1,9 @@
-import { positionMenu } from './menu';
 import { useEffect, useRef, useState } from 'react';
 import type { Account, Category, Tag, Payee } from '../../shared/types';
 import { today } from '../../shared/dates';
 import { parseMoney, formatMoney, convert } from '../../shared/money';
 import { api, humanDate } from '../api';
-import { Button, CategoryOptions } from './index';
+import { Menu, Button, CategoryOptions } from './index';
 import { AccountOptions } from './AccountOptions';
 export function NewTransactionRow({
   accounts,
@@ -342,36 +341,31 @@ export function NewTransactionRow({
           />
         </div>
         {code !== 'BRL' && (
-          <details onToggle={positionMenu} className="row-menu fx-menu">
-            <summary>Cotação</summary>
-            <div className="menu-panel">
-              <label>
-                Cotação para BRL
-                <input
-                  value={rate}
-                  onChange={(e) => {
-                    rateEdited.current = true;
-                    setAutomatic(false);
-                    setFxBusy(false);
-                    setRate(e.target.value);
-                  }}
-                  placeholder="PTAX automática"
-                />
-              </label>
-              <small role="status">
-                {fxBusy ? 'Buscando PTAX…' : fxMessage}
-              </small>
-              <small>
-                {(() => {
-                  try {
-                    return `Valor em reais: ${formatMoney(convert(parseMoney(amount), Number(rate.replace(',', '.'))))}`;
-                  } catch {
-                    return '';
-                  }
-                })()}
-              </small>
-            </div>
-          </details>
+          <Menu trigger="Cotação" className="fx-menu">
+            <label>
+              Cotação para BRL
+              <input
+                value={rate}
+                onChange={(e) => {
+                  rateEdited.current = true;
+                  setAutomatic(false);
+                  setFxBusy(false);
+                  setRate(e.target.value);
+                }}
+                placeholder="PTAX automática"
+              />
+            </label>
+            <small role="status">{fxBusy ? 'Buscando PTAX…' : fxMessage}</small>
+            <small>
+              {(() => {
+                try {
+                  return `Valor em reais: ${formatMoney(convert(parseMoney(amount), Number(rate.replace(',', '.'))))}`;
+                } catch {
+                  return '';
+                }
+              })()}
+            </small>
+          </Menu>
         )}
       </td>
       <td>
@@ -409,122 +403,120 @@ export function NewTransactionRow({
         />
       </td>
       <td>
-        <details onToggle={positionMenu} className="row-menu">
-          <summary>
-            {selected.length ? `${selected.length} tags` : 'Tags'}
-          </summary>
-          <div className="menu-panel">
-            {tags.map((t) => (
-              <label key={t.id} className="tag-choice">
-                <input
-                  type="checkbox"
-                  disabled={busy}
-                  checked={selected.includes(t.id)}
-                  onChange={(e) => {
-                    manualTags.current = true;
-                    setSelected(
-                      e.target.checked
-                        ? [...selected, t.id]
-                        : selected.filter((id) => id !== t.id),
-                    );
-                  }}
-                />
-                {t.name}
-              </label>
-            ))}
-          </div>
-        </details>
+        <Menu trigger={selected.length ? `${selected.length} tags` : 'Tags'}>
+          {tags.map((t) => (
+            <label key={t.id} className="tag-choice">
+              <input
+                type="checkbox"
+                disabled={busy}
+                checked={selected.includes(t.id)}
+                onChange={(e) => {
+                  manualTags.current = true;
+                  setSelected(
+                    e.target.checked
+                      ? [...selected, t.id]
+                      : selected.filter((id) => id !== t.id),
+                  );
+                }}
+              />
+              {t.name}
+            </label>
+          ))}
+        </Menu>
       </td>
-      <td>Manual</td>
+      <td className="entry-origin">Manual</td>
       <td>
         {card ? (
-          <details className="row-menu" onToggle={positionMenu}>
-            <summary aria-label="Parcelas do novo lançamento">{count}x</summary>
-            <div className="menu-panel installment-preview">
-              <label>
-                Total de parcelas
-                <input
-                  aria-label="Total de parcelas"
-                  type="number"
-                  min="1"
-                  max="120"
-                  value={count}
-                  onChange={(e) => {
-                    setCount(e.target.value);
-                    setError('');
-                  }}
-                />
-              </label>
-              {installments && (
-                <>
-                  <label>
-                    Parcela atual
-                    <input
-                      aria-label="Parcela atual"
-                      type="number"
-                      min="1"
-                      max={count}
-                      value={current}
-                      onChange={(e) => {
-                        setCurrent(e.target.value);
-                        if (Number(e.target.value) > 1) setPerPart(true);
-                      }}
-                    />
-                  </label>
-                  <small>
-                    A parcela que aparece na fatura deste mês. Informe a data
-                    dessa parcela na linha.
-                  </small>
-                  <label>
-                    Valor informado
-                    <select
-                      value={perPart ? 'part' : 'total'}
-                      onChange={(e) => setPerPart(e.target.value === 'part')}
-                    >
-                      <option value="total">Valor total da compra</option>
-                      <option value="part">Valor de cada parcela</option>
-                    </select>
-                  </label>
-                  {preview && (
-                    <section aria-label="Prévia das parcelas">
-                      <p>Total: {formatMoney(preview.total_cents, code)}</p>
-                      <table>
-                        <caption>Parcelas que serão criadas</caption>
-                        <thead>
-                          <tr>
-                            <th>Parcela</th>
-                            <th>Fatura</th>
-                            <th>Valor</th>
-                            <th>Marcação</th>
+          <Menu
+            trigger={`${count}x`}
+            label="Parcelas do novo lançamento"
+            panelClassName="installment-preview"
+          >
+            <label>
+              Total de parcelas
+              <input
+                aria-label="Total de parcelas"
+                type="number"
+                min="1"
+                max="120"
+                value={count}
+                onChange={(e) => {
+                  setCount(e.target.value);
+                  setError('');
+                }}
+              />
+            </label>
+            {installments && (
+              <>
+                <label>
+                  Parcela atual
+                  <input
+                    aria-label="Parcela atual"
+                    type="number"
+                    min="1"
+                    max={count}
+                    value={current}
+                    onChange={(e) => {
+                      setCurrent(e.target.value);
+                      if (Number(e.target.value) > 1) setPerPart(true);
+                    }}
+                  />
+                </label>
+                <small>
+                  A parcela que aparece na fatura deste mês. Informe a data
+                  dessa parcela na linha.
+                </small>
+                <label>
+                  Valor informado
+                  <select
+                    value={perPart ? 'part' : 'total'}
+                    onChange={(e) => setPerPart(e.target.value === 'part')}
+                  >
+                    <option value="total">Valor total da compra</option>
+                    <option value="part">Valor de cada parcela</option>
+                  </select>
+                </label>
+                {preview && (
+                  <section aria-label="Prévia das parcelas">
+                    <p>Total: {formatMoney(preview.total_cents, code)}</p>
+                    <table>
+                      <caption>Parcelas que serão criadas</caption>
+                      <thead>
+                        <tr>
+                          <th>Parcela</th>
+                          <th>Fatura</th>
+                          <th className="numeric">Valor</th>
+                          <th>Marcação</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {preview.rows.map((p) => (
+                          <tr key={p.number}>
+                            <td>
+                              {p.number}/{count}
+                            </td>
+                            <td>{humanDate(p.due_date)}</td>
+                            <td className="numeric">
+                              {formatMoney(p.amount_cents, code)}
+                            </td>
+                            <td>
+                              {p.retroactive
+                                ? 'Retroativa'
+                                : p.number === Number(current)
+                                  ? 'Atual'
+                                  : 'Futura'}
+                              {p.before_cutoff ? ' · Antes do corte' : ''}
+                              {p.closed ? ' · Fatura fechada' : ''}
+                            </td>
                           </tr>
-                        </thead>
-                        <tbody>
-                          {preview.rows.map((p) => (
-                            <tr key={p.number}>
-                              <td>
-                                {p.number}/{count}
-                              </td>
-                              <td>{humanDate(p.due_date)}</td>
-                              <td>{formatMoney(p.amount_cents, code)}</td>
-                              <td>
-                                {p.retroactive
-                                  ? 'Retroativa'
-                                  : p.number === Number(current)
-                                    ? 'Atual'
-                                    : 'Futura'}
-                                {p.before_cutoff ? ' · Antes do corte' : ''}
-                                {p.closed ? ' · Fatura fechada' : ''}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </section>
-                  )}
-                </>
-              )}
-            </div>
-          </details>
+                        ))}
+                      </tbody>
+                    </table>
+                  </section>
+                )}
+              </>
+            )}
+          </Menu>
         ) : (
           <span className="cell-value"> </span>
         )}

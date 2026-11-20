@@ -9,7 +9,15 @@ import type {
 import { currentMonth } from '../../shared/recurring';
 import { formatMoney, parseMoney } from '../../shared/money';
 import { api, humanDate } from '../api';
-import { Button, Modal, Table } from '../components';
+import {
+  PageHeader,
+  Panel,
+  State,
+  Truncated,
+  Button,
+  Modal,
+  Table,
+} from '../components';
 import { MonthNavigation } from '../components/MonthNavigation';
 import { CategoryPicker } from '../components/CategoryPicker';
 import { Editor } from './Configuration';
@@ -248,7 +256,9 @@ export function RecurringEditor({
                   onChange={(e) => field('notice_days', e.target.value)}
                 />
               </label>
-              <a href="/tipos-assinatura">Criar e editar tipos</a>
+              <a className="action-link" href="/tipos-assinatura">
+                Criar e editar tipos
+              </a>
               <label>
                 Data de renovação
                 <input
@@ -333,25 +343,40 @@ export function RecurringScreen({
   ];
   return (
     <>
-      <h1>{subscriptions ? 'Assinaturas' : 'Recorrentes'}</h1>
+      <PageHeader
+        title={subscriptions ? 'Assinaturas' : 'Recorrentes'}
+        context={
+          subscriptions ? (
+            'Cobranças e renovações'
+          ) : (
+            <MonthNavigation month={month} onChange={setMonth} />
+          )
+        }
+        actions={
+          <Button variant="primary" onClick={() => setEditing(null)}>
+            Novo recorrente
+          </Button>
+        }
+      />
       {subscriptions ? (
         <>
           <p>
             Anuais entram no planejamento no mês da cobrança. O equivalente
             mensal é informativo.
           </p>
-          <label>
+          <label className="compact-field">
             Agrupar por
             <select value={group} onChange={(e) => setGroup(e.target.value)}>
               <option value="type_name">Tipo de assinatura</option>
               <option value="allocation_name">Grupo de alocação</option>
             </select>
           </label>
-          <a href="/tipos-assinatura">Criar e editar tipos de assinatura</a>
+          <a className="action-link" href="/tipos-assinatura">
+            Criar e editar tipos de assinatura
+          </a>
         </>
       ) : (
         <>
-          <MonthNavigation month={month} onChange={setMonth} />
           <label className="tag-choice">
             <input
               type="checkbox"
@@ -366,7 +391,7 @@ export function RecurringScreen({
             cobrança.
           </p>
           {Object.entries(summary).map(([currency, s]) => (
-            <div className="notice" key={currency}>
+            <Panel className="recurring-totals" key={currency}>
               {Object.entries(s).map(([side, v]) => (
                 <p key={side}>
                   {side === 'income' ? 'Entradas' : 'Saídas'}: esperado{' '}
@@ -374,114 +399,134 @@ export function RecurringScreen({
                   {formatMoney(v.actual, currency)}
                 </p>
               ))}
-            </div>
+            </Panel>
           ))}
         </>
       )}
-      <Button onClick={() => setEditing(null)}>Novo recorrente</Button>
-      {loading && <p role="status">Carregando…</p>}
+      {loading && <State kind="loading">Carregando…</State>}
       {error && (
-        <p role="alert">
-          {error} <Button onClick={() => void load()}>Tentar novamente</Button>
-        </p>
+        <State
+          kind="error"
+          action={<Button onClick={() => void load()}>Tentar novamente</Button>}
+        >
+          {error}
+        </State>
       )}
-      {!loading && !error && !rows.length && <p>Nenhum item neste período.</p>}
-      {groups.map((name) => {
-        const items = rows.filter(
-          (r) =>
-            String(
-              r[groupKey as keyof Recurring] ??
-                (groupKey === 'category_name' ? 'Sem categoria' : 'Sem grupo'),
-            ) === name,
-        );
-        return (
-          <section className="account-group" key={name}>
-            <h2>{name}</h2>
-            <Table
-              label={name}
-              headers={[
-                'Beneficiário',
-                'Frequência',
-                'Próxima data',
-                'Valor',
-                'Conta',
-                subscriptions ? 'Renovação' : 'Estado',
-                'Ações',
-              ]}
-            >
-              {items.map((r) => (
-                <tr key={`${r.id}-${r.due_date ?? ''}`}>
-                  <td>
-                    {r.payee}
-                    <small>{r.description}</small>
-                  </td>
-                  <td>
-                    {r.cadence === 'custom'
-                      ? `A cada ${r.interval_days} dias`
-                      : cadenceLabel[r.cadence]}
-                  </td>
-                  <td>
-                    {humanDate(subscriptions ? r.next_charge : r.due_date)}
-                    <small>
-                      {recognitionWindow(
-                        subscriptions ? r.next_charge : r.due_date,
+      {!loading && !error && !rows.length && (
+        <State kind="empty">Nenhum item neste período.</State>
+      )}
+      {!loading &&
+        !error &&
+        groups.map((name) => {
+          const items = rows.filter(
+            (r) =>
+              String(
+                r[groupKey as keyof Recurring] ??
+                  (groupKey === 'category_name'
+                    ? 'Sem categoria'
+                    : 'Sem grupo'),
+              ) === name,
+          );
+          return (
+            <Panel className="account-group" key={name}>
+              <h2>{name}</h2>
+              <Table
+                label={name}
+                numeric={[3]}
+                widths={['22%', '10%', '17%', '17%', '13%', '13%', '8%']}
+                headers={[
+                  'Beneficiário',
+                  'Frequência',
+                  'Próxima data',
+                  'Valor',
+                  'Conta',
+                  subscriptions ? 'Renovação' : 'Estado',
+                  'Ações',
+                ]}
+              >
+                {items.map((r) => (
+                  <tr key={`${r.id}-${r.due_date ?? ''}`}>
+                    <td>
+                      <Truncated>{r.payee}</Truncated>
+                      {r.description && (
+                        <small>
+                          <Truncated>{r.description}</Truncated>
+                        </small>
                       )}
-                    </small>
-                  </td>
-                  <td>
-                    {formatMoney(r.amount_cents, r.currency)}
-                    {subscriptions && (
+                    </td>
+                    <td>
+                      {r.cadence === 'custom'
+                        ? `A cada ${r.interval_days} dias`
+                        : cadenceLabel[r.cadence]}
+                    </td>
+                    <td>
+                      {humanDate(subscriptions ? r.next_charge : r.due_date)}
                       <small>
-                        Equivalente mensal:{' '}
-                        {formatMoney(r.monthly_cents, r.currency)}
+                        {recognitionWindow(
+                          subscriptions ? r.next_charge : r.due_date,
+                        )}
                       </small>
+                    </td>
+                    <td className="numeric">
+                      {formatMoney(r.amount_cents, r.currency)}
+                      {subscriptions && (
+                        <small>
+                          Equivalente mensal: <br />
+                          {formatMoney(r.monthly_cents, r.currency)}
+                        </small>
+                      )}
+                    </td>
+                    <td>
+                      <Truncated>{r.account_name}</Truncated>
+                    </td>
+                    <td>
+                      {subscriptions
+                        ? r.renewal_date
+                          ? humanDate(r.renewal_date)
+                          : 'Sem data'
+                        : catalog
+                          ? r.active
+                            ? 'Ativo'
+                            : 'Inativo'
+                          : r.arrived
+                            ? 'Chegou'
+                            : 'Ainda não'}
+                      {subscriptions && (
+                        <small>Aviso com {r.notice_days} dias</small>
+                      )}
+                      {!subscriptions && !catalog && r.arrived && (
+                        <small>
+                          Realizado: {formatMoney(r.actual_cents, r.currency)}
+                        </small>
+                      )}
+                    </td>
+                    <td>
+                      <Button
+                        variant="quiet"
+                        aria-label={`Editar ${r.payee}`}
+                        onClick={() => setEditing(r)}
+                      >
+                        Editar
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </Table>
+              {subscriptions &&
+                [...new Set(items.map((r) => r.currency))].map((code) => (
+                  <p key={code}>
+                    Total de {name} ({code}): equivalente mensal{' '}
+                    {formatMoney(
+                      items
+                        .filter((r) => r.currency === code)
+                        .reduce((s, r) => s + r.monthly_cents, 0),
+                      code,
                     )}
-                  </td>
-                  <td>{r.account_name}</td>
-                  <td>
-                    {subscriptions
-                      ? r.renewal_date
-                        ? humanDate(r.renewal_date)
-                        : 'Sem data'
-                      : catalog
-                        ? r.active
-                          ? 'Ativo'
-                          : 'Inativo'
-                        : r.arrived
-                          ? 'Chegou'
-                          : 'Ainda não'}
-                    {subscriptions && (
-                      <small>Aviso com {r.notice_days} dias</small>
-                    )}
-                    {!subscriptions && !catalog && r.arrived && (
-                      <small>
-                        Realizado: {formatMoney(r.actual_cents, r.currency)}
-                      </small>
-                    )}
-                  </td>
-                  <td>
-                    <Button onClick={() => setEditing(r)}>
-                      Editar {r.payee}
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </Table>
-            {subscriptions &&
-              [...new Set(items.map((r) => r.currency))].map((code) => (
-                <p key={code}>
-                  Total de {name} ({code}): equivalente mensal{' '}
-                  {formatMoney(
-                    items
-                      .filter((r) => r.currency === code)
-                      .reduce((s, r) => s + r.monthly_cents, 0),
-                    code,
-                  )}
-                </p>
-              ))}
-          </section>
-        );
-      })}
+                  </p>
+                ))}
+            </Panel>
+          );
+        })}
       {editing !== undefined && (
         <RecurringEditor
           item={editing ?? undefined}
@@ -504,7 +549,10 @@ export function SubscriptionTypes({
 }) {
   return (
     <>
-      <h1>Tipos de assinatura</h1>
+      <PageHeader
+        title="Tipos de assinatura"
+        context="Cadastros de assinaturas"
+      />
       <Editor
         title="Tipos cadastrados"
         route="subscription-types"

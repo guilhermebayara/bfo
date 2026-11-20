@@ -2,7 +2,16 @@ import { today } from '../../shared/dates';
 import { useEffect, useState, type FormEvent } from 'react';
 import type { Account, ActivationPreview } from '../../shared/types';
 import { formatMoney, parseMoney, convert } from '../../shared/money';
-import { Button, MoneyField, Modal, Table } from '../components';
+import {
+  PageHeader,
+  Panel,
+  State,
+  Truncated,
+  Button,
+  MoneyField,
+  Modal,
+  Table,
+} from '../components';
 import { api, humanDate } from '../api';
 import { Reconcile } from '../components/Reconcile';
 import { CurrencyPicker } from '../components/CurrencyPicker';
@@ -178,6 +187,7 @@ export function Accounts({
     property: 'Imóvel',
     loan: 'Empréstimo',
   };
+  const [creating, setCreating] = useState(false);
   const active = accounts.filter((a) => !a.closed_at && !a.archived);
   const closed = accounts.filter((a) => a.closed_at || a.archived);
   const group = (a: Account) =>
@@ -189,10 +199,14 @@ export function Accounts({
       <Table
         headers={['Conta', 'Tipo', 'Estado', 'Saldo', 'Atualizado em', 'Ação']}
         label="Contas"
+        numeric={[3]}
+        widths={['22%', '14%', '16%', '16%', '14%', '18%']}
       >
         {list.map((a) => (
           <tr key={a.id}>
-            <td>{a.name}</td>
+            <td>
+              <Truncated>{a.name}</Truncated>
+            </td>
             <td>{kindNames[a.kind]}</td>
             <td>
               {a.closed_at
@@ -216,8 +230,9 @@ export function Accounts({
                 ? humanDate(a.last_reconciled_at)
                 : 'Ainda não conferida'}
             </td>
-            <td>
+            <td className="table-actions">
               <Button
+                variant="quiet"
                 onClick={() => {
                   setEditing(a);
                   setEditName(a.name);
@@ -229,7 +244,10 @@ export function Accounts({
               </Button>
               {a.kind === 'credit_card' && (
                 <p>
-                  <a href={`/cartao?account=${encodeURIComponent(a.id)}`}>
+                  <a
+                    className="action-link"
+                    href={`/cartao?account=${encodeURIComponent(a.id)}`}
+                  >
                     Ver faturas
                   </a>
                 </p>
@@ -251,19 +269,33 @@ export function Accounts({
   }
   return (
     <>
-      <h1>Contas</h1>
-      <p>
+      <PageHeader
+        title="Contas"
+        context={`${active.length} ${active.length === 1 ? 'conta na lista' : 'contas na lista'}`}
+        actions={
+          <Button
+            variant="primary"
+            aria-expanded={creating}
+            aria-controls="create-account"
+            onClick={() => setCreating(!creating)}
+          >
+            Nova conta
+          </Button>
+        }
+      />
+      <CreateAccount open={creating} onSaved={onActivated} />
+      <p className="section-help">
         Contas importadas ficam como “Só arquivo” até você informar a data de
         corte e o saldo de abertura. Contas criadas aqui já nascem ativas.
       </p>
-      <CreateAccount onSaved={onActivated} />
-      <label>
+      <label className="compact-field">
         Agrupar por
         <select value={grouping} onChange={(e) => setGrouping(e.target.value)}>
           <option value="institution">Instituição</option>
           <option value="kind">Tipo</option>
         </select>
       </label>
+      {!active.length && <State kind="empty">Nenhuma conta na lista.</State>}
       {[...new Set(active.map(group))].map((name) => {
         const list = active.filter((a) => group(a) === name);
         const complete = list.every((a) => rates[a.currency]);
@@ -276,21 +308,29 @@ export function Accounts({
           0,
         );
         return (
-          <section className="account-group" key={name}>
-            <h2>{name}</h2>
-            <p>
-              Subtotal em reais:{' '}
-              {complete
-                ? formatMoney(total)
-                : 'indisponível enquanto faltar cotação'}
-            </p>
+          <Panel className="account-group" key={name}>
+            <div className="section-heading">
+              <h2>{name}</h2>
+              <div className="section-total">
+                Subtotal em reais{' '}
+                <strong>
+                  {complete
+                    ? formatMoney(total)
+                    : 'indisponível enquanto faltar cotação'}
+                </strong>
+              </div>
+            </div>
             {rows(list)}
-          </section>
+          </Panel>
         );
       })}
-      <details>
+      <details className="panel section-disclosure">
         <summary>Encerradas ({closed.length})</summary>
-        {rows(closed)}
+        {closed.length ? (
+          rows(closed)
+        ) : (
+          <State kind="empty">Nenhuma conta encerrada.</State>
+        )}
       </details>
       {editing && (
         <Modal

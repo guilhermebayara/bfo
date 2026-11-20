@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
-import { positionMenu } from './menu';
 import type { Tag, Account, Statement } from '../../shared/types';
 import { today } from '../../shared/dates';
 import { formatMoney, parseMoney } from '../../shared/money';
 import { api, humanDate } from '../api';
-import { Button } from './index';
+import { Menu, Button } from './index';
 export function NewTransferRow({
   accounts,
   tags,
@@ -229,32 +228,29 @@ export function NewTransferRow({
         />
       </td>
       <td>
-        <details className="row-menu" onToggle={positionMenu}>
-          <summary>
-            {selectedTags.length ? `${selectedTags.length} tags` : 'Tags'}
-          </summary>
-          <div className="menu-panel">
-            {tags.map((tag) => (
-              <label className="tag-choice" key={tag.id}>
-                <input
-                  type="checkbox"
-                  checked={selectedTags.includes(tag.id)}
-                  disabled={busy}
-                  onChange={(e) =>
-                    setSelectedTags(
-                      e.target.checked
-                        ? [...selectedTags, tag.id]
-                        : selectedTags.filter((id) => id !== tag.id),
-                    )
-                  }
-                />
-                {tag.name}
-              </label>
-            ))}
-          </div>
-        </details>
+        <Menu
+          trigger={selectedTags.length ? `${selectedTags.length} tags` : 'Tags'}
+        >
+          {tags.map((tag) => (
+            <label className="tag-choice" key={tag.id}>
+              <input
+                type="checkbox"
+                checked={selectedTags.includes(tag.id)}
+                disabled={busy}
+                onChange={(e) =>
+                  setSelectedTags(
+                    e.target.checked
+                      ? [...selectedTags, tag.id]
+                      : selectedTags.filter((id) => id !== tag.id),
+                  )
+                }
+              />
+              {tag.name}
+            </label>
+          ))}
+        </Menu>
       </td>
-      <td>Manual</td>
+      <td className="entry-origin">Manual</td>
       <td />
       <td>
         <Button

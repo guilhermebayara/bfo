@@ -5,9 +5,14 @@ function neighbor(cell: HTMLElement, direction: Move) {
   const table = cell.closest('table')!;
   const cells = [...table.querySelectorAll<HTMLElement>('[data-sheet-cell]')];
   if (direction === 'next' || direction === 'previous') {
-    const editable = cells.filter((c) => c.dataset.editable === 'true');
-    const index = editable.indexOf(cell);
-    return editable[index + (direction === 'next' ? 1 : -1)];
+    const index = cells.indexOf(cell);
+    const candidates =
+      direction === 'next'
+        ? cells.slice(index + 1)
+        : cells.slice(0, index).reverse();
+    return candidates.find(
+      (candidate) => candidate.dataset.editable === 'true',
+    );
   }
   const row = cell.parentElement!;
   const rows = [
@@ -32,6 +37,8 @@ export function SpreadsheetCell({
   label,
   value,
   display,
+  fullText,
+  className = '',
   locked,
   save,
   editor,
@@ -41,6 +48,8 @@ export function SpreadsheetCell({
   label: string;
   value: string;
   display: ReactNode;
+  fullText?: string;
+  className?: string;
   locked?: string;
   save?: (value: string) => Promise<void>;
   editor?: (
@@ -65,6 +74,7 @@ export function SpreadsheetCell({
     if (active)
       ref.current?.querySelector<HTMLElement>('input,select')?.focus();
   }, [active]);
+  const title = fullText ?? (typeof display === 'string' ? display : '');
   function positionEditor() {
     const cell = ref.current;
     if (!cell) return;
@@ -77,7 +87,6 @@ export function SpreadsheetCell({
       '--editor-top',
       `${Math.min(rect.top, window.innerHeight - 160)}px`,
     );
-    cell.style.setProperty('--editor-width', `${rect.width}px`);
     cell.style.setProperty(
       '--message-top',
       `${Math.min(rect.top + 100, window.innerHeight - 60)}px`,
@@ -140,8 +149,8 @@ export function SpreadsheetCell({
       aria-readonly={Boolean(locked)}
       aria-label={label}
       aria-busy={busy}
-      title={`${typeof display === 'string' ? `${display}\n` : ''}${locked ?? 'Clique para editar. Salva ao sair da célula.'}`}
-      className={`sheet-cell ${active ? 'sheet-editing' : ''} ${locked ? 'sheet-locked' : ''}`}
+      title={`${title ? `${title}\n` : ''}${locked ?? 'Clique para editar. Salva ao sair da célula.'}`}
+      className={`sheet-cell ${active ? 'sheet-editing' : ''} ${locked ? 'sheet-locked' : ''} ${className}`}
       onClick={(e) => {
         if (!(e.target as HTMLElement).closest('a,button')) start();
       }}
@@ -160,6 +169,11 @@ export function SpreadsheetCell({
           setError('');
           ref.current?.focus();
         } else if (e.key === 'Tab' || (e.key === 'Enter' && active)) {
+          if (
+            e.key === 'Tab' &&
+            !neighbor(e.currentTarget, e.shiftKey ? 'previous' : 'next')
+          )
+            return;
           e.preventDefault();
           void commit(
             draft,
