@@ -24,7 +24,7 @@ Quando o dono só envia ou explica uma referência, ela é contexto para avaliar
 
 - https://second-hexagon-433551.framer.app
 
-## Dashboards e visualização de dados (Mobbin, exige login)
+## Dashboards e visualização de dados (Mobbin)
 
 - https://mobbin.com/explore/screens/37e72894-2a2b-47f3-b85c-4c29270716a6
 - https://mobbin.com/explore/screens/ceb43ca7-9c18-4c8d-b312-b8a4362ac56b
