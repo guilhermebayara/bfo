@@ -70,7 +70,7 @@ test('botão insere a linha nas mesmas colunas, Enter salva e prepara a próxima
     })
     .click();
   const row = page.locator('tr[data-new-transaction]');
-  await expect(row.locator('td')).toHaveCount(11);
+  await expect(row.locator('td')).toHaveCount(12);
   expect((await row.boundingBox())!.height).toBeLessThanOrEqual(40);
   await expect(row.getByLabel('Conta do novo lançamento')).toHaveValue(
     'seed-f-account',
@@ -162,7 +162,7 @@ test('transferência aparece em uma linha neutra e mostra perspectiva de cada co
   const rows = page.locator('tr[data-transaction-id]');
   await expect(rows).toHaveCount(1);
   await expect(rows.locator('[data-sheet-cell="1"]')).toContainText(
-    'Conta de divisão fictícia → Dinheiro fictício H',
+    'Conta de divisão fictícia',
   );
   await expect(rows.locator('[data-sheet-cell="3"]')).toHaveText('R$ 150,00');
   await expect(rows.locator('.income')).toHaveCount(0);

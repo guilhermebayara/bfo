@@ -41,7 +41,12 @@ export function RecurringEditor({
     account_id:
       item?.account_id ??
       transaction?.account_id ??
-      accounts.find((a) => !a.closed_at && !a.archived)?.id ??
+      accounts.find(
+        (a) =>
+          !a.closed_at &&
+          !a.archived &&
+          ['checking', 'cash', 'credit_card'].includes(a.kind),
+      )?.id ??
       '',
     payee: item?.payee ?? transaction?.payee ?? '',
     amount: String(
@@ -129,7 +134,12 @@ export function RecurringEditor({
               onChange={(e) => field('account_id', e.target.value)}
             >
               {accounts
-                .filter((a) => !a.archived && !a.closed_at)
+                .filter(
+                  (a) =>
+                    !a.archived &&
+                    !a.closed_at &&
+                    ['checking', 'cash', 'credit_card'].includes(a.kind),
+                )
                 .map((a) => (
                   <option value={a.id} key={a.id}>
                     {a.name}

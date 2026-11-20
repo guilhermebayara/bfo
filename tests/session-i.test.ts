@@ -88,6 +88,10 @@ it('rejeita transferência para a própria conta, cartão, conta de arquivo e va
   ).toEqual(before);
 });
 it('pagamentos parciais concorrentes não ultrapassam saldo e continuam fora do gasto', async () => {
+  // O exemplo da I já tem o restante transportado. Reabre e confere antes de testar novos pagamentos.
+  expect((await req('/statements/seed-i-statement/reopen','POST',{reason:'Teste concorrente fictício',date:'2026-11-19'})).status).toBe(200);
+  await db.prepare("DELETE FROM transactions WHERE statement_id='seed-i-statement' AND kind='card_payment'").run();
+  expect((await req('/statements/seed-i-statement/check','POST',{action:'close',bank_amount_cents:10000,expected_total_cents:10000})).status).toBe(201);
   const pay = () =>
     req('/statements/seed-i-statement/pay', 'POST', {
       account_id: 'seed-f-account',

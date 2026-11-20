@@ -107,6 +107,18 @@ export function seedSql() {
     ['statement-difference', 'Diferença de fatura', 'system', 0],
   ])
     insert('categories', { id, name, category_group_id, is_income, sort: 0 });
+  insert('categories', {
+    id: 'transfer',
+    name: 'Transferência',
+    category_group_id: 'system',
+    exclude_budget: 1,
+    exclude_totals: 1,
+  });
+  insert('categories', {
+    id: 'card-fees',
+    name: 'Tarifas e encargos',
+    category_group_id: 'system',
+  });
   for (const [id, name, kind] of [
     ['checking', 'Conta Horizonte', 'checking'],
     ['card-a', 'Cartão Aurora', 'credit_card'],
@@ -695,5 +707,295 @@ export function seedSql() {
   sql.push(
     `UPDATE preferences SET currencies_in_use=(SELECT json_group_array(code) FROM (SELECT value AS code FROM json_each(preferences.currencies_in_use) UNION SELECT currency FROM accounts));`,
   );
+  // Exemplos da Sessão J são instalados uma vez, preservando edições posteriores.
+  const jInsert = (table, row) =>
+    sql.push(
+      `INSERT INTO ${table} (${Object.keys(row).join(',')}) SELECT ${Object.values(row).map(literal).join(',')} WHERE NOT EXISTS(SELECT 1 FROM seed_fixtures WHERE id='session-j') ON CONFLICT DO NOTHING;`,
+    );
+  for (const [id, name, kind, limit] of [
+    ['seed-j-card', 'Cartão com limite fictício J', 'credit_card', 200000],
+    ['seed-j-no-limit', 'Cartão sem limite fictício J', 'credit_card', null],
+    ['seed-j-investment', 'Investimento fictício J', 'investment', null],
+    ['seed-j-property', 'Imóvel fictício J', 'property', null],
+    ['seed-j-loan', 'Empréstimo fictício J', 'loan', null],
+  ])
+    jInsert('accounts', {
+      id,
+      name,
+      kind,
+      currency: 'BRL',
+      institution_id: 'horizonte',
+      cutoff_date: '2026-01-01',
+      closing_day: kind === 'credit_card' ? 20 : null,
+      due_day: kind === 'credit_card' ? 27 : null,
+      credit_limit_cents: limit,
+    });
+  jInsert('installment_plans', {
+    id: 'seed-j-plan',
+    account_id: 'seed-j-card',
+    description: 'Computador parcelado fictício J',
+    total_cents: 50000,
+    count: 5,
+    first_date: '2026-11-10',
+    category_id: 'entertainment',
+  });
+  for (let i = 0; i < 5; i++) {
+    const month = ['2026-11', '2026-12', '2027-01', '2027-02', '2027-03'][i],
+      previous = ['2026-10', '2026-11', '2026-12', '2027-01', '2027-02'][i];
+    jInsert('statements', {
+      id: 'seed-j-statement-' + month,
+      account_id: 'seed-j-card',
+      period_start: i ? previous + '-21' : '2026-10-16',
+      closing_date: month + '-20',
+      due_date: month + '-27',
+      status: 'open',
+    });
+    jInsert('transactions', {
+      id: 'seed-j-part-' + (i + 1),
+      account_id: 'seed-j-card',
+      date: month + '-10',
+      amount_cents: 10000,
+      amount_brl_cents: 10000,
+      currency: 'BRL',
+      payee: 'Computador parcelado fictício J',
+      category_id: 'entertainment',
+      note: i
+        ? 'Exemplo para editar, mover, antecipar e cancelar.'
+        : 'Fatura reaberta para corrigir a classificação.',
+      origin: 'manual',
+      kind: 'installment',
+      statement_id: 'seed-j-statement-' + month,
+      installment_plan_id: 'seed-j-plan',
+      installment_number: i + 1,
+    });
+  }
+  jInsert('statement_checks', {
+    id: 'seed-j-first-check',
+    statement_id: 'seed-j-statement-2026-11',
+    app_amount_cents: 10000,
+    bank_amount_cents: 10000,
+    action: 'close',
+    created_at: '2026-11-18 12:00:00',
+  });
+  jInsert('statement_events', {
+    id: 'seed-j-reopened',
+    statement_id: 'seed-j-statement-2026-11',
+    action: 'reopen',
+    reason: 'Conferir a classificação da compra fictícia.',
+    date: '2026-11-19',
+    before_json: JSON.stringify({
+      statement: {
+        total_cents: 10000,
+        status: 'closed',
+        bank_amount_cents: 10000,
+        closing_date: '2026-11-20',
+      },
+      items: [],
+    }),
+    after_json: JSON.stringify({
+      total_cents: 10000,
+      status: 'open',
+      bank_amount_cents: null,
+      closing_date: '2026-11-20',
+      items: [],
+    }),
+  });
+  jInsert('statements', {
+    id: 'seed-j-early',
+    account_id: 'seed-j-card',
+    period_start: '2026-09-21',
+    closing_date: '2026-10-15',
+    scheduled_closing_date: '2026-10-20',
+    due_date: '2026-10-27',
+    status: 'open',
+  });
+  jInsert('transactions', {
+    id: 'seed-j-early-purchase',
+    account_id: 'seed-j-card',
+    date: '2026-10-10',
+    amount_cents: 5000,
+    amount_brl_cents: 5000,
+    payee: 'Compra no ciclo antecipado fictícia J',
+    category_id: 'groceries',
+    origin: 'manual',
+    kind: 'regular',
+    statement_id: 'seed-j-early',
+  });
+  sql.push(
+    "UPDATE statements SET status='closed',bank_amount_cents=5000,closed_at='2026-10-15 12:00:00' WHERE id='seed-j-early' AND NOT EXISTS(SELECT 1 FROM seed_fixtures WHERE id='session-j');",
+  );
+  jInsert('statement_checks', {
+    id: 'seed-j-early-check',
+    statement_id: 'seed-j-early',
+    app_amount_cents: 5000,
+    bank_amount_cents: 5000,
+    action: 'close',
+    created_at: '2026-10-15 12:00:00',
+  });
+  jInsert('statement_events', {
+    id: 'seed-j-early-event',
+    statement_id: 'seed-j-early',
+    action: 'early-close',
+    reason:
+      'Virada antecipada fictícia. Próximos ciclos mantêm dia 20 e vencimento 27.',
+    date: '2026-10-15',
+    before_json: JSON.stringify({
+      statement: { total_cents: 5000, closing_date: '2026-10-20' },
+    }),
+    after_json: JSON.stringify({
+      total_cents: 5000,
+      closing_date: '2026-10-15',
+    }),
+  });
+  jInsert('statements', {
+    id: 'seed-j-partial',
+    account_id: 'seed-j-no-limit',
+    period_start: '2026-10-21',
+    closing_date: '2026-11-20',
+    due_date: '2026-11-27',
+    status: 'open',
+  });
+  jInsert('transactions', {
+    id: 'seed-j-partial-purchase',
+    account_id: 'seed-j-no-limit',
+    date: '2026-11-05',
+    amount_cents: 10000,
+    amount_brl_cents: 10000,
+    payee: 'Compra com pagamento parcial fictícia J',
+    category_id: 'groceries',
+    origin: 'manual',
+    kind: 'regular',
+    statement_id: 'seed-j-partial',
+  });
+  sql.push(
+    "UPDATE statements SET status='closed',bank_amount_cents=10000,closed_at='2026-11-18 12:00:00' WHERE id='seed-j-partial' AND NOT EXISTS(SELECT 1 FROM seed_fixtures WHERE id='session-j');",
+  );
+  jInsert('statement_checks', {
+    id: 'seed-j-partial-check',
+    statement_id: 'seed-j-partial',
+    app_amount_cents: 10000,
+    bank_amount_cents: 10000,
+    action: 'close',
+    created_at: '2026-11-18 12:00:00',
+  });
+  jInsert('transactions', {
+    id: 'seed-j-payment',
+    account_id: 'seed-f-account',
+    date: '2026-11-19',
+    amount_cents: 4000,
+    amount_brl_cents: 4000,
+    payee: 'Fatura Cartão sem limite fictício J novembro',
+    note: 'Pagamento parcial fictício de R$ 40,00; R$ 60,00 vão para a próxima fatura.',
+    origin: 'manual',
+    kind: 'card_payment',
+    statement_id: 'seed-j-partial',
+    card_amount_cents: 4000,
+  });
+  jInsert('statements', {
+    id: 'seed-j-balance',
+    account_id: 'seed-j-no-limit',
+    period_start: '2026-11-21',
+    closing_date: '2026-12-20',
+    due_date: '2026-12-27',
+    status: 'open',
+  });
+  jInsert('statement_carryovers', {
+    source_statement_id: 'seed-j-partial',
+    destination_statement_id: 'seed-j-balance',
+    amount_cents: 6000,
+  });
+  jInsert('transactions', {
+    id: 'seed-j-fees',
+    account_id: 'seed-j-no-limit',
+    date: '2026-11-25',
+    amount_cents: 300,
+    amount_brl_cents: 300,
+    payee: 'Encargos fictícios J',
+    category_id: 'card-fees',
+    note: 'Juros fictícios, separados do saldo anterior.',
+    origin: 'manual',
+    kind: 'regular',
+    statement_id: 'seed-j-balance',
+  });
+  jInsert('statement_events', {
+    id: 'seed-j-payment-event',
+    statement_id: 'seed-j-partial',
+    action: 'payment',
+    reason:
+      'Pagamento parcial fictício, com saldo anterior na fatura seguinte.',
+    date: '2026-11-19',
+    before_json: JSON.stringify({
+      statement: { total_cents: 10000, closing_date: '2026-11-20' },
+    }),
+    after_json: JSON.stringify({
+      total_cents: 10000,
+      closing_date: '2026-11-20',
+    }),
+  });
+  jInsert('transactions', {
+    id: 'seed-j-invest-out',
+    account_id: 'seed-f-account',
+    date: '2026-11-19',
+    amount_cents: 25000,
+    amount_brl_cents: 25000,
+    payee: 'Transferência para investimento fictícia J',
+    category_id: 'transfer',
+    note: 'Aporte reconhecido pela conta de destino.',
+    origin: 'manual',
+    kind: 'transfer',
+  });
+  jInsert('transactions', {
+    id: 'seed-j-invest-in',
+    account_id: 'seed-j-investment',
+    date: '2026-11-19',
+    amount_cents: -25000,
+    amount_brl_cents: -25000,
+    payee: 'Transferência para investimento fictícia J',
+    category_id: 'transfer',
+    note: 'Aporte reconhecido pela conta de destino.',
+    origin: 'manual',
+    kind: 'transfer',
+    transfer_pair_id: 'seed-j-invest-out',
+  });
+  sql.push(
+    "UPDATE transactions SET transfer_pair_id='seed-j-invest-in' WHERE id='seed-j-invest-out' AND transfer_pair_id IS NULL;",
+  );
+  jInsert('transaction_tags', {
+    transaction_id: 'seed-j-invest-out',
+    tag_id: 'planned',
+  });
+  jInsert('transaction_tags', {
+    transaction_id: 'seed-j-invest-in',
+    tag_id: 'planned',
+  });
+  jInsert('recurring', {
+    id: 'seed-j-recurring-card',
+    account_id: 'seed-j-card',
+    payee: 'Serviço mensal fictício J',
+    amount_cents: 900,
+    category_id: 'entertainment',
+    cadence: 'monthly',
+    next_date: '2026-11-25',
+  });
+  jInsert('recurring', {
+    id: 'seed-j-recurring-cash',
+    account_id: 'seed-f-account',
+    payee: 'Conta mensal fictícia J',
+    amount_cents: 12000,
+    category_id: 'groceries',
+    cadence: 'monthly',
+    next_date: '2026-11-25',
+  });
+  // Completa também o exemplo parcial da Sessão I, criado depois da migração numa base vazia.
+  sql.push(
+    `INSERT INTO statements(id,account_id,period_start,closing_date,due_date,status) SELECT 'seed-j-carry-i','seed-i-card','2026-11-21','2026-12-20','2026-12-27','open' WHERE NOT EXISTS(SELECT 1 FROM seed_fixtures WHERE id='session-j') ON CONFLICT DO NOTHING;`,
+  );
+  sql.push(
+    `INSERT INTO statement_carryovers(source_statement_id,destination_statement_id,amount_cents) SELECT s.id,n.id,s.bank_amount_cents-s.paid_cents FROM statement_totals s JOIN statements n ON n.account_id=s.account_id AND n.scheduled_closing_date='2026-12-20' WHERE s.id='seed-i-statement' AND s.bank_amount_cents>s.paid_cents AND NOT EXISTS(SELECT 1 FROM seed_fixtures WHERE id='session-j') ON CONFLICT DO NOTHING;`,
+  );
+  sql.push(
+    "INSERT INTO seed_fixtures(id) VALUES('session-j') ON CONFLICT DO NOTHING;",
+  );
+
   return sql.map((line) => line.replaceAll('\n', ' ')).join('\n');
 }

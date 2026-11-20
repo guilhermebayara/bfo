@@ -174,6 +174,9 @@ export function Accounts({
     checking: 'Conta corrente',
     credit_card: 'Cartões',
     cash: 'Dinheiro',
+    investment: 'Investimento',
+    property: 'Imóvel',
+    loan: 'Empréstimo',
   };
   const active = accounts.filter((a) => !a.closed_at && !a.archived);
   const closed = accounts.filter((a) => a.closed_at || a.archived);

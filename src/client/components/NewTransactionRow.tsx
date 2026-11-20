@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Account, Category, Tag, Payee } from '../../shared/types';
 import { today } from '../../shared/dates';
 import { parseMoney, formatMoney, convert } from '../../shared/money';
-import { api } from '../api';
+import { api, humanDate } from '../api';
 import { Button, CategoryOptions } from './index';
 import { AccountOptions } from './AccountOptions';
 export function NewTransactionRow({
@@ -55,6 +55,55 @@ export function NewTransactionRow({
   const [fxMessage, setFxMessage] = useState(''),
     [fxBusy, setFxBusy] = useState(false),
     [automatic, setAutomatic] = useState(false);
+  const [count, setCount] = useState('1'),
+    [current, setCurrent] = useState('1'),
+    [perPart, setPerPart] = useState(false);
+  const [preview, setPreview] = useState<{
+    total_cents: number;
+    rows: {
+      number: number;
+      date: string;
+      due_date: string;
+      amount_cents: number;
+      retroactive: boolean;
+      before_cutoff: boolean;
+      closed: boolean;
+    }[];
+  } | null>(null);
+  const card =
+    accounts.find((a) => a.id === account)?.kind === 'credit_card' && !income;
+  const installments = card && Number(count) > 1;
+  useEffect(() => {
+    setPreview(null);
+    if (!installments) return;
+    const abort = new AbortController();
+    const timer = setTimeout(() => {
+      try {
+        const value = parseMoney(amount);
+        if (value <= 0) return;
+        api<typeof preview>('/installment-preview', {
+          method: 'POST',
+          signal: abort.signal,
+          body: JSON.stringify({
+            account_id: account,
+            date: day,
+            count: Number(count),
+            current: Number(current),
+            amount_cents: value,
+            per_part: perPart,
+          }),
+        })
+          .then(setPreview)
+          .catch((e) => {
+            if (e.name !== 'AbortError') setError(e.message);
+          });
+      } catch {}
+    }, 200);
+    return () => {
+      clearTimeout(timer);
+      abort.abort();
+    };
+  }, [account, day, count, current, amount, perPart, installments]);
   const code = accounts.find((a) => a.id === account)?.currency ?? 'BRL';
   const cat = categories.find((c) => c.id === category);
   useEffect(() => {
@@ -120,6 +169,10 @@ export function NewTransactionRow({
   }, [payee, categories]);
   async function save() {
     if (saving.current || fxBusy) return;
+    if (installments && !preview) {
+      setError('Confira a prévia das parcelas antes de salvar.');
+      return;
+    }
     saving.current = true;
     setBusy(true);
     setError('');
@@ -133,7 +186,15 @@ export function NewTransactionRow({
           account_id: account,
           date: day,
           payee,
-          amount_cents: value * (income ? -1 : 1),
+          ...(installments
+            ? {
+                installment_count: Number(count),
+                installment_current: Number(current),
+                ...(perPart
+                  ? { installment_amount_cents: value }
+                  : { amount_cents: value }),
+              }
+            : { amount_cents: value * (income ? -1 : 1) }),
           category_id: category || null,
           note,
           tag_ids: selected,
@@ -149,6 +210,10 @@ export function NewTransactionRow({
       setNote('');
       setSelected([]);
       setIncome(false);
+      setCount('1');
+      setCurrent('1');
+      setPerPart(false);
+      setPreview(null);
       manualCategory.current = false;
       manualTags.current = false;
       setError('Lançamento salvo.');
@@ -372,9 +437,102 @@ export function NewTransactionRow({
       </td>
       <td>Manual</td>
       <td>
+        {card ? (
+          <details className="row-menu" onToggle={positionMenu}>
+            <summary aria-label="Parcelas do novo lançamento">{count}x</summary>
+            <div className="menu-panel installment-preview">
+              <label>
+                Total de parcelas
+                <input
+                  aria-label="Total de parcelas"
+                  type="number"
+                  min="1"
+                  max="120"
+                  value={count}
+                  onChange={(e) => {
+                    setCount(e.target.value);
+                    setError('');
+                  }}
+                />
+              </label>
+              {installments && (
+                <>
+                  <label>
+                    Parcela atual
+                    <input
+                      aria-label="Parcela atual"
+                      type="number"
+                      min="1"
+                      max={count}
+                      value={current}
+                      onChange={(e) => {
+                        setCurrent(e.target.value);
+                        if (Number(e.target.value) > 1) setPerPart(true);
+                      }}
+                    />
+                  </label>
+                  <small>
+                    A parcela que aparece na fatura deste mês. Informe a data
+                    dessa parcela na linha.
+                  </small>
+                  <label>
+                    Valor informado
+                    <select
+                      value={perPart ? 'part' : 'total'}
+                      onChange={(e) => setPerPart(e.target.value === 'part')}
+                    >
+                      <option value="total">Valor total da compra</option>
+                      <option value="part">Valor de cada parcela</option>
+                    </select>
+                  </label>
+                  {preview && (
+                    <section aria-label="Prévia das parcelas">
+                      <p>Total: {formatMoney(preview.total_cents, code)}</p>
+                      <table>
+                        <caption>Parcelas que serão criadas</caption>
+                        <thead>
+                          <tr>
+                            <th>Parcela</th>
+                            <th>Fatura</th>
+                            <th>Valor</th>
+                            <th>Marcação</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {preview.rows.map((p) => (
+                            <tr key={p.number}>
+                              <td>
+                                {p.number}/{count}
+                              </td>
+                              <td>{humanDate(p.due_date)}</td>
+                              <td>{formatMoney(p.amount_cents, code)}</td>
+                              <td>
+                                {p.retroactive
+                                  ? 'Retroativa'
+                                  : p.number === Number(current)
+                                    ? 'Atual'
+                                    : 'Futura'}
+                                {p.before_cutoff ? ' · Antes do corte' : ''}
+                                {p.closed ? ' · Fatura fechada' : ''}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </section>
+                  )}
+                </>
+              )}
+            </div>
+          </details>
+        ) : (
+          <span className="cell-value"> </span>
+        )}
+      </td>
+      <td>
         <Button
           type="button"
-          disabled={busy || fxBusy}
+          disabled={busy || fxBusy || (installments && !preview)}
           aria-label="Salvar lançamento"
           onClick={() => void save()}
         >

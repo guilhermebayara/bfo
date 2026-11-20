@@ -346,6 +346,7 @@ export function Transactions({
                       'Notas',
                       'Tags',
                       'Origem',
+                      'Parcelas',
                       'Ações',
                     ]}
                     label="Transações"
@@ -358,6 +359,7 @@ export function Transactions({
                             initialAccount={entryAccount}
                             month={month}
                             accounts={accounts}
+                            tags={tags}
                             onSaved={onSaved}
                             onCancel={() => setAdding(false)}
                           />
@@ -396,7 +398,7 @@ export function Transactions({
                       ))}
                       {!data.items.length && (
                         <tr>
-                          <td colSpan={11}>
+                          <td colSpan={12}>
                             Nenhuma transação encontrada para estes filtros.
                           </td>
                         </tr>

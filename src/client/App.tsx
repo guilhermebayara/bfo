@@ -6,6 +6,7 @@ import { Transactions } from './screens/Transactions';
 import { RecurringScreen, SubscriptionTypes } from './screens/Recurring';
 import { Cards } from './screens/Cards';
 import { InstallmentPurchase } from './screens/InstallmentPurchase';
+import { Upcoming } from './screens/Upcoming';
 import { Accounts } from './screens/Accounts';
 import { Categories, Tags, Payees, Preferences } from './screens/Configuration';
 export function App() {
@@ -91,6 +92,7 @@ export function App() {
           </a>
           {[
             ['/cartao', 'Cartão'],
+            ['/proximos', 'Próximos'],
             ['/recorrentes', 'Recorrentes'],
             ['/assinaturas', 'Assinaturas'],
             ['/tipos-assinatura', 'Tipos de assinatura'],
@@ -109,7 +111,7 @@ export function App() {
             </a>
           ))}
         </nav>
-        <p className="environment">Dados fictícios · Sessão H</p>
+        <p className="environment">Dados fictícios · Sessão J</p>
       </aside>
       <div className="workspace">
         {renewals.length > 0 && (
@@ -148,6 +150,8 @@ export function App() {
             />
           ) : path === '/tipos-assinatura' ? (
             <SubscriptionTypes onSaved={load} />
+          ) : path === '/proximos' ? (
+            <Upcoming revision={revision} />
           ) : path === '/cartao' ? (
             <Cards accounts={accounts} onSaved={load} />
           ) : path.startsWith('/parceladas/') ? (
