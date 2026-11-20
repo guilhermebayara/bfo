@@ -20,7 +20,7 @@ Convenções: valores em texto com 4 casas, positivo é saída e negativo é ent
 | `transactions.pagina-1.json` | `has_more: true`, 12 transações | A importação busca a página seguinte (`offset`) |
 | `transactions.pagina-2.json` | `has_more: false`, 13 transações | Fim da paginação; total de 25 sem repetição de ids |
 | `transactions.pagina-1.json` | 90001 e 90021: 4 casas decimais (`152.3400`, `1234.5678`) | Centavos inteiros sem ponto flutuante, arredondando para o centavo mais próximo (decisão do dono em 19/11/2026): 90021 vira 123457 centavos |
-| `transactions.pagina-1.json` | 90002 renda (`-5200.0000`) e 90022 (`0.0100`) | Entrada com sinal positivo no BFO; 1 centavo preservado |
+| `transactions.pagina-1.json` | 90002 renda (`-5200.0000`) e 90022 (`0.0100`) | Entrada no BFO: valor guardado negativo (negativo é entrada, como na API v2) e mostrado com [+] na tela; 1 centavo preservado |
 | `transactions.pagina-1.json` | 90003 e 90004 na conta 3, `usd` com `to_base` | Valor original, moeda `USD` e valor em reais guardados; 90004 é crédito |
 | `transactions.pagina-1.json` | 90005 pai de divisão (`is_split_parent`), filhos 90023 e 90024 na página 2 | Uma transação dividida em duas partes que somam 300,00; o pai não entra duplicado. Os filhos chegam em página diferente do pai |
 | `transactions.pagina-1.json` | Grupo 90006 com filhos 90007 (+1000) e 90008 (-1000), categoria Transferência | Uma transferência só, da conta 1 para a conta 5, sem entrar em receita nem despesa |
