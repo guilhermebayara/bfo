@@ -1,5 +1,6 @@
 import { roundRatio } from './money';
 export const RENEWAL_NOTICE_DAYS = 30;
+export const RECOGNITION_DAYS = 7;
 export function currentMonth() {
   return new Intl.DateTimeFormat('sv-SE', {
     timeZone: 'America/Sao_Paulo',
@@ -76,24 +77,30 @@ export function datesInMonth(r: Schedule, month: string) {
   }
   return dates;
 }
+function occurrenceIndex(r: Schedule, day: string) {
+  return r.cadence === 'monthly' || r.cadence === 'yearly'
+    ? Math.floor(
+        ((Number(day.slice(0, 4)) - Number(r.next_date.slice(0, 4))) * 12 +
+          Number(day.slice(5, 7)) -
+          Number(r.next_date.slice(5, 7))) /
+          (r.cadence === 'yearly' ? 12 : 1),
+      )
+    : Math.floor(
+        (Date.parse(day) - Date.parse(r.next_date)) /
+          86400000 /
+          (r.cadence === 'weekly' ? 7 : r.interval_days || 1),
+      );
+}
 export function nextOccurrence(r: Schedule, day: string) {
-  let index = Math.max(
-    0,
-    r.cadence === 'monthly' || r.cadence === 'yearly'
-      ? Math.floor(
-          ((Number(day.slice(0, 4)) - Number(r.next_date.slice(0, 4))) * 12 +
-            Number(day.slice(5, 7)) -
-            Number(r.next_date.slice(5, 7))) /
-            (r.cadence === 'yearly' ? 12 : 1),
-        )
-      : Math.floor(
-          (Date.parse(day) - Date.parse(r.next_date)) /
-            86400000 /
-            (r.cadence === 'weekly' ? 7 : r.interval_days || 1),
-        ),
-  );
+  let index = Math.max(0, occurrenceIndex(r, day));
   if (occurrence(r, index) < day) index++;
   return occurrence(r, index);
+}
+export function previousOccurrence(r: Schedule, day: string) {
+  let index = occurrenceIndex(r, day);
+  if (index < 0) return null;
+  if (occurrence(r, index) > day) index--;
+  return index < 0 ? null : occurrence(r, index);
 }
 export function monthlyEquivalent(
   amount: number,
@@ -157,7 +164,8 @@ export function matchRecurring<
         (t) =>
           t.account_id === o.r.account_id &&
           Math.sign(t.amount_cents) === Math.sign(o.r.amount_cents) &&
-          Math.abs(Date.parse(t.date) - Date.parse(o.due)) <= 7 * 86400000 &&
+          Math.abs(Date.parse(t.date) - Date.parse(o.due)) <=
+            RECOGNITION_DAYS * 86400000 &&
           (t.source_id === o.r.id ||
             (!t.source_id &&
               t.payee.toLocaleLowerCase('pt-BR') ===

@@ -169,7 +169,14 @@ export function Accounts({
   const [editError, setEditError] = useState('');
   const [editBusy, setEditBusy] = useState(false);
   const [selected, setSelected] = useState<Account | null>(null);
-  const [reconcile, setReconcile] = useState<Account | null>(null);
+  const [reconcile, setReconcile] = useState<Account | null>(() => {
+    const account = new URLSearchParams(location.search).get('account');
+    return (
+      accounts.find(
+        (a) => a.id === account && a.cutoff_date && !a.closed_at && !a.archived,
+      ) ?? null
+    );
+  });
   const [grouping, setGrouping] = useState('institution');
   const [rates, setRates] = useState<Record<string, number>>({ BRL: 1 });
   useEffect(() => {
