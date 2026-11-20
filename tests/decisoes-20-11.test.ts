@@ -541,3 +541,105 @@ it('compra futura cai na fatura da data e o recorrente reconhecido não duplica 
       .map((i) => `${i.date}:${i.type}`),
   ).toEqual(['2026-11-20:scheduled', '2026-12-20:recurring']);
 });
+it('saldo do cartão em Contas ignora parcela futura e o comprometido a inclui', async () => {
+  await fixture();
+  const card = await accountOf('Cartão do saldo fictício', 'credit_card', 0, {
+    closing_day: 20,
+    due_day: 27,
+    credit_limit_cents: 100000,
+  });
+  expect(
+    (
+      await req('/transactions', 'POST', {
+        account_id: card,
+        date: '2026-11-15',
+        amount_cents: 8000,
+        payee: 'Compra à vista do cartão',
+        category_id: 'd20-mercado',
+        tag_ids: [],
+      })
+    ).status,
+  ).toBe(201);
+  const plan = await req('/transactions', 'POST', {
+    account_id: card,
+    date: '2026-11-15',
+    amount_cents: 9000,
+    payee: 'Compra parcelada do cartão',
+    category_id: 'd20-casa',
+    tag_ids: [],
+    installment_count: 3,
+  });
+  expect(plan.status).toBe(201);
+  const { installment_plan_id } = await plan.json();
+  const parts = (
+    await db
+      .prepare(
+        'SELECT date,amount_cents FROM transactions WHERE installment_plan_id=? ORDER BY installment_number',
+      )
+      .bind(installment_plan_id)
+      .all<{ date: string; amount_cents: number }>()
+  ).results;
+  expect(parts).toEqual([
+    { date: '2026-11-15', amount_cents: 3000 },
+    { date: '2026-12-15', amount_cents: 3000 },
+    { date: '2027-01-15', amount_cents: 3000 },
+  ]);
+  expect(
+    (
+      await req('/transactions', 'POST', {
+        account_id: card,
+        date: '2026-11-18',
+        amount_cents: 2500,
+        payee: 'Compra ainda não vencida',
+        category_id: 'd20-mercado',
+        tag_ids: [],
+      })
+    ).status,
+  ).toBe(201);
+  // Lançado até 15/11 e não pago: R$ 80,00 + R$ 30,00. Fora: R$ 25,00 de 18/11 e duas parcelas de R$ 30,00.
+  expect(await balanceOn('2026-11-15', card)).toBe(-11000);
+  expect(await balanceOn('2026-11-18', card)).toBe(-13500);
+  const commitment = await (await req(`/cards/${card}/commitment`)).json();
+  expect(commitment).toMatchObject({
+    committed_cents: 19500,
+    credit_limit_cents: 100000,
+    available_cents: 80500,
+  });
+  const statements = (await (
+    await req(`/cards/${card}/statements`)
+  ).json()) as {
+    id: string;
+    closing_date: string;
+    total_cents: number;
+  }[];
+  const november = statements.find((s) => s.closing_date === '2026-11-20')!;
+  expect(november.total_cents).toBe(13500);
+  expect(
+    (
+      await req(`/statements/${november.id}/check`, 'POST', {
+        action: 'close',
+        expected_total_cents: 13500,
+        bank_amount_cents: 13500,
+      })
+    ).status,
+  ).toBe(201);
+  const checking = await accountOf(
+    'Corrente do cartão fictícia',
+    'checking',
+    50000,
+  );
+  expect(
+    (
+      await req(`/statements/${november.id}/pay`, 'POST', {
+        account_id: checking,
+        date: '2026-11-15',
+        amount_cents: 4000,
+      })
+    ).status,
+  ).toBe(201);
+  // Pagou R$ 40,00 em 15/11. O saldo fica em R$ 70,00. O comprometido guarda o restante da fatura e as duas parcelas.
+  expect(await balanceOn('2026-11-15', card)).toBe(-7000);
+  expect(await (await req(`/cards/${card}/commitment`)).json()).toMatchObject({
+    committed_cents: 15500,
+  });
+});

@@ -184,3 +184,71 @@ test('lançamento e transferência com data futura ficam em Próximos e fora do 
     ),
   ).toHaveLength(1);
 });
+test('saldo do cartão em Contas deixa a parcela futura no comprometido', async ({
+  page,
+  request,
+}) => {
+  const created = await request.post('/api/accounts', {
+    headers: clock,
+    data: {
+      name: 'Cartão saldo navegador',
+      kind: 'credit_card',
+      currency: 'BRL',
+      institution_id: 'horizonte',
+      closing_day: 20,
+      due_day: 27,
+      credit_limit_cents: 100000,
+    },
+  });
+  expect(created.status()).toBe(201);
+  const card = (await created.json()).id as string;
+  for (const data of [
+    {
+      date: '2026-11-15',
+      amount_cents: 8000,
+      payee: 'Compra à vista navegador',
+    },
+    {
+      date: '2026-11-15',
+      amount_cents: 9000,
+      payee: 'Compra parcelada navegador',
+      installment_count: 3,
+    },
+    {
+      date: '2026-11-18',
+      amount_cents: 2500,
+      payee: 'Compra ainda não vencida navegador',
+    },
+  ]) {
+    expect(
+      (
+        await request.post('/api/transactions', {
+          headers: clock,
+          data: {
+            account_id: card,
+            category_id: 'groceries',
+            tag_ids: [],
+            ...data,
+          },
+        })
+      ).status(),
+    ).toBe(201);
+  }
+  const accounts = await (
+    await request.get('/api/accounts', { headers: clock })
+  ).json();
+  expect(
+    accounts.find((a: { id: string }) => a.id === card).balance_cents,
+  ).toBe(-11000);
+  await page.goto('/contas');
+  await expect(
+    page.getByRole('row').filter({ hasText: 'Cartão saldo navegador' }),
+  ).toContainText('110,00');
+  await page.goto(`/cartao?account=${card}`);
+  await expect(page.getByLabel('Limite do cartão')).toContainText(
+    'Comprometido: R$ 195,00',
+  );
+  await expect(page.getByLabel('Limite do cartão')).toContainText(
+    'Disponível: R$ 805,00',
+  );
+});
