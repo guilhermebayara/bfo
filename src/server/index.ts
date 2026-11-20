@@ -3903,11 +3903,41 @@ app.get('/api/home', async (c) => {
     to,
     true,
   );
-  const [projection, attention, month] = await Promise.all([
-    projectAvailable(c.var.DB, day, to, accounts, recurring, items),
+  const [attention, month] = await Promise.all([
     attentionItems(c.var.DB, day, accounts, recurring),
     compareMonth(c.var.DB, day),
   ]);
+  // Renda recorrente atrasada segue prevista até chegar, contada a partir de hoje (decisão de 20/11/2026).
+  const byId = new Map(recurring.map((r) => [r.id, r]));
+  const late: DueItem[] = attention.flatMap((a) => {
+    const r = a.type === 'recurring' ? byId.get(a.id) : undefined;
+    if (!r || !r.effective_income || r.amount_cents >= 0) return [];
+    const account = accounts.find((x) => x.id === r.account_id);
+    if (!account) return [];
+    const [, m, d] = (a.date ?? day).split('-');
+    return [
+      {
+        type: 'recurring' as const,
+        recurring_id: r.id,
+        id: `atrasada-${r.id}-${a.date ?? day}`,
+        label: `${r.payee} (atrasada, prevista para ${d}/${m})`,
+        date: day,
+        amount_cents: r.amount_cents,
+        currency: account.currency,
+        account_id: account.id,
+        account_name: account.name,
+        components: [],
+      },
+    ];
+  });
+  const projection = await projectAvailable(
+    c.var.DB,
+    day,
+    to,
+    accounts,
+    recurring,
+    [...late, ...items],
+  );
   const dueTo = shiftDay(day, 6);
   const due = {
     to: dueTo,

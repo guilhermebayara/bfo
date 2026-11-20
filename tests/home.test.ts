@@ -73,11 +73,11 @@ it('projeta a virada do mês, com vale antes do salário e cada pagamento contad
   expect(data.projection).toMatchObject({
     to: '2026-12-28',
     opening_cents: 160000,
-    income_cents: 308000,
+    income_cents: 317000,
     scheduled_income_cents: 40000,
     expense_cents: 242000,
-    ending_cents: 266000,
-    low_cents: -37000,
+    ending_cents: 275000,
+    low_cents: -28000,
     low_date: '2026-12-02',
     has_income_recurring: true,
     missing_rates: [],
@@ -89,6 +89,8 @@ it('projeta a virada do mês, com vale antes do salário e cada pagamento contad
       brl_cents,
     ]),
   ).toEqual([
+    // Renda atrasada segue prevista até chegar, contada a partir de hoje.
+    ['2026-11-28', 'recurring', 9000],
     ['2026-11-28', 'recurring', 8000],
     ['2026-11-30', 'recurring', 175000],
     ['2026-12-02', 'payment', 30000],
@@ -97,6 +99,9 @@ it('projeta a virada do mês, com vale antes do salário e cada pagamento contad
     ['2026-12-12', 'transfer', 12000],
     ['2026-12-13', 'scheduled', 40000],
   ]);
+  expect(data.projection.entries[0].item.label).toBe(
+    'Renda atrasada X (atrasada, prevista para 20/11)',
+  );
 });
 
 it('avisa sobre conferências, renovação e a última ocorrência com janela vencida', async () => {
