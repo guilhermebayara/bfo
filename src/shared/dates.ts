@@ -6,3 +6,9 @@ export function today() {
     day: '2-digit',
   }).format(new Date());
 }
+
+export function shiftDay(day: string, offset: number) {
+  const date = new Date(`${day}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + offset);
+  return date.toISOString().slice(0, 10);
+}

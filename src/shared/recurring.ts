@@ -1,5 +1,6 @@
 import { roundRatio } from './money';
 export const RENEWAL_NOTICE_DAYS = 30;
+export const RECOGNITION_DAYS = 7;
 export function currentMonth() {
   return new Intl.DateTimeFormat('sv-SE', {
     timeZone: 'America/Sao_Paulo',
@@ -157,7 +158,8 @@ export function matchRecurring<
         (t) =>
           t.account_id === o.r.account_id &&
           Math.sign(t.amount_cents) === Math.sign(o.r.amount_cents) &&
-          Math.abs(Date.parse(t.date) - Date.parse(o.due)) <= 7 * 86400000 &&
+          Math.abs(Date.parse(t.date) - Date.parse(o.due)) <=
+            RECOGNITION_DAYS * 86400000 &&
           (t.source_id === o.r.id ||
             (!t.source_id &&
               t.payee.toLocaleLowerCase('pt-BR') ===
