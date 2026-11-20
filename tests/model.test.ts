@@ -462,7 +462,9 @@ describe('Sessão B', () => {
   it('sugere categoria e tags do lançamento mais recente do beneficiário', async () => {
     await activate();
     await db
-      .prepare("INSERT INTO tags VALUES('tag','Planejado','#888888')")
+      .prepare(
+        "INSERT INTO tags(id,name,color) VALUES('tag','Planejado','#888888')",
+      )
       .run();
     expect(
       (await manual({ date: '2026-09-01', category_id: null })).status,

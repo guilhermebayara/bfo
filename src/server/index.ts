@@ -144,7 +144,7 @@ app.get('/api/categories', async (c) =>
   c.json(
     (
       await c.var.DB.prepare(
-        'SELECT c.*, g.name AS group_name, ag.name AS allocation_name FROM effective_categories c JOIN category_groups g ON g.id=c.category_group_id JOIN allocation_groups ag ON ag.id=g.allocation_group_id ORDER BY g.sort,c.sort,c.name',
+        'SELECT c.*, g.name AS group_name, ag.name AS allocation_name FROM effective_categories c LEFT JOIN category_groups g ON g.id=c.category_group_id LEFT JOIN allocation_groups ag ON ag.id=g.allocation_group_id ORDER BY COALESCE(g.sort,9999),c.sort,c.name',
       ).all()
     ).results,
   ),
