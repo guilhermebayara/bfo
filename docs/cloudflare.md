@@ -57,3 +57,7 @@ Validação local: build, 83 testes de API/regras e 18 testes de navegador aprov
 Em 19/11/2026, a migração `0008_session_i.sql` e o seed fictício foram aplicados pela integração Cloudflare nos D1 `bfo-teste` e `bfo-homologacao`. A migração 0007 pendente também foi aplicada na homologação. Os registros em `d1_migrations` foram atualizados junto com cada migração. A conferência confirmou a transferência de R$ 150,00 e o pagamento parcial de R$ 40,00 na fatura fictícia de R$ 100,00, ainda fechada e com R$ 60,00 a pagar. `PRAGMA foreign_key_check` não encontrou erros nos dois bancos.
 
 O seed mantém os comandos existentes e usa marcador `session-i` para preservar alterações posteriores nos exemplos. Os testes de navegador cobrem a criação desses tipos pela nova linha de Transações. O saldo anterior na fatura seguinte permanece para a Sessão J.
+
+## Sessão K
+
+A importação do Lunch Money tem comandos próprios em [docs/importacao.md](importacao.md). A carga simulada e a carga real usam só o D1 `bfo-teste`. Homologação e produção ficam de fora desses comandos. O token é digitado na coleta e não fica gravado.

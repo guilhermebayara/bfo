@@ -65,13 +65,17 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
   - [x] Próximos mostra o restante do mês e o próximo, com recorrentes reconhecidos retirados da previsão. Parcelas, compras e recorrentes do cartão aparecem dentro da fatura, sem dupla contagem.
   - [x] Migração 0009 e seed fictício aplicados em `bfo-teste` e `bfo-homologacao` pela integração Cloudflare; referências verificadas sem erros. Exemplos: Cartão com limite fictício J, Cartão sem limite fictício J, compra Computador parcelado fictício J, fatura reaberta de novembro, fechamento antecipado de outubro, pagamento parcial e saldo anterior em dezembro, aporte no Investimento fictício J. Produção preservada.
   - [x] Build, 127 testes de API/regras/migrações e 46 testes de navegador aprovados. Detalhes de validação e caminhos em [docs/sessao-j.md](sessao-j.md).
-- [ ] Sessão K: script de importação do Lunch Money (API v2), apagar e refazer importação. Construída e testada só com dados simulados; a importação real espera o repositório privado.
-  - [x] Dados simulados da API v2 prontos em `tests/fixtures/lunchmoney/` (um JSON por endpoint, transações em duas páginas, casos de borda descritos no `LEIA-ME.md`). Faltam o script e os testes da importação.
+- [x] Sessão K: script de importação do Lunch Money (API v2), apagar e refazer importação. Construída e testada só com dados simulados; a importação real espera o repositório privado.
+  - [x] Dados simulados da API v2 prontos em `tests/fixtures/lunchmoney/` (um JSON por endpoint, transações em duas páginas, casos de borda descritos no `LEIA-ME.md`).
+  - [x] Migração 0010, mapeamento e testes de cada linha do LEIA-ME, inclusive apagar e refazer e a segunda carga sem duplicar. Validado no D1 local. A carga em `bfo-teste` fica no comando de [docs/importacao.md](importacao.md), porque esta máquina não tem credencial da Cloudflare.
+  - [x] Script `coletar`, `carregar` e `apagar`. O token é digitado na hora. O arquivo da coleta fica em `private-data/`, fora do Git.
+  - [x] Build e 158 testes de API/regras aprovados. 47 de 48 testes de navegador aprovados. O que falhou é o pagamento parcial da Sessão I quando o calendário cai no dia de fechamento 20.
 
 - [x] Sessão L (fundações de layout, antes do conceito): pedido do dono em 19/11/2026, porque a interface básica demais dificulta testar. Continua neutra, sem identidade visual. Tokens em duas camadas (primitivos e papéis semânticos), escalas de tipografia, espaço, superfície e borda, números tabulares e valores alinhados à direita, estrutura da aplicação com navegação e cabeçalho de página padrão, componentes base reutilizáveis, estados vazio, carregando e erro, uma página de catálogo das fundações e revisão da hierarquia de cada tela. Sem regra nova e sem funcionalidade nova. Referências guardadas em docs/referencia-visual.md, para o conceito.
   - [x] Navegação, cabeçalhos e hierarquia das telas revisados. Tokens, componentes e estados catalogados em `/fundacoes`.
   - [x] Testes de navegador cobrem a navegação, o catálogo e a geometria das células da planilha.
 
+- [ ] Defeito encontrado na Sessão K, para a sessão de correção depois da QA: tests/browser/session-i.spec.ts (pagamento parcial pela tabela) depende da data do dia e quebra no dia 20, fechamento da fatura do seed. Os testes de navegador precisam de data fixa.
 - [ ] Ajustes da revisão da Sessão L (pelo dono em 20/11/2026), para a sessão de correção depois da QA: resumo do mês em Transações recolhível, ao lado quando houver espaço, para a tabela ganhar largura; no Cartão, a fatura selecionada e as compras do ciclo vêm antes da lista de faturas; na navegação, os títulos dos grupos (Movimento, Cadastros, Aplicativo) pareciam itens desativados e precisam se distinguir claramente dos itens clicáveis.
 
 - [ ] Conceito visual: feito no Claude depois que a estrutura da fase 1 estiver redonda. Duas propostas numa prévia, o dono escolhe olhando a tela, e só então o visual é aplicado.
