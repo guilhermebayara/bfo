@@ -82,8 +82,11 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
 - [ ] Categoria e tags padrão no beneficiário, para a sessão de correção: editáveis na tela de beneficiários; a sugestão ao digitar o beneficiário usa o padrão quando existir e a última vez quando não (decisões, Tags e beneficiários).
 - [ ] Possível defeito da QA, para a sessão de correção investigar: antecipação de parcelas devolve 409 ("As parcelas ou a fatura atual mudaram") num cenário composto, depois de fechar a fatura anterior e lançar outra compra parcelada no mesmo cartão. Isolada, funciona. Detalhe em docs/qa/fase-1.md.
 - [ ] QA complementar (Sessão N, Claude Code): refazer o mês simulado pela API com relógio fixo e gabarito escrito antes de rodar, e conferir por amostragem o que a Sessão M marcou como Ok.
+- [ ] Para a triagem da QA (sem decisão), vindos das pesquisas de 20/11: desfazer a última edição na planilha, que hoje salva sozinha e não tem volta além de editar de novo; histórico de alterações por transação (o que mudou e quando), útil para investigar divergência de fatura; backup do banco D1 com restauração testada. Os três mexem na confiança do lançamento diário, que começa antes das fases 2 e 3.
 
 - [ ] Conceito visual: feito no Claude depois que a estrutura da fase 1 estiver redonda. Duas propostas numa prévia, o dono escolhe olhando a tela, e só então o visual é aplicado.
+  - Consolidado das referências em [docs/referencia-visual-consolidado.md](referencia-visual-consolidado.md), sem decisão.
+  - Pendente: análise das nove telas do Mobbin pelo dono com o chat, depois de 23/11. A revisão visual começa depois disso.
 
 - [x] Ajuste técnico (Sessão B): a Cloudflare trocou as prévias por versão com alias pelo recurso Previews, com comando padrão `npx wrangler preview`. Migrar a configuração (bloco `previews` no ambiente homologacao do wrangler, comando de prévia com o ambiente) e atualizar docs/cloudflare.md com os nomes atuais do painel (Settings > Build, preview builds, Preview command).
 
@@ -105,6 +108,12 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
 ## Ideias para depois das três fases (sem decisão)
 
 - Referências reunidas sem decisão: análise visual em [docs/referencia-visual-analise.md](referencia-visual-analise.md) (a partir de [docs/referencia-visual.md](referencia-visual.md)) e patrimônio/investimentos/dívidas da fase 2 em [docs/referencia-patrimonio.md](referencia-patrimonio.md).
+
+- Pesquisas externas de 20/11/2026 (Gemini e Manus), resumidas sem decisão. Os textos originais ficam fora do repositório, porque recomendam coisas já decididas ao contrário e não foram conferidas. Ficaram de fora por já estarem decididas: motor de regras, estado de revisão, fila de revisão, sincronização bancária, período de orçamento livre, temas claros e outra stack. O que já existe no BFO também não entra.
+  - Fase 1 e uso diário: saldo corrido por conta, para ajudar na conferência de saldo; paleta de comandos (Cmd+K) e atalhos de linha, levando mais longe o teclado de planilha; filtro de privacidade que esconde os valores na tela; anexo de comprovante na transação; todo total da tela leva às transações que o formaram; exportação em CSV. Desfazer, histórico de alterações e backup estão na triagem da QA, acima.
+  - Fase 2: patrimônio e análises numa superfície própria, separada das telas do dia a dia.
+  - Fase 3: taxa de poupança e projeção no resumo; barra que separa recorrente pago, gasto avulso e recorrente previsto, conversando com a marca de ritmo; quanto dá para gastar por dia até o fim do mês; quanto ainda falta distribuir da renda prevista; metas com valor e data (ex.: guardar para uma viagem), ligadas às categorias de reserva; Sankey de renda; calendário de entradas e saídas.
+  - Tela inicial, sem fase definida: responder o que está disponível, o que pede atenção, o que vence em breve e como o mês está andando, antes de qualquer gráfico. Conversa com a visão geral da Mira no [consolidado visual](referencia-visual-consolidado.md).
 
 - Importação pontual de extrato ou fatura (OFX ou CSV, quando o banco oferecer), separada da importação do histórico do Lunch Money. Diferenças: as transações entram como manuais e editáveis, passam por uma tela de revisão antes de salvar e são cruzadas com o que já foi lançado para não duplicar. Uso principal: achar a compra que faltou numa conferência de fatura. Baixa prioridade, porque o lançamento manual dá a melhor visão dos dados e os bancos não têm um padrão de exportação confiável.
 
