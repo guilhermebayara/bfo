@@ -94,6 +94,8 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
   - [x] Pilha de desfazer e refazer enquanto a página estiver aberta, respeitando as travas.
   - [x] Aviso com novo saldo das contas afetadas e botão Desfazer. O lote mostra um aviso só.
 
+- [ ] Ferramentas de uso diário (Sessão V, Codex, em paralelo à N): total leva às transações, saldo corrido por conta, filtro de privacidade e exportação em CSV (decisões, Tabela de transações; brief em docs/briefs/uso-diario.md).
+
 - [ ] Conceito visual: feito no Claude depois que a estrutura da fase 1 estiver redonda. Duas propostas numa prévia, o dono escolhe olhando a tela, e só então o visual é aplicado.
   - Consolidado das referências em [docs/referencia-visual-consolidado.md](referencia-visual-consolidado.md), sem decisão.
   - Pendente: análise das nove telas do Mobbin pelo dono com o chat, depois de 23/11. A revisão visual começa depois disso.
@@ -121,7 +123,7 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
 - Referências reunidas sem decisão: análise visual em [docs/referencia-visual-analise.md](referencia-visual-analise.md) (a partir de [docs/referencia-visual.md](referencia-visual.md)) e patrimônio/investimentos/dívidas da fase 2 em [docs/referencia-patrimonio.md](referencia-patrimonio.md).
 
 - Pesquisas externas de 20/11/2026 (Gemini e Manus), resumidas sem decisão. Os textos originais ficam fora do repositório, porque recomendam coisas já decididas ao contrário e não foram conferidas. Ficaram de fora por já estarem decididas: motor de regras, estado de revisão, fila de revisão, sincronização bancária, período de orçamento livre, temas claros e outra stack. O que já existe no BFO também não entra.
-  - Fase 1 e uso diário: saldo corrido por conta, para ajudar na conferência de saldo; paleta de comandos (Cmd+K) e atalhos de linha, levando mais longe o teclado de planilha; filtro de privacidade que esconde os valores na tela; anexo de comprovante na transação; todo total da tela leva às transações que o formaram; exportação em CSV. Desfazer, histórico de alterações e backup foram decididos em 20/11 e estão na fase 1, acima.
+  - Fase 1 e uso diário: paleta de comandos (Cmd+K) e atalhos de linha, levando mais longe o teclado de planilha; anexo de comprovante na transação. Saldo corrido, filtro de privacidade, total que leva às transações e exportação em CSV foram decididos em 20/11 e estão na fase 1, acima. Desfazer, histórico de alterações e backup foram decididos em 20/11 e estão na fase 1, acima.
   - Fase 2: patrimônio e análises numa superfície própria, separada das telas do dia a dia.
   - Fase 3: taxa de poupança e projeção no resumo; barra que separa recorrente pago, gasto avulso e recorrente previsto, conversando com a marca de ritmo; quanto dá para gastar por dia até o fim do mês; quanto ainda falta distribuir da renda prevista; metas com valor e data (ex.: guardar para uma viagem), ligadas às categorias de reserva; Sankey de renda; calendário de entradas e saídas.
   - Tela inicial, sem fase definida: responder o que está disponível, o que pede atenção, o que vence em breve e como o mês está andando, antes de qualquer gráfico. Conversa com a visão geral da Mira no [consolidado visual](referencia-visual-consolidado.md).
