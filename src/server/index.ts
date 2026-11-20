@@ -3643,6 +3643,13 @@ async function upcomingItems(
         label: 'Saldo anterior previsto',
         amount_cents: st.scheduled_carry_cents,
       });
+    if (st.remaining_cents !== st.total_cents)
+      components.push({
+        id: 'remaining-' + st.id,
+        type: 'adjustment',
+        label: 'Diferença entre total e saldo a pagar',
+        amount_cents: st.remaining_cents! - st.total_cents,
+      });
     items.push({
       id: st.id,
       type: 'statement',
@@ -3728,6 +3735,8 @@ async function upcomingItems(
       type: 'recurring',
       label: p.r.payee + ' (previsto)',
       amount_cents: p.r.amount_cents,
+      recurring_id: p.r.id,
+      date: p.date,
     });
   }
   const scheduled = await db

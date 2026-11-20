@@ -4,11 +4,11 @@ export type DueComponent = {
   label: string;
   amount_cents: number;
   date?: string;
+  recurring_id?: string;
 };
 
 export type DueItem = {
   id: string;
-  type: 'statement' | 'recurring' | 'transfer' | 'payment' | 'scheduled';
   label: string;
   date: string;
   amount_cents: number;
@@ -16,9 +16,11 @@ export type DueItem = {
   account_id: string;
   account_name: string;
   components: DueComponent[];
-  recurring_id?: string;
   destination_account_id?: string | null;
-};
+} & (
+  | { type: 'recurring'; recurring_id: string }
+  | { type: 'statement' | 'transfer' | 'payment' | 'scheduled' }
+);
 
 export type ProjectionBalance = {
   id: string;
@@ -48,6 +50,7 @@ export type Projection = {
   ending_cents: number;
   low_cents: number;
   low_date: string;
+  low_is_opening: boolean;
 };
 
 export type AttentionItem = {
@@ -80,4 +83,12 @@ export type MonthComparison = {
     current_cents: number;
     previous_cents: number;
   }[];
+};
+
+export type HomeData = {
+  day: string;
+  projection: Projection;
+  attention: AttentionItem[];
+  due: { to: string; items: DueItem[] };
+  month: MonthComparison;
 };

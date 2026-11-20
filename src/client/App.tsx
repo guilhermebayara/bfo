@@ -12,12 +12,14 @@ import { RecurringScreen, SubscriptionTypes } from './screens/Recurring';
 import { Cards } from './screens/Cards';
 import { InstallmentPurchase } from './screens/InstallmentPurchase';
 import { Upcoming } from './screens/Upcoming';
+import { Home, ProjectionDetails, projectionView } from './screens/Home';
 import { Accounts } from './screens/Accounts';
 import { Categories, Tags, Payees, Preferences } from './screens/Configuration';
 const navigation = [
   {
     label: 'Movimento',
     links: [
+      ['/', 'Início'],
       ['/transacoes', 'Transações'],
       ['/contas', 'Contas'],
       ['/cartao', 'Cartão'],
@@ -47,6 +49,7 @@ const navigation = [
 export function App() {
   const [address, setAddress] = useState(location.pathname + location.search);
   const [path, search = ''] = address.split('?');
+  const projection = projectionView(search);
   const privacy = usePrivacy();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -138,8 +141,7 @@ export function App() {
                 {links.map(([url, name]) => {
                   const current =
                     path === url ||
-                    (url === '/transacoes' &&
-                      (path === '/' || path.startsWith('/transacoes/')));
+                    (url === '/transacoes' && path.startsWith('/transacoes/'));
                   const purchase =
                     url === '/cartao' && path.startsWith('/parceladas/');
                   return (
@@ -180,7 +182,7 @@ export function App() {
             Ocultar valores
           </Button>
         </div>
-        {renewals.length > 0 && (
+        {path !== '/' && renewals.length > 0 && (
           <Notice
             tone="warning"
             className="alert-space"
@@ -218,6 +220,8 @@ export function App() {
             </State>
           ) : !ready ? (
             <State kind="loading">Carregando contas…</State>
+          ) : path === '/' ? (
+            <Home revision={revision} />
           ) : path === '/recorrentes' || path === '/assinaturas' ? (
             <RecurringScreen
               key={path}
@@ -229,7 +233,11 @@ export function App() {
           ) : path === '/tipos-assinatura' ? (
             <SubscriptionTypes onSaved={load} />
           ) : path === '/proximos' ? (
-            <Upcoming revision={revision} />
+            projection ? (
+              <ProjectionDetails view={projection} revision={revision} />
+            ) : (
+              <Upcoming revision={revision} />
+            )
           ) : path === '/cartao' ? (
             <Cards accounts={accounts} onSaved={load} revision={revision} />
           ) : path.startsWith('/parceladas/') ? (

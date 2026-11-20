@@ -1,3 +1,4 @@
+import { StatementProjection } from './Home';
 import { transactionsUrl } from '../transaction-filters';
 import { FinancialInput, useMoney } from '../privacy';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
@@ -506,6 +507,10 @@ export function Cards({
     statements.find((s) => s.account_id === card?.id && s.is_current) ??
     statements.find((s) => s.account_id === card?.id);
   const statementId = statement?.id;
+  const forecastParams = new URLSearchParams(location.search);
+  const showForecast =
+    forecastParams.get('previsao') === '1' &&
+    forecastParams.get('statement') === statementId;
   useEffect(() => {
     if (focusSelectedStatement.current) {
       focusSelectedStatement.current = false;
@@ -761,6 +766,9 @@ export function Cards({
                     statement.paid_cents,
               )}
             </p>
+          )}
+          {showForecast && (
+            <StatementProjection id={statement.id} revision={revision} />
           )}
           {!detail && !error && (
             <State kind="loading">Carregando fatura…</State>

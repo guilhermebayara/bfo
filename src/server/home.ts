@@ -40,7 +40,7 @@ export async function projectAvailable(
       entries.push({ item, kind: 'expense' });
     } else if (item.amount_cents < 0 && item.type === 'scheduled') {
       entries.push({ item, kind: 'scheduled_income' });
-    } else if (item.recurring_id && incomeIds.has(item.recurring_id)) {
+    } else if (item.type === 'recurring' && incomeIds.has(item.recurring_id)) {
       entries.push({ item, kind: 'income' });
     }
   }
@@ -96,11 +96,13 @@ export async function projectAvailable(
   let ending = opening;
   let low = opening;
   let lowDate = today;
+  let lowIsOpening = true;
   for (const [day, change] of changes) {
     ending += change;
     if (ending < low) {
       low = ending;
       lowDate = day;
+      lowIsOpening = false;
     }
   }
   return {
@@ -116,5 +118,6 @@ export async function projectAvailable(
     ending_cents: ending,
     low_cents: low,
     low_date: lowDate,
+    low_is_opening: lowIsOpening,
   };
 }

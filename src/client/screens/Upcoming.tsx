@@ -1,31 +1,15 @@
-import { transactionsUrl } from '../transaction-filters';
+import { dueComponentUrl, dueItemUrl } from '../upcoming-links';
+import type { DueItem } from '../../shared/home';
 import { useMoney } from '../privacy';
 import { useEffect, useState } from 'react';
 import { api, humanDate } from '../api';
 import { PageHeader, Panel, State, Truncated, Table } from '../components';
-type Due = {
-  id: string;
-  type: string;
-  label: string;
-  date: string;
-  amount_cents: number;
-  currency: string;
-  account_name: string;
-  account_id: string;
-  components: {
-    id: string;
-    type: string;
-    label: string;
-    amount_cents: number;
-    date?: string;
-  }[];
-};
 export function Upcoming({ revision }: { revision: number }) {
   const formatMoney = useMoney();
   const [data, setData] = useState<{
       from: string;
       to: string;
-      items: Due[];
+      items: DueItem[];
     } | null>(null),
     [error, setError] = useState('');
   useEffect(() => {
@@ -90,9 +74,7 @@ export function Upcoming({ revision }: { revision: number }) {
                         <td>{humanDate(i.date)}</td>
                         <td>
                           {i.type === 'statement' ? (
-                            <a
-                              href={`/cartao?account=${encodeURIComponent(i.account_id)}&statement=${encodeURIComponent(i.id)}`}
-                            >
+                            <a href={dueItemUrl(i)}>
                               <Truncated>{i.label}</Truncated>
                             </a>
                           ) : (
@@ -102,33 +84,31 @@ export function Upcoming({ revision }: { revision: number }) {
                             <details>
                               <summary>Parcelas, compras e recorrentes</summary>
                               <ul>
-                                {i.components.map((p) => (
-                                  <li key={p.id}>
-                                    {p.label}:{' '}
-                                    {p.date ? (
-                                      <a
-                                        href={transactionsUrl(
-                                          p.date.slice(0, 7),
-                                          {
-                                            account: i.account_id,
-                                            transaction: p.id,
-                                          },
-                                        )}
-                                        aria-label={`Valor de ${p.label}: ${formatMoney(p.amount_cents, i.currency)}. Ver transação`}
-                                      >
-                                        {formatMoney(
-                                          p.amount_cents,
-                                          i.currency,
-                                        )}
-                                      </a>
-                                    ) : (
-                                      formatMoney(p.amount_cents, i.currency)
-                                    )}
-                                    {p.type === 'installment'
-                                      ? ' · Parcela'
-                                      : ''}
-                                  </li>
-                                ))}
+                                {i.components.map((p) => {
+                                  const href = dueComponentUrl(i.account_id, p);
+                                  const value = formatMoney(
+                                    p.amount_cents,
+                                    i.currency,
+                                  );
+                                  return (
+                                    <li key={p.id}>
+                                      {p.label}:{' '}
+                                      {href ? (
+                                        <a
+                                          href={href}
+                                          aria-label={`Valor de ${p.label}: ${value}. Ver lançamento`}
+                                        >
+                                          {value}
+                                        </a>
+                                      ) : (
+                                        value
+                                      )}
+                                      {p.type === 'installment'
+                                        ? ' · Parcela'
+                                        : ''}
+                                    </li>
+                                  );
+                                })}
                               </ul>
                             </details>
                           )}
@@ -137,14 +117,9 @@ export function Upcoming({ revision }: { revision: number }) {
                           <Truncated>{i.account_name}</Truncated>
                         </td>
                         <td className="numeric">
-                          {['scheduled', 'transfer', 'payment'].includes(
-                            i.type,
-                          ) ? (
+                          {i.type !== 'statement' ? (
                             <a
-                              href={transactionsUrl(i.date.slice(0, 7), {
-                                account: i.account_id,
-                                transaction: i.id,
-                              })}
+                              href={dueItemUrl(i)}
                               aria-label={`Valor de ${i.label}: ${formatMoney(i.amount_cents, i.currency)}. Ver transação`}
                             >
                               {formatMoney(i.amount_cents, i.currency)}
