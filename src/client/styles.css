@@ -613,12 +613,19 @@ fieldset {
 }
 .transactions-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--summary-width);
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--gap-section);
   align-items: start;
 }
-.transactions-main {
-  min-width: 0;
+.transactions-layout-wide {
+  grid-template-columns: minmax(0, 1fr) var(--summary-width);
+  grid-template-areas: 'table summary';
+}
+.transactions-layout-wide .transactions-summary {
+  grid-area: summary;
+}
+.transactions-layout-wide .transactions-main {
+  grid-area: table;
 }
 .toolbar {
   display: flex;
@@ -864,14 +871,6 @@ fieldset {
   top: calc(var(--sheet-row-height) - var(--gap-compact));
   z-index: var(--layer-editor);
   font-size: var(--text-label);
-}
-@media (max-width: 1100px) {
-  .transactions-layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .month-summary {
-    width: 100%;
-  }
 }
 .cell-message {
   pointer-events: none;
