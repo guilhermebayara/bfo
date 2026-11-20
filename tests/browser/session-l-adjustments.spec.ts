@@ -86,3 +86,42 @@ test('fatura selecionada e compras do ciclo vêm antes da lista de faturas', asy
     invoices.and(page.locator('#selected-statement ~ section')),
   ).toBeVisible();
 });
+
+test('títulos dos grupos de navegação são estáticos e o Tab percorre os links', async ({
+  page,
+}) => {
+  await page.goto('/fundacoes');
+  const navigation = page.getByRole('navigation', {
+    name: 'Navegação principal',
+  });
+  const headings = navigation.getByRole('heading', { level: 2 });
+  await expect(headings).toHaveText(['Movimento', 'Cadastros', 'Aplicativo']);
+  for (const heading of await headings.all()) {
+    await expect(heading).toHaveCSS('text-transform', 'uppercase');
+    await expect(heading).toHaveCSS('border-bottom-style', 'solid');
+    const appearance = await heading.evaluate((element) => {
+      const { backgroundColor, color, cursor } = getComputedStyle(element);
+      return { backgroundColor, color, cursor };
+    });
+    await heading.hover();
+    await expect(heading).toHaveCSS(
+      'background-color',
+      appearance.backgroundColor,
+    );
+    await expect(heading).toHaveCSS('color', appearance.color);
+    expect(appearance.cursor).toBe('auto');
+    await heading.click();
+    await expect(heading).not.toBeFocused();
+    await expect(page).toHaveURL('/fundacoes');
+  }
+
+  await page.getByRole('link', { name: 'Pular para o conteúdo' }).focus();
+  for (const link of await navigation.getByRole('link').all()) {
+    await page.keyboard.press('Tab');
+    await expect(link).toBeFocused();
+  }
+
+  await page.setViewportSize({ width: 720, height: 900 });
+  for (const heading of await headings.all())
+    await expect(heading).toBeVisible();
+});

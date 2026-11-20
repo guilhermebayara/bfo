@@ -115,36 +115,38 @@ export function App() {
         <nav aria-label="Navegação principal">
           {navigation.map(({ label, links }) => (
             <div className="nav-group" key={label}>
-              <span className="nav-label">{label}</span>
-              {links.map(([url, name]) => {
-                const current =
-                  path === url ||
-                  (url === '/transacoes' &&
-                    (path === '/' || path.startsWith('/transacoes/')));
-                const purchase =
-                  url === '/cartao' && path.startsWith('/parceladas/');
-                return (
-                  <React.Fragment key={url}>
-                    <a
-                      href={url}
-                      aria-current={current ? 'page' : undefined}
-                      onClick={(e) => navigate(e, url)}
-                    >
-                      {name}
-                    </a>
-                    {purchase && (
+              <h2 className="nav-label">{label}</h2>
+              <div className="nav-links">
+                {links.map(([url, name]) => {
+                  const current =
+                    path === url ||
+                    (url === '/transacoes' &&
+                      (path === '/' || path.startsWith('/transacoes/')));
+                  const purchase =
+                    url === '/cartao' && path.startsWith('/parceladas/');
+                  return (
+                    <React.Fragment key={url}>
                       <a
-                        className="nav-child"
-                        href={path}
-                        aria-current="page"
-                        onClick={(e) => navigate(e, path)}
+                        href={url}
+                        aria-current={current ? 'page' : undefined}
+                        onClick={(e) => navigate(e, url)}
                       >
-                        Compra parcelada
+                        {name}
                       </a>
-                    )}
-                  </React.Fragment>
-                );
-              })}
+                      {purchase && (
+                        <a
+                          className="nav-child"
+                          href={path}
+                          aria-current="page"
+                          onClick={(e) => navigate(e, path)}
+                        >
+                          Compra parcelada
+                        </a>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
             </div>
           ))}
         </nav>
