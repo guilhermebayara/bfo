@@ -3168,6 +3168,11 @@ app.get('/api/subscriptions', async (c) => {
     })),
   );
 });
+function recurringFlag(value: unknown) {
+  if (value === true || value === 1) return 1;
+  if (value === false || value === 0) return 0;
+  return fail('Estado inválido.');
+}
 for (const method of ['post', 'patch'] as const)
   app[method](
     `/api/recurring${method === 'patch' ? '/:id' : ''}`,
@@ -3223,13 +3228,8 @@ for (const method of ['post', 'patch'] as const)
           Number(r.interval_days) > 3660)
       )
         fail('Informe o intervalo em dias, de 1 a 3660.');
-      r.is_subscription = r.is_subscription ?? 0;
-      r.active = r.active ?? 1;
-      if (
-        ![0, 1].includes(r.is_subscription as number) ||
-        ![0, 1].includes(r.active as number)
-      )
-        fail('Estado inválido.');
+      r.is_subscription = recurringFlag(r.is_subscription ?? 0);
+      r.active = recurringFlag(r.active ?? 1);
       if (r.subscription_type_id != null)
         await exists(db, 'subscription_types', r.subscription_type_id);
       if (

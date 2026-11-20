@@ -138,6 +138,65 @@ it('anual entra só no mês de cobrança, com equivalente mensal inteiro', async
     (await (await request('/subscriptions')).json())[0].monthly_cents,
   ).toBe(2999);
 });
+it.each([
+  { ligada: true, desligada: false },
+  { ligada: 1, desligada: 0 },
+])(
+  'aceita as marcas de recorrente com $ligada e $desligada',
+  async ({ ligada, desligada }) => {
+    const response = await recurring({
+      is_subscription: ligada,
+      active: ligada,
+      subscription_type_id: 'type',
+      renewal_date: '2026-12-02',
+    });
+    expect(response.status).toBe(201);
+    const { id } = await response.json();
+    expect(await (await request('/subscriptions')).json()).toMatchObject([
+      { id },
+    ]);
+
+    expect(
+      (
+        await request(`/recurring/${id}`, 'PATCH', {
+          is_subscription: desligada,
+          active: desligada,
+        })
+      ).status,
+    ).toBe(200);
+    const catalog = await (
+      await request('/recurring?month=2026-11&catalog=1')
+    ).json();
+    expect(catalog.items).toMatchObject([
+      { id, is_subscription: 0, active: 0 },
+    ]);
+    expect(await (await request('/subscriptions')).json()).toEqual([]);
+
+    expect(
+      (await recurring({ is_subscription: desligada, active: desligada }))
+        .status,
+    ).toBe(201);
+    expect(
+      (
+        await request(`/recurring/${id}`, 'PATCH', {
+          is_subscription: ligada,
+          active: ligada,
+        })
+      ).status,
+    ).toBe(200);
+    expect(await (await request('/subscriptions')).json()).toMatchObject([
+      { id },
+    ]);
+  },
+);
+it.each([{ is_subscription: 'true' }, { active: 2 }])(
+  'rejeita marca inválida no cadastro de recorrente (%j)',
+  async (flags) => {
+    const response = await recurring(flags);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'Estado inválido.' });
+  },
+);
 it('aviso cobre hoje e limite de 30 dias, exclui vencidas e inativas', async () => {
   expect(renewalSoon('2026-11-19', '2026-11-19')).toBe(true);
   expect(renewalSoon('2026-12-19', '2026-11-19')).toBe(true);
