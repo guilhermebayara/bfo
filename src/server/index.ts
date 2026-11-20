@@ -367,7 +367,6 @@ app.post('/api/transfers', async (c) => {
   const day = date(b.date),
     amount = cents(b.amount_cents);
   if (amount <= 0) fail('Informe um valor positivo.');
-  if (day > c.var.today) fail('A data está no futuro.');
   const source = await db
     .prepare(
       "SELECT * FROM accounts WHERE id=? AND kind IN ('checking','cash') AND closed_at IS NULL AND archived=0 AND cutoff_date<?",
@@ -2529,7 +2528,6 @@ app.post('/api/statements/:id/pay', async (c) => {
     .first<Account>();
   if (!source?.cutoff_date || day <= source.cutoff_date)
     return fail('Escolha uma conta corrente ativa na data do pagamento.');
-  if (day > c.var.today) return fail('A data do pagamento está no futuro.');
   if (!statement.cutoff_date || day <= statement.cutoff_date)
     return fail('O pagamento deve ser posterior ao corte do cartão.');
   const total = cents(statement.bank_amount_cents ?? statement.total_cents);
@@ -3225,6 +3223,53 @@ app.get('/api/upcoming', async (c) => {
       type: 'recurring',
       label: p.r.payee + ' (previsto)',
       amount_cents: p.r.amount_cents,
+    });
+  }
+  const shown = new Set(
+    items.flatMap((item) => [item.id, ...item.components.map((p) => p.id)]),
+  );
+  const scheduled = await db
+    .prepare(
+      `SELECT t.id,t.date,t.amount_cents,t.payee,t.kind,t.statement_id,t.account_id,a.name AS account_name,a.currency,
+      (SELECT da.name FROM transactions pair JOIN accounts da ON da.id=pair.account_id WHERE pair.id=t.transfer_pair_id) AS destination_name
+      FROM active_transactions t JOIN accounts a ON a.id=t.account_id
+      WHERE t.date>? AND t.date<=? AND t.origin<>'adjustment' AND a.cutoff_date IS NOT NULL AND a.archived=0 AND a.closed_at IS NULL
+      AND (t.kind<>'transfer' OR t.amount_cents>0)`,
+    )
+    .bind(from, to)
+    .all<{
+      id: string;
+      date: string;
+      amount_cents: number;
+      payee: string;
+      kind: string;
+      statement_id: string | null;
+      account_id: string;
+      account_name: string;
+      currency: string;
+      destination_name: string | null;
+    }>();
+  for (const t of scheduled.results) {
+    if (shown.has(t.id) || (t.statement_id && shown.has(t.statement_id)))
+      continue;
+    items.push({
+      id: t.id,
+      type:
+        t.kind === 'transfer'
+          ? 'transfer'
+          : t.kind === 'card_payment'
+            ? 'payment'
+            : 'scheduled',
+      label:
+        t.kind === 'transfer'
+          ? `Transferência → ${t.destination_name ?? 'Destino'}`
+          : t.payee,
+      date: t.date,
+      amount_cents: t.amount_cents,
+      currency: t.currency,
+      account_id: t.account_id,
+      account_name: t.account_name,
+      components: [],
     });
   }
   return c.json({

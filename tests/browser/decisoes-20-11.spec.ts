@@ -114,3 +114,73 @@ test('define, troca e remove o padrão, e a sugestão continua editável', async
     'Sugestão pelo último lançamento',
   );
 });
+test('lançamento e transferência com data futura ficam em Próximos e fora do saldo', async ({
+  page,
+  request,
+}) => {
+  const source = await account(request);
+  const dest = await request.post('/api/accounts', {
+    headers: clock,
+    data: {
+      name: 'Destino futuro navegador',
+      kind: 'checking',
+      currency: 'BRL',
+      institution_id: 'horizonte',
+      opening_balance_cents: 0,
+    },
+  });
+  expect(dest.status()).toBe(201);
+  const destination = (await dest.json()).id as string;
+  await page.goto('/transacoes/2026-11');
+  await page.getByRole('button', { name: /^Adicionar em / }).click();
+  const entry = page.locator('tr[data-new-transaction]');
+  await entry.getByLabel('Data').fill('2026-11-20');
+  await entry
+    .getByRole('combobox', { name: 'Conta do novo lançamento' })
+    .selectOption(source);
+  await entry.getByLabel('Beneficiário').fill('Boleto futuro navegador');
+  await entry.getByLabel('Valor (BRL)').fill('25,00');
+  await entry
+    .getByRole('combobox', { name: 'Categoria' })
+    .selectOption('groceries');
+  await entry.getByRole('button', { name: 'Salvar lançamento' }).click();
+  await expect(entry.getByRole('status')).toHaveText('Lançamento salvo.');
+  await page
+    .getByLabel('Escolher conta para adicionar')
+    .selectOption('transfer');
+  const transfer = page.locator('[data-new-transfer]');
+  await transfer.getByLabel('Conta de origem').selectOption(source);
+  await transfer.getByLabel('Conta de destino').selectOption(destination);
+  await transfer.getByLabel('Data da transferência').fill('2026-11-21');
+  await transfer.getByLabel('Valor da transferência (BRL)').fill('10,00');
+  await transfer.getByRole('button', { name: 'Salvar transferência' }).click();
+  await expect(transfer.getByRole('status')).toHaveText('Transferência salva.');
+  const accounts = await (
+    await request.get('/api/accounts', { headers: clock })
+  ).json();
+  expect(
+    accounts.find((a: { id: string }) => a.id === source).balance_cents,
+  ).toBe(80000);
+  expect(
+    accounts.find((a: { id: string }) => a.id === destination).balance_cents,
+  ).toBe(0);
+  await page.goto('/proximos');
+  await expect(page.getByRole('heading', { name: 'Próximos' })).toBeVisible();
+  await expect(page.getByText('Boleto futuro navegador')).toBeVisible();
+  await expect(
+    page.getByText('Transferência → Destino futuro navegador'),
+  ).toBeVisible();
+  const upcoming = await (
+    await request.get('/api/upcoming', { headers: clock })
+  ).json();
+  expect(
+    upcoming.items.filter(
+      (i: { label: string }) => i.label === 'Boleto futuro navegador',
+    ),
+  ).toHaveLength(1);
+  expect(
+    upcoming.items.filter((i: { label: string }) =>
+      i.label.startsWith('Transferência → Destino futuro navegador'),
+    ),
+  ).toHaveLength(1);
+});

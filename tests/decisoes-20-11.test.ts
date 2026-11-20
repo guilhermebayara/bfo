@@ -39,12 +39,21 @@ afterAll(() => {
   vi.useRealTimers();
 });
 async function fixture() {
+  const owned =
+    "account_id IN (SELECT id FROM accounts WHERE institution_id='d20-i' OR id='d20-arquivo')";
   await db.exec(
-    `DELETE FROM transaction_tags WHERE tag_id LIKE 'd20-%';
-     DELETE FROM payee_default_tags WHERE tag_id LIKE 'd20-%' OR payee_id IN (SELECT id FROM payees WHERE name LIKE '%fictícia 20' OR name LIKE '%fictício 20');
-     DELETE FROM transactions WHERE account_id IN (SELECT id FROM accounts WHERE institution_id='d20-i');
-     DELETE FROM accounts WHERE institution_id='d20-i';
-     DELETE FROM payees WHERE name LIKE '%fictícia 20' OR name LIKE '%fictício 20';
+    `DELETE FROM transaction_tags WHERE tag_id LIKE 'd20-%' OR transaction_id IN (SELECT id FROM transactions WHERE ${owned});
+     DELETE FROM payee_default_tags WHERE tag_id LIKE 'd20-%';
+     DELETE FROM statement_events WHERE statement_id IN (SELECT id FROM statements WHERE ${owned});
+     DELETE FROM statement_checks WHERE statement_id IN (SELECT id FROM statements WHERE ${owned});
+     DELETE FROM statement_carryovers WHERE source_statement_id IN (SELECT id FROM statements WHERE ${owned}) OR destination_statement_id IN (SELECT id FROM statements WHERE ${owned});
+     DELETE FROM statement_revisions WHERE statement_id IN (SELECT id FROM statements WHERE ${owned});
+     DELETE FROM reconciliations WHERE account_id IN (SELECT id FROM accounts WHERE institution_id='d20-i' OR id='d20-arquivo');
+     DELETE FROM recurring WHERE ${owned};
+     DELETE FROM transactions WHERE ${owned};
+     DELETE FROM statements WHERE ${owned};
+     DELETE FROM accounts WHERE institution_id='d20-i' OR id='d20-arquivo';
+     DELETE FROM payees WHERE name LIKE '%fictícia 20' OR name LIKE '%fictício 20' OR name LIKE '%fictício' OR name LIKE '%fictícia';
      DELETE FROM tags WHERE id LIKE 'd20-%';
      DELETE FROM categories WHERE id LIKE 'd20-%';
      DELETE FROM category_groups WHERE id='d20-cg';
@@ -227,4 +236,308 @@ it('na unificação permanece o padrão do destino', async () => {
       })
     ).status,
   ).toBe(404);
+});
+const reqOn = (day: string, path: string, method = 'GET', body?: object) => {
+  vi.setSystemTime(new Date(`${day}T15:00:00.000Z`));
+  return app.request(
+    `https://bfo.test/api${path}`,
+    {
+      method,
+      headers: { 'Content-Type': 'application/json', 'x-bfo-data': day },
+      body: body && JSON.stringify(body),
+    },
+    env,
+  );
+};
+async function balanceOn(day: string, id: string) {
+  const accounts = (await (await reqOn(day, '/accounts')).json()) as {
+    id: string;
+    balance_cents: number;
+  }[];
+  return accounts.find((a) => a.id === id)!.balance_cents;
+}
+async function accountOf(
+  name: string,
+  kind: string,
+  opening: number,
+  extra = {},
+) {
+  const response = await req('/accounts', 'POST', {
+    name,
+    kind,
+    currency: 'BRL',
+    institution_id: 'd20-i',
+    opening_balance_cents: opening,
+    ...extra,
+  });
+  expect(response.status).toBe(201);
+  return (await response.json()).id as string;
+}
+it('lançamento futuro fica fora do saldo até a data e no resumo do mês dela', async () => {
+  const account = await fixture();
+  expect(
+    (
+      await req('/transactions', 'POST', {
+        account_id: account,
+        date: '2026-11-15',
+        amount_cents: 1500,
+        payee: 'Boleto de hoje fictício',
+        category_id: 'd20-mercado',
+        tag_ids: [],
+      })
+    ).status,
+  ).toBe(201);
+  expect(
+    (
+      await req('/transactions', 'POST', {
+        account_id: account,
+        date: '2026-11-20',
+        amount_cents: 2500,
+        payee: 'Boleto futuro fictício',
+        category_id: 'd20-mercado',
+        tag_ids: [],
+      })
+    ).status,
+  ).toBe(201);
+  expect(
+    (
+      await req('/transactions', 'POST', {
+        account_id: account,
+        date: '2026-12-03',
+        amount_cents: 1800,
+        payee: 'Boleto de dezembro fictício',
+        category_id: 'd20-casa',
+        tag_ids: [],
+      })
+    ).status,
+  ).toBe(201);
+  await db
+    .prepare(
+      "INSERT INTO accounts(id,name,kind) VALUES('d20-arquivo','Arquivo futuro','checking')",
+    )
+    .run();
+  expect(
+    (
+      await req('/accounts/d20-arquivo/activate', 'POST', {
+        cutoff_date: '2026-11-20',
+        opening_balance_cents: 0,
+      })
+    ).status,
+  ).toBe(400);
+  // Abertura R$ 1.000,00. No dia 15 só entra R$ 15,00. R$ 25,00 espera 20/11.
+  expect(await balanceOn('2026-11-15', account)).toBe(98500);
+  expect(await balanceOn('2026-11-20', account)).toBe(96000);
+  expect(await balanceOn('2026-12-03', account)).toBe(94200);
+  const november = (await (
+    await req('/month-summary?month=2026-11')
+  ).json()) as { category_id: string; amount_cents: number }[];
+  const december = (await (
+    await req('/month-summary?month=2026-12')
+  ).json()) as { category_id: string; amount_cents: number }[];
+  expect(
+    november.find((r) => r.category_id === 'd20-mercado')?.amount_cents,
+  ).toBe(4000);
+  expect(december.find((r) => r.category_id === 'd20-casa')?.amount_cents).toBe(
+    1800,
+  );
+  expect(november.find((r) => r.category_id === 'd20-casa')).toBeUndefined();
+  const preview = await (
+    await req(`/accounts/${account}/reconcile`, 'POST', {
+      bank_balance_cents: 98500,
+    })
+  ).json();
+  expect(preview).toMatchObject({
+    app_balance_cents: 98500,
+    adjustment_cents: 0,
+  });
+  expect(
+    (
+      await req(`/accounts/${account}/reconcile`, 'POST', {
+        bank_balance_cents: 96000,
+        expected_balance_cents: 96000,
+        confirm: true,
+      })
+    ).status,
+  ).toBe(409);
+});
+it('transferência e pagamento futuros só mudam o saldo na data', async () => {
+  const source = await fixture();
+  const dest = await accountOf('Destino futuro fictício', 'checking', 20000);
+  expect(
+    (
+      await req('/transfers', 'POST', {
+        account_id: source,
+        destination_account_id: dest,
+        date: '2026-11-20',
+        amount_cents: 3000,
+        note: 'Transferência futura',
+        tag_ids: [],
+      })
+    ).status,
+  ).toBe(201);
+  expect(await balanceOn('2026-11-15', source)).toBe(100000);
+  expect(await balanceOn('2026-11-15', dest)).toBe(20000);
+  expect(await balanceOn('2026-11-20', source)).toBe(97000);
+  expect(await balanceOn('2026-11-20', dest)).toBe(23000);
+  const card = await accountOf('Cartão futuro fictício', 'credit_card', 0, {
+    closing_day: 20,
+    due_day: 27,
+  });
+  expect(
+    (
+      await req('/transactions', 'POST', {
+        account_id: card,
+        date: '2026-11-15',
+        amount_cents: 5000,
+        payee: 'Compra já lançada fictícia',
+        category_id: 'd20-mercado',
+        tag_ids: [],
+      })
+    ).status,
+  ).toBe(201);
+  const statements = (await (
+    await req(`/cards/${card}/statements`)
+  ).json()) as {
+    id: string;
+    total_cents: number;
+    status: string;
+  }[];
+  const bill = statements.find((s) => s.total_cents === 5000)!;
+  expect(
+    (
+      await req(`/statements/${bill.id}/check`, 'POST', {
+        action: 'close',
+        expected_total_cents: 5000,
+        bank_amount_cents: 5000,
+      })
+    ).status,
+  ).toBe(201);
+  expect(
+    (
+      await req(`/statements/${bill.id}/pay`, 'POST', {
+        account_id: source,
+        date: '2026-11-22',
+        amount_cents: 5000,
+      })
+    ).status,
+  ).toBe(201);
+  expect(await balanceOn('2026-11-15', source)).toBe(100000);
+  expect(await balanceOn('2026-11-15', card)).toBe(-5000);
+  const paid = (await (await req(`/cards/${card}/statements`)).json()) as {
+    id: string;
+    status: string;
+  }[];
+  expect(paid.find((s) => s.id === bill.id)?.status).toBe('paid');
+  expect(await balanceOn('2026-11-22', source)).toBe(92000);
+  expect(await balanceOn('2026-11-22', card)).toBe(0);
+});
+it('compra futura cai na fatura da data e o recorrente reconhecido não duplica em Próximos', async () => {
+  const checking = await fixture();
+  const card = await accountOf('Cartão do ciclo fictício', 'credit_card', 0, {
+    closing_day: 20,
+    due_day: 27,
+  });
+  expect(
+    (
+      await req('/transactions', 'POST', {
+        account_id: card,
+        date: '2026-11-25',
+        amount_cents: 12345,
+        payee: 'Compra no ciclo seguinte',
+        category_id: 'd20-mercado',
+        tag_ids: [],
+      })
+    ).status,
+  ).toBe(201);
+  const statements = (await (
+    await req(`/cards/${card}/statements`)
+  ).json()) as {
+    closing_date: string;
+    due_date: string;
+    total_cents: number;
+  }[];
+  expect(statements.find((s) => s.total_cents === 12345)).toMatchObject({
+    closing_date: '2026-12-20',
+    due_date: '2026-12-27',
+  });
+  expect(
+    statements.some(
+      (s) => s.closing_date === '2026-11-20' && s.total_cents === 12345,
+    ),
+  ).toBe(false);
+  expect(await balanceOn('2026-11-15', card)).toBe(0);
+  expect(await balanceOn('2026-11-25', card)).toBe(-12345);
+  expect(
+    (
+      await req('/recurring', 'POST', {
+        account_id: checking,
+        payee: 'Aluguel futuro fictício',
+        amount_cents: 40000,
+        category_id: 'd20-casa',
+        cadence: 'monthly',
+        next_date: '2026-11-20',
+        is_subscription: 0,
+        active: 1,
+      })
+    ).status,
+  ).toBe(201);
+  const before = (await (await req('/upcoming')).json()) as {
+    from: string;
+    to: string;
+    items: {
+      date: string;
+      label: string;
+      type: string;
+      amount_cents: number;
+    }[];
+  };
+  expect(before.from).toBe('2026-11-15');
+  expect(before.to).toBe('2026-12-31');
+  expect(
+    before.items.filter(
+      (i) => i.date === '2026-11-20' && i.label === 'Aluguel futuro fictício',
+    ),
+  ).toEqual([
+    expect.objectContaining({ type: 'recurring', amount_cents: 40000 }),
+  ]);
+  expect(
+    (
+      await req('/transactions', 'POST', {
+        account_id: checking,
+        date: '2026-11-20',
+        amount_cents: 40000,
+        payee: 'Aluguel futuro fictício',
+        category_id: 'd20-casa',
+        tag_ids: [],
+      })
+    ).status,
+  ).toBe(201);
+  const after = (await (await req('/upcoming')).json()) as {
+    items: {
+      date: string;
+      label: string;
+      type: string;
+      amount_cents: number;
+      components: { label: string }[];
+    }[];
+  };
+  expect(
+    after.items.filter(
+      (i) => i.date === '2026-11-20' && i.label === 'Aluguel futuro fictício',
+    ),
+  ).toEqual([
+    expect.objectContaining({ type: 'scheduled', amount_cents: 40000 }),
+  ]);
+  const mentions = after.items.flatMap((i) => [
+    i.label,
+    ...i.components.map((p) => p.label),
+  ]);
+  expect(
+    mentions.filter((label) => label === 'Compra no ciclo seguinte'),
+  ).toEqual(['Compra no ciclo seguinte']);
+  expect(
+    after.items
+      .filter((i) => i.label === 'Aluguel futuro fictício')
+      .map((i) => `${i.date}:${i.type}`),
+  ).toEqual(['2026-11-20:scheduled', '2026-12-20:recurring']);
 });
