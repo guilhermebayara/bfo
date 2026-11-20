@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 test('menu da linha fecha ao abrir outro, clicar fora ou apertar Esc', async ({
   page,

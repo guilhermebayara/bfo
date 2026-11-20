@@ -1,13 +1,13 @@
-import { test, expect, type APIRequestContext } from '@playwright/test';
+import {
+  test,
+  expect,
+  testDay,
+  clockHeaders,
+  type APIRequestContext,
+} from './fixtures';
 
-const clock = { 'x-bfo-data': '2026-11-15' };
-test.use({ extraHTTPHeaders: clock });
-test.beforeEach(async ({ page }) => {
-  await page.clock.setFixedTime(new Date('2026-11-15T15:00:00.000Z'));
-});
 async function setup(request: APIRequestContext, payee: string) {
   const account = await request.post('/api/accounts', {
-    headers: clock,
     data: {
       name: 'Conta de ' + payee,
       kind: 'checking',
@@ -19,9 +19,8 @@ async function setup(request: APIRequestContext, payee: string) {
   expect(account.status()).toBe(201);
   const accountId = (await account.json()).id;
   const transaction = await request.post('/api/transactions', {
-    headers: clock,
     data: {
-      date: '2026-11-15',
+      date: testDay,
       account_id: accountId,
       payee,
       amount_cents: 1200,
@@ -105,7 +104,6 @@ test('mostra pagamento agendado no cartão e em Próximos até a data', async ({
 }) => {
   const { accountId } = await setup(request, 'Pagamento navegador S');
   const card = await request.post('/api/accounts', {
-    headers: clock,
     data: {
       name: 'Cartão agendado navegador S',
       kind: 'credit_card',
@@ -120,18 +118,17 @@ test('mostra pagamento agendado no cartão e em Próximos até a data', async ({
   expect(
     (
       await request.post('/api/transactions', {
-        headers: clock,
         data: {
           account_id: cardId,
           payee: 'Compra agendada navegador S',
-          date: '2026-11-15',
+          date: testDay,
           amount_cents: 5000,
         },
       })
     ).status(),
   ).toBe(201);
   const bills = await (
-    await request.get(`/api/cards/${cardId}/statements`, { headers: clock })
+    await request.get(`/api/cards/${cardId}/statements`)
   ).json();
   const bill = bills.find(
     (b: { total_cents: number }) => b.total_cents === 5000,
@@ -139,7 +136,6 @@ test('mostra pagamento agendado no cartão e em Próximos até a data', async ({
   expect(
     (
       await request.post(`/api/statements/${bill.id}/check`, {
-        headers: clock,
         data: {
           action: 'close',
           expected_total_cents: 5000,
@@ -154,7 +150,8 @@ test('mostra pagamento agendado no cartão e em Próximos até a data', async ({
   await page.getByRole('button', { name: 'Pagar fatura' }).click();
   const dialog = page.getByRole('dialog', { name: 'Pagar fatura' });
   await dialog.getByLabel('Conta corrente').selectOption(accountId);
-  await dialog.getByLabel('Data do pagamento').fill('2026-11-22');
+  const paymentDay = '2026-11-22';
+  await dialog.getByLabel('Data do pagamento').fill(paymentDay);
   await dialog.getByRole('button', { name: 'Registrar pagamento' }).click();
   const invoice = page.locator('#selected-statement');
   await expect(invoice).toContainText('Pagamento agendado para 22/11');
@@ -170,15 +167,15 @@ test('mostra pagamento agendado no cartão e em Próximos até a data', async ({
   await expect(upcomingPayment).toContainText('22/11/2026');
   await expect(upcomingPayment).toContainText('Pagamento agendado');
 
-  await page.clock.setFixedTime(new Date('2026-11-22T15:00:00.000Z'));
-  await page.setExtraHTTPHeaders({ 'x-bfo-data': '2026-11-22' });
+  await page.clock.setFixedTime(new Date(`${paymentDay}T12:00:00-03:00`));
+  await page.setExtraHTTPHeaders(clockHeaders(paymentDay));
   await page.reload();
   await expect(upcomingPayment).toHaveCount(0);
   await page.goto(cardPage);
   await expect(invoice.getByText('Paga', { exact: true })).toBeVisible();
   const balances = await (
     await request.get('/api/accounts', {
-      headers: { 'x-bfo-data': '2026-11-22' },
+      headers: clockHeaders(paymentDay),
     })
   ).json();
   expect(

@@ -1,4 +1,4 @@
-import { test, expect, type APIRequestContext } from '@playwright/test';
+import { test, expect, clockHeaders, type APIRequestContext } from './fixtures';
 async function create(request: APIRequestContext, body: object = {}) {
   const response = await request.post('/api/transactions', {
     data: {
@@ -322,7 +322,8 @@ test('reabrir divisão com centavos permite salvar sem redigitar as partes', asy
 test('lançamento abre no dia de São Paulo mesmo depois da virada UTC', async ({
   page,
 }) => {
-  await page.clock.install({ time: new Date('2026-12-01T01:30:00Z') });
+  await page.clock.setFixedTime(new Date('2026-11-30T22:30:00-03:00'));
+  await page.setExtraHTTPHeaders(clockHeaders('2026-11-30'));
   await page.goto('/transacoes');
   await expect(page).toHaveURL('/transacoes/2026-11');
   await page.getByRole('button', { name: /^Adicionar em / }).click();
