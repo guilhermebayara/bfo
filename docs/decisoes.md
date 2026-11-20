@@ -103,6 +103,7 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 - Pagamento parcial de fatura: o restante aparece como "saldo anterior" na fatura seguinte. Juros e encargos do banco entram como lançamento próprio, na categoria de tarifas.
 - Limite do cartão: campo opcional no cartão. A tela de Cartão mostra o limite, quanto das próximas faturas já está comprometido (parcelas e recorrentes) e o limite disponível. Cartão sem limite definido (ex.: alguns Amex) mostra só o comprometido, sem limite nem disponível.
 - Painel "Próximos" já na fase 1: o que vence no resto do mês e no mês seguinte, juntando recorrentes, parcelas e faturas.
+- Antecipação no dia do fechamento, com a fatura atual já conferida: a linha entra na fatura seguinte. Se a seguinte também estiver fechada, a antecipação fica bloqueada até o dono reabrir essa fatura. Confirmado em 20/11/2026, ao aprovar a Sessão R.
 - Antecipação de parcelas que foram reclassificadas: a linha da antecipação sai dividida automaticamente, cada parte com a classificação da sua parcela.
 - Antecipação de empréstimo (fase 2): o pagamento sai da corrente, o saldo devedor cai pelo valor cheio das parcelas antecipadas e o desconto fica registrado no empréstimo.
 
@@ -161,5 +162,5 @@ Registro do que foi decidido pelo dono. Exemplos com nomes de bancos e valores s
 - Cloudflare, conta BFO, dentro do login do dono. D1. Access fechado no e-mail do dono.
 - Homologação em homologacao.bfo.bayara.design, como prévia da branch homologacao.
 - Produção em bfo.bayara.design. O domínio está sendo transferido para a Cloudflare e vai ficar na conta BFO.
-- Backup automático diário dos bancos com dados reais num bucket R2 da conta BFO, guardando os últimos 30 dias, com restauração testada. Decidido em 20/11/2026, na triagem da QA.
+- Backup automático diário dos bancos com dados reais num bucket R2 da conta BFO, guardando os últimos 30 dias, com restauração testada. Decidido em 20/11/2026, na triagem da QA. O backup roda às 03h em São Paulo, confirmado em 20/11/2026.
 - Repositório público por enquanto, só com dados fictícios. Vira privado quando o token do Lunch Money entrar em uso.
