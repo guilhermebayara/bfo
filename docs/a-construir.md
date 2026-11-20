@@ -43,6 +43,7 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
 - [ ] Sessão I (ajustes da revisão da H): campo de edição do mesmo tamanho da célula em repouso, hover e edição, inclusive na linha nova (referência: prints do Lunch Money enviados pelo dono em 19/11, nos três estados); criar transferência pela tabela e pagamento de fatura como transferência para cartão (decisões, Tabela de transações); moedas em uso e moeda principal nas configurações; janela do recorrente visível; seed com exemplo de transferência.
 - [ ] Sessão J (cartão e parcelas): célula de parcelas na linha quando a conta é cartão, ações do menu "..." da linha, editar só esta ou esta e as futuras, cancelar futuras, mover para outra fatura, reabrir fatura, antecipar fechamento, pagamento parcial com saldo anterior, limite do cartão com comprometido e disponível, painel Próximos. Regras em docs/decisoes.md, seção Cartão e fatura. Referência: docs/referencia-brasileiros.md.
 - [ ] Sessão K: script de importação do Lunch Money (API v2), apagar e refazer importação. Construída e testada só com dados simulados; a importação real espera o repositório privado.
+  - [x] Dados simulados da API v2 prontos em `tests/fixtures/lunchmoney/` (um JSON por endpoint, transações em duas páginas, casos de borda descritos no `LEIA-ME.md`). Faltam o script e os testes da importação.
 
 - [ ] Conceito visual: feito no Claude depois que a estrutura da fase 1 estiver redonda. Duas propostas numa prévia, o dono escolhe olhando a tela, e só então o visual é aplicado.
 

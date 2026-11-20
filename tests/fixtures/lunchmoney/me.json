@@ -1,0 +1,9 @@
+{
+  "id": 880001,
+  "name": "Pessoa Fictícia",
+  "email": "pessoa@exemplo.invalid",
+  "account_id": 770001,
+  "budget_name": "Orçamento Fictício",
+  "primary_currency": "brl",
+  "api_key_label": "token fictício"
+}

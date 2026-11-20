@@ -1,0 +1,74 @@
+{
+  "aligned": true,
+  "budgets": [
+    {
+      "category_id": 201,
+      "category_name": "Aluguel",
+      "currency": "brl",
+      "months": [
+        {
+          "month": "2026-09",
+          "budgeted": "1850.0000",
+          "actual": "1850.0000"
+        },
+        {
+          "month": "2026-10",
+          "budgeted": "1850.0000",
+          "actual": "1850.0000"
+        }
+      ]
+    },
+    {
+      "category_id": 202,
+      "category_name": "Mercado",
+      "currency": "brl",
+      "months": [
+        {
+          "month": "2026-09",
+          "budgeted": "900.0000",
+          "actual": "812.4000"
+        },
+        {
+          "month": "2026-10",
+          "budgeted": "900.0000",
+          "actual": "332.3400"
+        }
+      ]
+    },
+    {
+      "category_id": 203,
+      "category_name": "Restaurantes",
+      "currency": "brl",
+      "months": [
+        {
+          "month": "2026-09",
+          "budgeted": "400.0000",
+          "actual": "455.0000"
+        },
+        {
+          "month": "2026-10",
+          "budgeted": "400.0000",
+          "actual": "95.0000"
+        }
+      ]
+    },
+    {
+      "category_id": 204,
+      "category_name": "Salário",
+      "is_income": true,
+      "currency": "brl",
+      "months": [
+        {
+          "month": "2026-09",
+          "budgeted": "5200.0000",
+          "actual": "5200.0000"
+        },
+        {
+          "month": "2026-10",
+          "budgeted": "5200.0000",
+          "actual": "5200.0000"
+        }
+      ]
+    }
+  ]
+}
