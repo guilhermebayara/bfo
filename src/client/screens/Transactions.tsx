@@ -23,6 +23,9 @@ import { MonthSummary } from '../components/MonthSummary';
 import { BulkTransactions } from '../components/BulkTransactions';
 import { Modal } from '../components';
 import { ManualTransaction } from '../components/ManualTransaction';
+const summaryStorageKey = 'bfo:month-summary-expanded';
+const summaryWideScreen = '(min-width: 1101px)';
+
 type Page = {
   items: Transaction[];
   total: number;
@@ -47,6 +50,39 @@ export function Transactions({
   const rawMonth = path.split('/')[2] ?? currentMonth();
   const month = validMonth(rawMonth) ? rawMonth : currentMonth();
   const [showFilters, setShowFilters] = useState(false);
+  const [wideScreen, setWideScreen] = useState(
+    () => window.matchMedia(summaryWideScreen).matches,
+  );
+  const [summaryPreference, setSummaryPreference] = useState<boolean | null>(
+    () => {
+      try {
+        const saved = localStorage.getItem(summaryStorageKey);
+        return saved === 'true' ? true : saved === 'false' ? false : null;
+      } catch {
+        return null;
+      }
+    },
+  );
+  const showSummary = summaryPreference ?? wideScreen;
+
+  useEffect(() => {
+    const media = window.matchMedia(summaryWideScreen);
+    const updateWidth = () => setWideScreen(media.matches);
+    updateWidth();
+    media.addEventListener('change', updateWidth);
+    return () => media.removeEventListener('change', updateWidth);
+  }, []);
+
+  function toggleSummary() {
+    const expanded = !showSummary;
+    setSummaryPreference(expanded);
+    try {
+      localStorage.setItem(summaryStorageKey, String(expanded));
+    } catch {
+      // A escolha continua valendo enquanto a tela estiver aberta.
+    }
+  }
+
   const [search, setSearch] = useState('');
   const [adding, setAdding] = useState(false);
   const [transfer, setTransfer] = useState(false);
@@ -195,6 +231,13 @@ export function Transactions({
             ? ` (${Object.values(filters).filter(Boolean).length})`
             : ''}
         </Button>
+        <Button
+          aria-expanded={showSummary}
+          aria-controls="transaction-month-summary"
+          onClick={toggleSummary}
+        >
+          {showSummary ? 'Recolher resumo do mês' : 'Expandir resumo do mês'}
+        </Button>
         <Menu trigger="Mais opções">
           <Button onClick={() => setPurchase(true)}>
             Lançar compra parcelada
@@ -299,7 +342,20 @@ export function Transactions({
           </Button>
         </section>
       )}
-      <div className="transactions-layout">
+      <div
+        className={
+          showSummary && wideScreen
+            ? 'transactions-layout transactions-layout-wide'
+            : 'transactions-layout'
+        }
+      >
+        <div
+          id="transaction-month-summary"
+          className="transactions-summary"
+          hidden={!showSummary}
+        >
+          {showSummary && <MonthSummary month={month} revision={revision} />}
+        </div>
         <section className="transactions-main">
           {loading && !data ? (
             <State kind="loading">Carregando transações…</State>
@@ -450,7 +506,6 @@ export function Transactions({
             )
           )}
         </section>
-        <MonthSummary month={month} revision={revision} />
       </div>
       {purchase && (
         <Modal title="Compra parcelada" onClose={() => setPurchase(false)}>
