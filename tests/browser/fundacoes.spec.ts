@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 test('navegação indica a tela atual e mantém o contexto mensal no histórico', async ({
   page,

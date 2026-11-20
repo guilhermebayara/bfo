@@ -1,5 +1,4 @@
-import { test, expect } from '@playwright/test';
-import { today } from '../../src/server/statements';
+import { test, expect, testDay } from './fixtures';
 test('lança retroativa pela parcela atual e mostra recálculo da fatura fechada', async ({
   page,
 }) => {
@@ -157,7 +156,7 @@ test('edita prazo de aviso e a faixa passa a incluir a assinatura', async ({
   page,
   request,
 }) => {
-  const d = today(),
+  const d = testDay,
     renew = new Date(Date.parse(d) + 31 * 86400000).toISOString().slice(0, 10);
   const created = await request.post('/api/recurring', {
     data: {
