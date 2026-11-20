@@ -1,0 +1,114 @@
+{
+  "balance_history": [
+    {
+      "type": "manual_account",
+      "id": 1,
+      "currency": "brl",
+      "history": [
+        {
+          "date": "2026-08-31",
+          "balance": "3100.0000",
+          "currency": "brl"
+        },
+        {
+          "date": "2026-09-30",
+          "balance": "3900.7500",
+          "currency": "brl"
+        },
+        {
+          "date": "2026-10-31",
+          "balance": "4310.2500",
+          "currency": "brl"
+        }
+      ]
+    },
+    {
+      "type": "manual_account",
+      "id": 2,
+      "currency": "brl",
+      "history": [
+        {
+          "date": "2026-08-31",
+          "balance": "2100.0000",
+          "currency": "brl"
+        },
+        {
+          "date": "2026-09-30",
+          "balance": "2480.5000",
+          "currency": "brl"
+        },
+        {
+          "date": "2026-10-31",
+          "balance": "1544.9000",
+          "currency": "brl"
+        }
+      ]
+    },
+    {
+      "type": "manual_account",
+      "id": 3,
+      "currency": "usd",
+      "history": [
+        {
+          "date": "2026-08-31",
+          "balance": "900.0000",
+          "currency": "usd"
+        },
+        {
+          "date": "2026-09-30",
+          "balance": "873.0000",
+          "currency": "usd"
+        },
+        {
+          "date": "2026-10-31",
+          "balance": "830.5000",
+          "currency": "usd"
+        }
+      ]
+    },
+    {
+      "type": "manual_account",
+      "id": 4,
+      "currency": "brl",
+      "history": [
+        {
+          "date": "2022-04-30",
+          "balance": "350.0000",
+          "currency": "brl"
+        },
+        {
+          "date": "2022-05-31",
+          "balance": "120.0000",
+          "currency": "brl"
+        },
+        {
+          "date": "2022-06-30",
+          "balance": "0.0000",
+          "currency": "brl"
+        }
+      ]
+    },
+    {
+      "type": "manual_account",
+      "id": 5,
+      "currency": "brl",
+      "history": [
+        {
+          "date": "2026-08-31",
+          "balance": "22500.0000",
+          "currency": "brl"
+        },
+        {
+          "date": "2026-09-30",
+          "balance": "24100.0000",
+          "currency": "brl"
+        },
+        {
+          "date": "2026-10-31",
+          "balance": "25800.0000",
+          "currency": "brl"
+        }
+      ]
+    }
+  ]
+}

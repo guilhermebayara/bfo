@@ -1,0 +1,31 @@
+{
+  "tags": [
+    {
+      "id": 301,
+      "name": "Pagamento de fatura",
+      "description": null,
+      "background_color": "#4466aa",
+      "text_color": "#ffffff",
+      "archived": false,
+      "archived_at": null
+    },
+    {
+      "id": 302,
+      "name": "Viagem",
+      "description": null,
+      "background_color": "#22aa66",
+      "text_color": "#ffffff",
+      "archived": false,
+      "archived_at": null
+    },
+    {
+      "id": 303,
+      "name": "Projeto antigo",
+      "description": null,
+      "background_color": "#aa6644",
+      "text_color": "#ffffff",
+      "archived": true,
+      "archived_at": "2024-08-01T00:00:00.000Z"
+    }
+  ]
+}

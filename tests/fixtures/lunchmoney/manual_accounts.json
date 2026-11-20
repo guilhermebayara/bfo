@@ -1,0 +1,79 @@
+{
+  "manual_accounts": [
+    {
+      "id": 1,
+      "name": "Conta corrente",
+      "display_name": null,
+      "institution_name": "Banco Aurora",
+      "type": "cash",
+      "subtype": "checking",
+      "balance": "4310.2500",
+      "currency": "brl",
+      "balance_as_of": "2026-11-18T12:00:00.000Z",
+      "status": "active",
+      "closed_on": null,
+      "exclude_from_transactions": false,
+      "created_at": "2023-01-10T10:00:00.000Z"
+    },
+    {
+      "id": 2,
+      "name": "Cartão Platinum",
+      "display_name": null,
+      "institution_name": "Cartões Brisa",
+      "type": "credit",
+      "subtype": "credit card",
+      "balance": "1544.9000",
+      "currency": "brl",
+      "balance_as_of": "2026-11-18T12:00:00.000Z",
+      "status": "active",
+      "closed_on": null,
+      "exclude_from_transactions": false,
+      "created_at": "2023-01-10T10:00:00.000Z"
+    },
+    {
+      "id": 3,
+      "name": "Conta em dólar",
+      "display_name": null,
+      "institution_name": "Banco Aurora",
+      "type": "cash",
+      "subtype": "savings",
+      "balance": "830.5000",
+      "currency": "usd",
+      "balance_as_of": "2026-11-18T12:00:00.000Z",
+      "status": "active",
+      "closed_on": null,
+      "exclude_from_transactions": false,
+      "created_at": "2023-01-10T10:00:00.000Z"
+    },
+    {
+      "id": 4,
+      "name": "Conta antiga",
+      "display_name": null,
+      "institution_name": "Banco Meridiano",
+      "type": "cash",
+      "subtype": "checking",
+      "balance": "0.0000",
+      "currency": "brl",
+      "balance_as_of": "2022-06-30T12:00:00.000Z",
+      "status": "closed",
+      "closed_on": "2022-06-30",
+      "exclude_from_transactions": false,
+      "created_at": "2023-01-10T10:00:00.000Z"
+    },
+    {
+      "id": 5,
+      "name": "Carteira de investimentos",
+      "display_name": null,
+      "institution_name": "Corretora Horizonte",
+      "type": "investment",
+      "subtype": "brokerage",
+      "balance": "25800.0000",
+      "currency": "brl",
+      "balance_as_of": "2026-11-18T12:00:00.000Z",
+      "status": "active",
+      "closed_on": null,
+      "exclude_from_transactions": false,
+      "created_at": "2023-01-10T10:00:00.000Z"
+    }
+  ]
+}
