@@ -77,7 +77,7 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
 
 - [x] Sessão M: QA independente da fase 1. Relatório em [docs/qa/fase-1.md](qa/fase-1.md). Aceitação Vitest e Playwright por ID (fluxos ponta a ponta), gabarito e mês simulado de dezembro em [docs/qa/gabarito-dezembro.md](qa/gabarito-dezembro.md), linha de base em [docs/qa/linha-de-base.md](qa/linha-de-base.md). Sem correção de produto.
 
-- [ ] Defeito encontrado na Sessão K, para a sessão de correção depois da QA: tests/browser/session-i.spec.ts (pagamento parcial pela tabela) depende da data do dia e quebra no dia 20, fechamento da fatura do seed. Os testes de navegador precisam de data fixa.
+- [ ] Defeito encontrado na Sessão K, para a sessão de correção depois da QA: testes de navegador que montam conta nova via API dependem do dia (corte = today()-1). A Sessão M estabilizou `session-i` (pagamento parcial) com data relativa a today; o harness ainda precisa de data fixa no Worker/e2e para o restante.
 - [ ] Ajustes da revisão da Sessão L (pelo dono em 20/11/2026), para a sessão de correção depois da QA: resumo do mês em Transações recolhível, ao lado quando houver espaço, para a tabela ganhar largura; no Cartão, a fatura selecionada e as compras do ciclo vêm antes da lista de faturas; na navegação, os títulos dos grupos (Movimento, Cadastros, Aplicativo) pareciam itens desativados e precisam se distinguir claramente dos itens clicáveis.
 
 - [ ] Conceito visual: feito no Claude depois que a estrutura da fase 1 estiver redonda. Duas propostas numa prévia, o dono escolhe olhando a tela, e só então o visual é aplicado.

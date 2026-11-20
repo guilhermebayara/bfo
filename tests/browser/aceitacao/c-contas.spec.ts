@@ -10,9 +10,17 @@ test('C01 contas por instituição com subtotal e alternância por tipo', async 
 }) => {
   // decisoes.md: agrupa por instituição; alternância por tipo
   await page.goto('/contas');
-  await expect(page.getByText(/Instituição Horizonte|Horizonte/i).first()).toBeVisible();
+  // h2 do grupo (não o <option> oculto do formulário Nova conta)
+  await expect(
+    page.locator('.account-group h2', { hasText: 'Instituição Horizonte' }),
+  ).toBeVisible();
   await page.getByLabel('Agrupar por').selectOption('kind');
-  await expect(page.getByText(/Corrente|Cartão/i).first()).toBeVisible();
+  await expect(
+    page.locator('.account-group h2', { hasText: 'Conta corrente' }),
+  ).toBeVisible();
+  await expect(
+    page.locator('.account-group h2', { hasText: 'Cartões' }),
+  ).toBeVisible();
 });
 
 test('C02 manual nasce ativa; página explica só arquivo', async ({ page }) => {

@@ -96,7 +96,7 @@ Resumo: fatura nov 18_000 + ajuste 500, pagamento parcial 10_000, saldo anterior
 | ID | Gravidade | Esperado | Obtido | Passos |
 |---|---|---|---|---|
 | R04 (contrato) | média | `is_subscription: true` (boolean JSON) aceito ou rejeitado com mensagem clara alinhada ao contrato da API | 400 `Estado inválido` | `POST /api/recurring` com boolean; teste `it.fails` em `r-recorrentes.test.ts`. A API só aceita `0`/`1`. |
-| session-i (suíte antiga) | média | e2e estável em qualquer dia | falha no dia 20 (fechamento do seed) | `tests/browser/session-i.spec.ts`; já listado em `a-construir.md`. Sem correção nesta sessão. |
+| session-i (suíte antiga) | média → mitigado no teste | e2e estável em qualquer dia | no dia 20, conta nova com corte = 19 rejeitava compra em 19/11 | Mitigado em `tests/browser/session-i.spec.ts` com data = today (America/Sao_Paulo) e fechamento dia 28. Produto intacto; item de data fixa no harness permanece em `a-construir.md`. |
 | P06 no cenário dez | baixa | antecipar parcelas 5 e 6 da retroativa no ciclo dez | `POST .../advance` → 409 “As parcelas ou a fatura atual mudaram…” após fechar nov e lançar a 6× no mesmo cartão | Isolado (P06) Ok. No composto, efeito recriado em SQL e a fatura 20/12 fechou em 46_650. |
 
 ## Perguntas
