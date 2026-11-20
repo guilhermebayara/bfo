@@ -1,20 +1,12 @@
 import { Privacy, useMoney } from '../privacy';
 import { useContext, useEffect, useState } from 'react';
 import { api } from '../api';
+import type { MonthSummaryItem } from '../../shared/home';
 import {
   transactionsUrl,
   type TransactionFilters,
 } from '../transaction-filters';
 import { SidePanel, State, Truncated } from './index';
-type Item = {
-  category_id: string | null;
-  category_name: string;
-  group_id: string | null;
-  group_name: string;
-  is_income: number;
-  exclude_budget: number;
-  amount_cents: number;
-};
 export function MonthSummary({
   month,
   revision,
@@ -26,13 +18,15 @@ export function MonthSummary({
 }) {
   const formatMoney = useMoney();
   const hidden = useContext(Privacy);
-  const [items, setItems] = useState<Item[] | null>(null),
+  const [items, setItems] = useState<MonthSummaryItem[] | null>(null),
     [error, setError] = useState('');
   useEffect(() => {
     const abort = new AbortController();
     setError('');
     setItems(null);
-    api<Item[]>(`/month-summary?month=${month}`, { signal: abort.signal })
+    api<MonthSummaryItem[]>(`/month-summary?month=${month}`, {
+      signal: abort.signal,
+    })
       .then(setItems)
       .catch((e) => {
         if (e.name !== 'AbortError') setError(e.message);
@@ -71,7 +65,7 @@ export function MonthSummary({
           const label = income ? 'Renda' : 'Despesas';
           const total = list.reduce((sum, i) => sum + i.amount_cents, 0);
           const max = Math.max(1, ...list.map((i) => Math.abs(i.amount_cents)));
-          const groups = new Map<string, Item[]>();
+          const groups = new Map<string, MonthSummaryItem[]>();
           for (const item of list) {
             const group = item.group_id ?? 'none';
             const entries = groups.get(group) ?? [];

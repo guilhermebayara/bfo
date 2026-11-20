@@ -58,3 +58,26 @@ export type AttentionItem = {
   | { type: 'statement' | 'recurring' | 'renewal'; date: string }
   | { type: 'balance'; date: string | null }
 );
+
+export type MonthSummaryItem = {
+  category_id: string | null;
+  category_name: string;
+  group_id: string | null;
+  group_name: string;
+  is_income: number;
+  exclude_budget: number;
+  amount_cents: number;
+};
+
+export type MonthPeriod = { month: string; from: string; to: string };
+export type MonthComparison = {
+  current: MonthPeriod;
+  previous: MonthPeriod;
+  groups: {
+    id: string | null;
+    label: string;
+    is_income: number;
+    current_cents: number;
+    previous_cents: number;
+  }[];
+};

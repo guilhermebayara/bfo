@@ -2,7 +2,12 @@ import { env } from 'cloudflare:workers';
 import { applyD1Migrations } from 'cloudflare:test';
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import app from '../src/server/index';
-import type { AttentionItem, DueItem, Projection } from '../src/shared/home';
+import type {
+  AttentionItem,
+  DueItem,
+  MonthComparison,
+  Projection,
+} from '../src/shared/home';
 
 const db = env.DB as D1Database;
 const day = '2026-11-28';
@@ -153,4 +158,85 @@ it('mostra os mesmos itens de Próximos nas sete datas que incluem hoje', async 
     components: [{ id: 'x-due-purchase', amount_cents: 4000 }],
   });
   expect(due.items.some((item) => item.id === 'x-open-invoice')).toBe(false);
+});
+
+it('compara o dia 31 com um mês de 30 dias e abre as linhas que somam cada valor', async () => {
+  await db.batch([
+    db.prepare(`INSERT INTO category_groups(id,name,allocation_group_id,exclude_totals) VALUES
+      ('x-expense','Gastos X','essential',0),('x-excluded','Fora dos totais X','essential',1)`),
+    db.prepare(`INSERT INTO categories(id,name,category_group_id) VALUES
+      ('x-food','Alimentação X','x-expense'),('x-excluded','Ignorar X','x-excluded')`),
+    db.prepare(`INSERT INTO statements(id,account_id,period_start,closing_date,due_date,status) VALUES
+      ('x-month-invoice','x-card','2026-09-23','2026-10-23','2026-10-25','open')`),
+    db.prepare(`INSERT INTO transactions(id,account_id,date,amount_cents,amount_brl_cents,payee,category_id,origin,kind,statement_id) VALUES
+      ('x-month-split','x-checking','2026-10-31',1000,1000,'Compra dividida X','x-food','manual','regular',NULL),
+      ('x-month-before','x-checking','2026-09-30',1200,1200,'Compra em setembro X','x-food','manual','regular',NULL),
+      ('x-month-income','x-checking','2026-10-31',-10000,-10000,'Renda em outubro X','x-salary','manual','regular',NULL),
+      ('x-month-income-before','x-checking','2026-09-30',-9000,-9000,'Renda em setembro X','x-salary','manual','regular',NULL),
+      ('x-month-transfer','x-checking','2026-10-31',6000,6000,'Transferência em outubro X','x-food','manual','transfer',NULL),
+      ('x-month-installment','x-card','2026-09-25',400,400,'Parcela de outubro X','x-food','manual','installment','x-month-invoice')`),
+    db.prepare(`INSERT INTO transaction_splits(id,transaction_id,position,amount_cents,amount_brl_cents,category_id) VALUES
+      ('x-month-included','x-month-split',0,700,700,'x-food'),('x-month-skipped','x-month-split',1,300,300,'x-excluded')`),
+  ]);
+  vi.setSystemTime(new Date('2026-10-31T12:00:00-03:00'));
+  const { month } = await (
+    await request('/home')
+  ).json<{ month: MonthComparison }>();
+  expect(month.current).toEqual({
+    month: '2026-10',
+    from: '2026-10-01',
+    to: '2026-10-31',
+  });
+  expect(month.previous).toEqual({
+    month: '2026-09',
+    from: '2026-09-01',
+    to: '2026-09-30',
+  });
+  expect(month.groups).toEqual([
+    {
+      id: 'x-income',
+      label: 'Rendas X',
+      is_income: 1,
+      current_cents: 10000,
+      previous_cents: 9000,
+    },
+    {
+      id: 'x-expense',
+      label: 'Gastos X',
+      is_income: 0,
+      current_cents: 1100,
+      previous_cents: 1200,
+    },
+    {
+      id: null,
+      label: 'Sem grupo',
+      is_income: 0,
+      current_cents: 0,
+      previous_cents: 500,
+    },
+  ]);
+  for (const group of month.groups) {
+    for (const side of ['current', 'previous'] as const) {
+      const { month: calendarMonth, from, to } = month[side];
+      const summary = group.is_income ? 'income' : 'expense';
+      const response = await request(
+        `/transactions?month=${calendarMonth}&from=${from}&to=${to}&summary=${summary}&group=${group.id ?? 'none'}`,
+      );
+      const data = await response.json<{
+        total_amount_cents: number;
+        items: { total_amount_cents: number }[];
+      }>();
+      expect(data.total_amount_cents).toBe(group[`${side}_cents`]);
+      expect(
+        data.items.reduce((sum, item) => sum + item.total_amount_cents, 0),
+      ).toBe(data.total_amount_cents);
+    }
+  }
+  const { month: laterMonth } = await (
+    await request('/home', { headers: { 'x-bfo-data': day } })
+  ).json<{ month: MonthComparison }>();
+  expect(laterMonth.previous.to).toBe('2026-10-28');
+  expect(
+    laterMonth.groups.find((group) => group.id === 'x-expense')?.previous_cents,
+  ).toBe(400);
 });

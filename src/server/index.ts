@@ -1,4 +1,11 @@
 import { Hono } from 'hono';
+import {
+  compareMonth,
+  monthlyAmountSql,
+  monthlyDateJoin,
+  monthlyDateSql,
+  readMonthSummary,
+} from './month-summary';
 import { shiftDay } from '../shared/dates';
 import type { AttentionItem, DueComponent, DueItem } from '../shared/home';
 import {
@@ -257,6 +264,10 @@ app.on('GET', ['/api/transactions', '/api/transactions.csv'], async (c) => {
   const contributionParams: (string | number)[] = [];
   let contribution = '';
   if (query.month && !validMonth(query.month)) fail('Mês inválido.');
+  const from = query.from ? date(query.from) : null;
+  const to = query.to ? date(query.to) : null;
+  if (from && to && from > to)
+    fail('O início do período deve ser anterior ao fim.');
   if (query.summary) {
     if (!query.month || !['income', 'expense'].includes(query.summary))
       return fail('Resumo inválido.');
@@ -272,9 +283,18 @@ app.on('GET', ['/api/transactions', '/api/transactions.csv'], async (c) => {
       parts.push('mt.category_id=?');
       contributionParams.push(query.category);
     }
+    if (from) {
+      parts.push(`${monthlyDateSql}>=?`);
+      contributionParams.push(from);
+    }
+    if (to) {
+      parts.push(`${monthlyDateSql}<=?`);
+      contributionParams.push(to);
+    }
     contribution = `JOIN (
-      SELECT mt.id,SUM(CASE WHEN mt.is_income=1 THEN -mt.amount_brl_cents ELSE mt.amount_brl_cents END) AS amount_cents
+      SELECT mt.id,SUM(${monthlyAmountSql}) AS amount_cents
       FROM monthly_totals mt LEFT JOIN effective_categories ec ON ec.id=mt.category_id
+      ${from || to ? monthlyDateJoin : ''}
       WHERE ${parts.join(' AND ')} GROUP BY mt.id
     ) contribution ON contribution.id=t.id`;
   }
@@ -339,16 +359,14 @@ app.on('GET', ['/api/transactions', '/api/transactions.csv'], async (c) => {
     );
     params.push(...Array(3).fill(`%${query.search.slice(0, 200)}%`));
   }
-  if (query.from) {
+  if (from && !query.summary) {
     conditions.push('t.date>=?');
-    params.push(date(query.from));
+    params.push(from);
   }
-  if (query.to) {
+  if (to && !query.summary) {
     conditions.push('t.date<=?');
-    params.push(date(query.to));
+    params.push(to);
   }
-  if (query.from && query.to && query.from > query.to)
-    fail('O início do período deve ser anterior ao fim.');
   const page = Number(query.page ?? 1);
   if (!Number.isSafeInteger(page) || page < 1 || page > 1000000)
     fail('Página inválida.');
@@ -815,15 +833,7 @@ app.patch('/api/accounts/:id', async (c) => {
 app.get('/api/month-summary', async (c) => {
   const month = c.req.query('month') ?? c.var.today.slice(0, 7);
   if (!validMonth(month)) fail('Mês inválido.');
-  const rows = await c.var.DB.prepare(
-    `SELECT t.category_id,COALESCE(cat.name,'Sem categoria') AS category_name,COALESCE(g.name,'Sem grupo') AS group_name,g.id AS group_id,t.is_income,t.exclude_budget,
-    SUM(CASE WHEN t.is_income=1 THEN -t.amount_brl_cents ELSE t.amount_brl_cents END) AS amount_cents
-    FROM monthly_totals t LEFT JOIN categories cat ON cat.id=t.category_id LEFT JOIN category_groups g ON g.id=cat.category_group_id
-    WHERE t.spending_month=? GROUP BY t.category_id,t.is_income,t.exclude_budget ORDER BY t.is_income DESC,g.sort,g.name,cat.name`,
-  )
-    .bind(month)
-    .all();
-  return c.json(rows.results);
+  return c.json(await readMonthSummary(c.var.DB, month));
 });
 app.post('/api/transactions/batch', async (c) => {
   const db = c.var.DB,
@@ -3884,16 +3894,17 @@ app.get('/api/home', async (c) => {
     to,
     true,
   );
-  const [projection, attention] = await Promise.all([
+  const [projection, attention, month] = await Promise.all([
     projectAvailable(c.var.DB, day, to, accounts, recurring, items),
     attentionItems(c.var.DB, day, accounts, recurring),
+    compareMonth(c.var.DB, day),
   ]);
   const dueTo = shiftDay(day, 6);
   const due = {
     to: dueTo,
     items: items.filter((item) => item.date >= day && item.date <= dueTo),
   };
-  return c.json({ day, projection, attention, due });
+  return c.json({ day, projection, attention, due, month });
 });
 
 app.get('/api/subscriptions', async (c) => {
