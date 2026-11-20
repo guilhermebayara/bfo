@@ -86,6 +86,7 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
 - [ ] Possível defeito da QA, para a sessão de correção investigar: antecipação de parcelas devolve 409 ("As parcelas ou a fatura atual mudaram") num cenário composto, depois de fechar a fatura anterior e lançar outra compra parcelada no mesmo cartão. Isolada, funciona. Detalhe em docs/qa/fase-1.md.
 - [ ] QA complementar (Sessão N, Claude Code): refazer o mês simulado pela API com relógio fixo e gabarito escrito antes de rodar, e conferir por amostragem o que a Sessão M marcou como Ok.
 - [ ] Sessão R (Codex, em paralelo à Q): antecipação que devolve 409 no cenário composto, assinatura que recusa `is_subscription` como true/false e backup automático diário dos bancos com dados reais no R2 (decisões, Infraestrutura).
+- [ ] Pagamento de fatura com data futura fica agendado até a data, em vez de pago na hora (decisões, Tabela de transações). Pequeno; entra na próxima sessão que mexer em fatura.
 - [ ] Histórico de alterações, desfazer e aviso de transação, depois da Q (decisões, Tabela de transações; brief em docs/briefs/historico-desfazer.md).
 
 - [ ] Conceito visual: feito no Claude depois que a estrutura da fase 1 estiver redonda. Duas propostas numa prévia, o dono escolhe olhando a tela, e só então o visual é aplicado.
