@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, testDay } from './fixtures';
 test('mês no endereço, setas, escolha, recarga, histórico e filtros dentro do mês', async ({
   page,
 }) => {
@@ -6,7 +6,7 @@ test('mês no endereço, setas, escolha, recarga, histórico e filtros dentro do
   await page.setExtraHTTPHeaders({ 'x-bfo-data': '2026-11-15' });
   await page.goto('/transacoes');
   await page.getByRole('button', { name: /^Filtros/ }).click();
-  await expect(page).toHaveURL('/transacoes/2026-11');
+  await expect(page).toHaveURL(`/transacoes/${testDay.slice(0, 7)}`);
   await page.getByLabel('Ir para o mês').fill('2026-11');
   await page
     .getByRole('region', { name: 'Filtros de transações' })
@@ -43,7 +43,7 @@ test('mês no endereço, setas, escolha, recarga, histórico e filtros dentro do
   );
   await page.getByRole('button', { name: 'Voltar para este mês' }).click();
   await expect(page).toHaveURL(
-    '/transacoes/2026-11?conta=seed-recurring-account',
+    `/transacoes/${testDay.slice(0, 7)}?conta=seed-recurring-account`,
   );
 });
 test('Enter lança pela linha, prepara o próximo e edita campos na linha', async ({
@@ -182,7 +182,7 @@ test('equivalente mensal e aviso de renovação no topo de qualquer tela', async
   page,
   request,
 }) => {
-  const day = new Date().toISOString().slice(0, 10);
+  const day = testDay;
   await request.post('/api/recurring', {
     data: {
       account_id: 'seed-recurring-account',

@@ -1,8 +1,5 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
-test.beforeEach(async ({ page }) => {
-  await page.clock.setFixedTime(new Date('2026-11-15T12:00:00-03:00'));
-});
 
 test('resumo do mês se adapta à largura e lembra a escolha', async ({
   page,

@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { test, expect, type APIRequestContext } from '@playwright/test';
+import { test, expect, type APIRequestContext } from './fixtures';
 
 const clock = { 'x-bfo-data': '2026-11-15' };
 test.use({ extraHTTPHeaders: clock });

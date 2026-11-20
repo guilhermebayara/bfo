@@ -1,4 +1,4 @@
-import { test, expect, type APIRequestContext } from '@playwright/test';
+import { test, expect, type APIRequestContext } from './fixtures';
 async function create(request: APIRequestContext, payee: string, extra = {}) {
   const response = await request.post('/api/transactions', {
     data: {

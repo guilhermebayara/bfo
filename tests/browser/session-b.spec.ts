@@ -1,4 +1,4 @@
-import { test, expect, type APIRequestContext } from '@playwright/test';
+import { test, expect, testDay, type APIRequestContext } from './fixtures';
 async function account(
   request: APIRequestContext,
   currency = 'BRL',
@@ -16,7 +16,6 @@ async function account(
   expect(response.status()).toBe(201);
   return (await response.json()).id as string;
 }
-const today = () => new Date().toISOString().slice(0, 10);
 test('lançamento sugere beneficiário, usa fallback manual de câmbio e filtra tags', async ({
   page,
   request,
@@ -27,7 +26,7 @@ test('lançamento sugere beneficiário, usa fallback manual de câmbio e filtra 
       await request.post('/api/transactions', {
         data: {
           account_id: id,
-          date: today(),
+          date: testDay,
           amount_cents: 100,
           payee: 'Café fictício B',
           category_id: 'groceries',
@@ -234,7 +233,7 @@ test('edita categorias e tags e unifica beneficiários em lote', async ({
         await request.post('/api/transactions', {
           data: {
             account_id: id,
-            date: today(),
+            date: testDay,
             amount_cents: 100,
             payee,
             tag_ids: [],

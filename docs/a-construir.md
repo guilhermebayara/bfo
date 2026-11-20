@@ -75,7 +75,8 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
   - [x] Navegação, cabeçalhos e hierarquia das telas revisados. Tokens, componentes e estados catalogados em `/fundacoes`.
   - [x] Testes de navegador cobrem a navegação, o catálogo e a geometria das células da planilha.
 
-- [ ] Defeito encontrado na Sessão K, para a sessão de correção depois da QA: tests/browser/session-i.spec.ts (pagamento parcial pela tabela) depende da data do dia e quebra no dia 20, fechamento da fatura do seed. Os testes de navegador precisam de data fixa.
+- [x] Defeito encontrado na Sessão K, para a sessão de correção depois da QA: tests/browser/session-i.spec.ts (pagamento parcial pela tabela) depende da data do dia e quebra no dia 20, fechamento da fatura do seed. Os testes de navegador precisam de data fixa.
+  - Corrigido na Sessão U. A suíte usa 19/11/2026 como data padrão no navegador e na API, pela fixture em `tests/browser/fixtures.ts`.
 - [x] Ajustes da revisão da Sessão L (pelo dono em 20/11/2026), para a sessão de correção depois da QA: resumo do mês em Transações recolhível, ao lado quando houver espaço, para a tabela ganhar largura; no Cartão, a fatura selecionada e as compras do ciclo vêm antes da lista de faturas; na navegação, os títulos dos grupos (Movimento, Cadastros, Aplicativo) pareciam itens desativados e precisam se distinguir claramente dos itens clicáveis.
 
 - [x] Decisões de 20/11/2026 depois da QA, para a sessão de correção: aceitar data futura no lançamento manual, contando no saldo só quando a data chegar e aparecendo em Próximos (decisões, Tabela de transações); conferir que o saldo do cartão em Contas mostra só o já lançado até hoje, com parcelas futuras no comprometido (decisões, Contas).
