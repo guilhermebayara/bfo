@@ -6,6 +6,7 @@ import { stdin, stdout } from 'node:process';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
+import { experimental_readRawConfig } from 'wrangler';
 
 const wrangler = fileURLToPath(
   new URL('../node_modules/wrangler/bin/wrangler.js', import.meta.url),
@@ -56,6 +57,30 @@ async function restore() {
 
   const options = [values.local ? '--local' : '--remote'];
   if (values['persist-to']) options.push('--persist-to', values['persist-to']);
+  const { rawConfig } = experimental_readRawConfig({ config: values.config });
+  const productionId = '32c0ee02-7cdf-4fc7-b83f-e8808ba3f4de';
+  const identity = target.toLowerCase();
+  const matches = (value) => value?.toLowerCase() === identity;
+  const databases = [rawConfig, ...Object.values(rawConfig.env ?? {})].flatMap(
+    (config) => config.d1_databases ?? [],
+  );
+  const destinations = databases.filter((entry) =>
+    [entry.binding, entry.database_name, entry.database_id].some(matches),
+  );
+  if (
+    identity === 'bfo-producao' ||
+    identity === productionId ||
+    destinations.some(
+      (entry) =>
+        [entry.database_id, entry.preview_database_id].some(
+          (id) => id?.toLowerCase() === productionId,
+        ) || entry.database_name?.toLowerCase() === 'bfo-producao',
+    )
+  ) {
+    throw new Error(
+      'Restauração bloqueada: bfo-producao não pode ser o destino.',
+    );
+  }
   if (values.config) options.push('--config', values.config);
   const key = `d1/${source}/${day}.sql`;
   const directory = mkdtempSync(join(tmpdir(), 'bfo-restauracao-'));

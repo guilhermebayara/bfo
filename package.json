@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "npm run build && wrangler dev --ip 0.0.0.0",
     "dev:front": "vite --host 0.0.0.0",
+    "confere": "node scripts/confere.mjs",
+    "prebuild": "npm run confere",
     "build": "tsc --noEmit && vite build",
     "postbuild": "node scripts/migrate-build.mjs",
     "test": "vitest run",
@@ -29,6 +31,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.3.0",
+    "jsonc-parser": "3.3.1",
     "prettier": "^3.10.1",
     "typescript": "^7.0.2",
     "vite": "^8.3.8",

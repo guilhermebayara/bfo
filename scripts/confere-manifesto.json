@@ -1,0 +1,27 @@
+{
+  "migracoes": {
+    "migrations/0001_initial.sql": "8d715120f32af977af433ec2287950ab99730820",
+    "migrations/0002_session_b.sql": "f0385f205717dc25c2c3469882271973c8ef89a8",
+    "migrations/0003_statements.sql": "8874195313012e649699a085853cd716c3b72408",
+    "migrations/0004_recurring.sql": "43818ef8b2885e41d075db8ca7c9483fdbee8e76",
+    "migrations/0005_session_f.sql": "327c8229b35454a3d34b8ffd2957d0bdc094540a",
+    "migrations/0006_review.sql": "d41f403774a9a87e0fb4b584614a643799669416",
+    "migrations/0007_tabela.sql": "93fde8c225cd5ef0a00b06910dee337d0ca7a37e",
+    "migrations/0008_session_i.sql": "8c003052ec5bf57c7fa2d22eea02f1e3484a2c0e",
+    "migrations/0009_cartao_parcelas.sql": "7418ffa5eb48b6c11b32f0ead1d461ed06c1c31e",
+    "migrations/0010_importacao.sql": "bb3827f989d873e1e3f109036a916f73c675c3a1",
+    "migrations/0011_beneficiario_padrao.sql": "fda8eddd7c8fe34e11e57b327c34f39e93026ee8",
+    "migrations/0012_historico_transacoes.sql": "b4e3e53506340dd9b780dc184e9b19d4acaeaebd",
+    "migrations/0013_desfazer_transacoes.sql": "2e73390e09fe72798a7fb89123a9f67c3969fd0b",
+    "migrations/0014_pagamento_agendado.sql": "9645edc95675e6806a01bdba1d86bc6f6f3f1c45"
+  },
+  "scripts": {
+    "scripts/e2e-setup.mjs": "f10100eb2599c54d83775f3b212d783e8b3cac98209fe8a5a09fab53bab346ec",
+    "scripts/importar-lunchmoney.mjs": "6528e0f9a165c0574e66064a4866d332717c5d873a86b6811548d7b70f772758",
+    "scripts/migrate-build.mjs": "0a2f3ebafdef4eb6822acc429ff642cabd972951276df3d39371ab83ff340e74",
+    "scripts/preview-d1.mjs": "dd2a5341a0b3f101cdf95f90efdb19c4532f075f4612a0ff3d3adc1695b40e63",
+    "scripts/restore-backup.mjs": "110e2276e29568c725f804ee4d232b0dcd2f137ff20627af1bebd2dcb9307886",
+    "scripts/seed-data.mjs": "2d228a7a63cf753bfe66d76381526d1e28d5193a0e2f7156bc1961687494413c",
+    "scripts/seed.mjs": "657296bdcda0f053ae299e50ef6447143e9a78a58b9e5c5040443fd6b1234603"
+  }
+}

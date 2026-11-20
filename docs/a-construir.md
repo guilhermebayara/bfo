@@ -110,6 +110,7 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
 
 ## Produção (depois das três fases)
 
+- [x] Sessão T: guarda da produção no repositório e no build da Cloudflare, com validação na CI e testes de navegador só nos PRs para `main`. [Conferências](cloudflare.md#conferências).
 - [ ] Transferir bayara.design para a conta BFO (exportar registros DNS, importar na conta nova, conferir certificados, manter os registros do portfólio na Vercel). Fazer num momento tranquilo.
 - [ ] Ligar bfo.bayara.design ao Worker de produção, com Access.
 - [ ] Repositório privado antes do primeiro uso do token real.

@@ -1,9 +1,12 @@
 name: Validar BFO
 on:
   pull_request:
-    branches: [homologacao, main]
   push:
-    branches: [homologacao]
+    paths-ignore:
+      - 'docs/**'
+concurrency:
+  group: validar-bfo-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -15,8 +18,19 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+      - name: Buscar a base das migrações
+        run: git fetch --no-tags --depth=1 origin +refs/heads/homologacao:refs/remotes/origin/homologacao
+      - name: Buscar a homologação anterior ao push
+        if: github.event_name == 'push' && github.ref == 'refs/heads/homologacao' && github.event.before != '0000000000000000000000000000000000000000'
+        env:
+          SHA_ANTERIOR: ${{ github.event.before }}
+        run: git fetch --no-tags --depth=1 origin "$SHA_ANTERIOR:refs/bfo/homologacao-anterior"
       - run: npm ci
+      - run: npm run confere
+      - run: node --test tests/confere.test.mjs
       - run: npm test
       - run: npm run build
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+      - if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        run: npx playwright install --with-deps chromium
+      - if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        run: npm run test:e2e
