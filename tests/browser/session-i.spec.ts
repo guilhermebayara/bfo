@@ -106,29 +106,38 @@ test('transferência para cartão sugere a fatura mais antiga e registra pagamen
   page,
   request,
 }) => {
-  // Um cartão isolado mantém o fluxo independente dos exemplos históricos.
+  // Conta nova nasce com corte = today()-1; o lançamento precisa ser > corte.
+  // No dia 20, a data fixa 19/11 quebrava (corte = 19). Usa o dia de hoje
+  // em America/Sao_Paulo e fechamento depois de hoje para o ciclo ficar aberto.
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+  }).format(new Date());
+  const month = today.slice(0, 7);
   const created = await request.post('/api/accounts', {
     data: {
       name: 'Cartão isolado I',
       kind: 'credit_card',
       currency: 'BRL',
       institution_id: 'horizonte',
-      closing_day: 20,
-      due_day: 27,
+      closing_day: 28,
+      due_day: 5,
     },
   });
+  expect(created.status()).toBe(201);
   const cardId = (await created.json()).id;
-  await request.post('/api/transactions', {
+  const purchase = await request.post('/api/transactions', {
     data: {
       account_id: cardId,
-      date: '2026-11-19',
+      date: today,
       payee: 'Compra isolada I',
       amount_cents: 10000,
     },
   });
+  expect(purchase.status()).toBe(201);
   const invoice = (
     await (await request.get(`/api/cards/${cardId}/statements`)).json()
   ).find((s: any) => s.total_cents === 10000);
+  expect(invoice, 'fatura da compra isolada').toBeTruthy();
   await request.post(`/api/statements/${invoice.id}/check`, {
     data: {
       action: 'close',
@@ -137,7 +146,7 @@ test('transferência para cartão sugere a fatura mais antiga e registra pagamen
     },
   });
   const before = await (await request.get('/api/accounts')).json();
-  await page.goto('/transacoes/2026-11');
+  await page.goto(`/transacoes/${month}`);
   await page
     .getByLabel('Escolher conta para adicionar')
     .selectOption('transfer');
@@ -145,7 +154,7 @@ test('transferência para cartão sugere a fatura mais antiga e registra pagamen
   await row.getByLabel('Conta de origem').selectOption('seed-f-account');
   await row.getByLabel('Conta de destino').selectOption(cardId);
   await expect(row.getByLabel('Fatura a pagar')).toHaveValue(invoice.id);
-  await row.getByLabel('Data da transferência').fill('2026-11-19');
+  await row.getByLabel('Data da transferência').fill(today);
   await row.getByLabel('Valor da transferência (BRL)').fill('10,00');
   await row.getByRole('button', { name: 'Salvar transferência' }).click();
   await expect(row.getByRole('status')).toHaveText('Pagamento registrado.');
@@ -166,7 +175,7 @@ test('transferência para cartão sugere a fatura mais antiga e registra pagamen
       before.find((a: any) => a.id === 'seed-f-account').balance_cents,
   ).toBe(-1000);
   const payments = await (
-    await request.get(`/api/transactions?month=2026-11&account=${cardId}`)
+    await request.get(`/api/transactions?month=${month}&account=${cardId}`)
   ).json();
   expect(
     payments.items.some(
