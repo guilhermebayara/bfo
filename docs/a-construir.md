@@ -97,8 +97,11 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
 
 - [x] Ferramentas de uso diário (Sessão V, Codex, em paralelo à N): total leva às transações, saldo corrido por conta, filtro de privacidade e exportação em CSV (decisões, Tabela de transações; brief em docs/briefs/uso-diario.md).
 
+- [ ] Tela inicial, regras e números (Sessão X): as quatro perguntas, com projeção de 30 dias e página neutra (decisões, Tabela de transações; brief em docs/briefs/tela-inicial.md). O arranjo entra no conceito visual.
+
 - [ ] Conceito visual: feito no Claude depois que a estrutura da fase 1 estiver redonda. Duas propostas numa prévia, o dono escolhe olhando a tela, e só então o visual é aplicado.
   - Consolidado das referências em [docs/referencia-visual-consolidado.md](referencia-visual-consolidado.md), sem decisão.
+  - As duas direções desenham também a tela inicial, com os números da Sessão X.
   - Pendente: análise das nove telas do Mobbin pelo dono com o chat, depois de 23/11. A revisão visual começa depois disso.
 
 - [x] Ajuste técnico (Sessão B): a Cloudflare trocou as prévias por versão com alias pelo recurso Previews, com comando padrão `npx wrangler preview`. Migrar a configuração (bloco `previews` no ambiente homologacao do wrangler, comando de prévia com o ambiente) e atualizar docs/cloudflare.md com os nomes atuais do painel (Settings > Build, preview builds, Preview command).
