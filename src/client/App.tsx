@@ -3,6 +3,7 @@ import type { Account, Category, Recurring } from '../shared/types';
 import { Button, Notice, State } from './components';
 import { Foundations } from './screens/Foundations';
 import { api } from './api';
+import { useTransactionSession } from './transaction-session';
 import { Transactions } from './screens/Transactions';
 import { RecurringScreen, SubscriptionTypes } from './screens/Recurring';
 import { Cards } from './screens/Cards';
@@ -90,6 +91,7 @@ export function App() {
       clearInterval(timer);
     };
   }, []);
+  const transactionSession = useTransactionSession(load);
   function go(to: string, replace = false) {
     if (replace) history.replaceState({}, '', to);
     else history.pushState({}, '', to);
@@ -169,6 +171,11 @@ export function App() {
             <a href="/assinaturas" onClick={(e) => navigate(e, '/assinaturas')}>
               Ver assinaturas
             </a>
+          </Notice>
+        )}
+        {transactionSession.error && (
+          <Notice tone="error" className="alert-space" role="alert">
+            {transactionSession.error}
           </Notice>
         )}
         <main id="main" ref={main} tabIndex={-1}>

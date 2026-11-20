@@ -41,6 +41,9 @@ export const importActionStartSql = [
 
 export function historySource(path: string, method: string) {
   if (method === 'GET' || method === 'HEAD') return null;
+  if (path.endsWith('/undo')) return 'desfazer';
+  if (path.endsWith('/redo')) return 'refazer';
+  if (path.endsWith('/installment-edit')) return 'edição de parcelas';
   if (path.endsWith('/restore-field')) return 'histórico';
   if (path === '/api/transactions/batch' || path === '/api/payees/merge')
     return 'lote';
@@ -65,6 +68,8 @@ export function actionDatabase(
   db: D1Database,
   source: string,
   onAction: (id: string) => void,
+  sessionId: string | null,
+  reversesId: string | null,
 ): D1Database {
   return new Proxy(db, {
     get(target, property) {
@@ -74,9 +79,15 @@ export function actionDatabase(
           const results = await target.batch([
             target
               .prepare(
-                'INSERT INTO transaction_actions(id,source,created_at) VALUES(?,?,?)',
+                'INSERT INTO transaction_actions(id,source,created_at,session_id,reverses_id) VALUES(?,?,?,?,?)',
               )
-              .bind(id, source, new Date().toISOString()),
+              .bind(
+                id,
+                source,
+                new Date().toISOString(),
+                sessionId,
+                reversesId,
+              ),
             target
               .prepare('INSERT INTO transaction_action_context VALUES(1,?)')
               .bind(id),
@@ -95,7 +106,7 @@ export function actionDatabase(
   });
 }
 
-type StoredChange = {
+export type StoredChange = {
   transaction_id: string;
   before_json: string | null;
   after_json: string | null;

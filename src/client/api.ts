@@ -1,14 +1,43 @@
+export const transactionActions = new EventTarget();
+const transactionSession = crypto.randomUUID();
+let pendingWrite = Promise.resolve();
+let writes = 0;
+export const transactionWritePending = () => writes > 0;
+
 export async function api<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const response = await fetch(`/api${path}`, {
-    ...options,
-    headers: { 'Content-Type': 'application/json', ...options.headers },
+  const write = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(
+    options.method ?? '',
+  );
+  async function send() {
+    const headers = new Headers(options.headers);
+    headers.set('Content-Type', 'application/json');
+    if (write) headers.set('X-BFO-Sessao', transactionSession);
+    const response = await fetch(`/api${path}`, { ...options, headers });
+    const body = (await response.json()) as T & { error?: string };
+    if (!response.ok)
+      throw new Error(body.error ?? 'Não foi possível carregar os dados.');
+    const actionId = response.headers.get('X-BFO-Acao');
+    if (actionId) {
+      if (path.startsWith('/transaction-actions/'))
+        return { ...body, action_id: actionId };
+      transactionActions.dispatchEvent(
+        new CustomEvent('save', { detail: actionId }),
+      );
+    }
+    return body;
+  }
+  if (!write) return send();
+  writes++;
+  const result = pendingWrite.then(send).finally(() => {
+    writes--;
   });
-  const body = (await response.json()) as T & { error?: string };
-  if (!response.ok)
-    throw new Error(body.error ?? 'Não foi possível carregar os dados.');
-  return body;
+  pendingWrite = result.then(
+    () => {},
+    () => {},
+  );
+  return result;
 }
 export const humanDate = (date: string) => date.split('-').reverse().join('/');

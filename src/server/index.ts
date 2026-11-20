@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { reverseTransactionAction, UndoConflict } from './transaction-undo';
 import {
   actionDatabase,
   historySource,
@@ -31,7 +32,11 @@ type Bindings = {
 } & BackupBindings;
 const app = new Hono<{
   Bindings: Bindings;
-  Variables: { DB: D1Database; today: string };
+  Variables: {
+    DB: D1Database;
+    today: string;
+    transactionSession: string | null;
+  };
 }>();
 class InputError extends Error {
   constructor(
@@ -69,6 +74,8 @@ function keys(body: Record<string, unknown>, allowed: string[]) {
     fail('Campo não permitido para este registro.');
 }
 app.onError((error, c) => {
+  if (error instanceof UndoConflict)
+    return c.json({ error: error.message }, 409);
   if (error instanceof InputError)
     return c.json({ error: error.message }, error.status);
   if (error instanceof SyntaxError)
@@ -143,12 +150,25 @@ app.use('/api/*', async (c, next) => {
       : c.env.DB;
   if (!db) throw new Error('Binding D1 ausente para este endereço.');
   const source = historySource(url.pathname, c.req.method);
+  const session = c.req.header('X-BFO-Sessao') ?? '';
+  const sessionId = /^[a-f0-9-]{36}$/i.test(session) ? session : null;
+  c.set('transactionSession', sessionId);
+  const reversesId =
+    /^\/api\/transaction-actions\/([^/]+)\/(undo|redo)$/.exec(
+      url.pathname,
+    )?.[1] ?? null;
   c.set(
     'DB',
     source
-      ? actionDatabase(db, source, (id) => {
-          c.header('X-BFO-Acao', id);
-        })
+      ? actionDatabase(
+          db,
+          source,
+          (id) => {
+            c.header('X-BFO-Acao', id);
+          },
+          sessionId,
+          reversesId,
+        )
       : db,
   );
   await next();
@@ -988,6 +1008,31 @@ app.patch('/api/transactions/:id', async (c) => {
   if (writes.length) await c.var.DB.batch(writes);
   return c.json({ ok: true });
 });
+
+for (const direction of ['undo', 'redo'] as const) {
+  app.post(`/api/transaction-actions/:id/${direction}`, async (c) => {
+    try {
+      await reverseTransactionAction(
+        c.var.DB,
+        c.req.param('id'),
+        c.var.transactionSession,
+        direction,
+      );
+    } catch (error) {
+      if (
+        /(constraint failed|foreign key constraint)/i.test(
+          String((error as Error).cause ?? error),
+        )
+      )
+        return fail(
+          'A transação, a conta ou a fatura mudou. Atualize antes de tentar novamente.',
+          409,
+        );
+      throw error;
+    }
+    return c.json({ ok: true });
+  });
+}
 
 app.get('/api/transactions/:id/history', async (c) =>
   c.json(await transactionHistory(c.var.DB, c.req.param('id'))),

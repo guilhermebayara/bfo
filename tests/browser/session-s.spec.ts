@@ -51,3 +51,26 @@ test('abre histórico no menu e recupera uma nota', async ({
   await dialog.getByRole('button', { name: 'Voltar nota' }).click();
   await expect(dialog).toContainText('Nota atual → Nota anterior');
 });
+
+test('desfaz e refaz o valor na planilha e limpa a pilha ao recarregar', async ({
+  page,
+  request,
+}) => {
+  const payee = 'Teclado navegador S';
+  const { id, accountId } = await setup(request, payee);
+  await page.goto('/transacoes/2026-11?account=' + accountId);
+  const row = page.locator(`tr[data-transaction-id="${id}"]`);
+  const cell = row.getByRole('cell', { name: 'Valor de ' + payee });
+  await cell.click();
+  await cell.getByLabel('Valor (BRL)').fill('25,00');
+  await cell.getByLabel('Valor (BRL)').press('Enter');
+  await expect(cell).toContainText('25,00');
+  await page.keyboard.press('Control+z');
+  await expect(cell).toContainText('12,00');
+  await page.keyboard.press('Control+Shift+Z');
+  await expect(cell).toContainText('25,00');
+  await page.reload();
+  await cell.focus();
+  await page.keyboard.press('Control+z');
+  await expect(cell).toContainText('25,00');
+});
