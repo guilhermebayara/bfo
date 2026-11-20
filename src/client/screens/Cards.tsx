@@ -476,6 +476,7 @@ export function Cards({
   const [revision, setRevision] = useState(0);
   const [mode, setMode] = useState<StatementMode | null>(null);
   const selectedStatementHeading = useRef<HTMLHeadingElement>(null);
+  const focusSelectedStatement = useRef(false);
   const card =
     cards.find((a) => a.id === cardId) ??
     cards.find((a) => !a.archived && !a.closed_at) ??
@@ -485,6 +486,12 @@ export function Cards({
     statements.find((s) => s.account_id === card?.id && s.is_current) ??
     statements.find((s) => s.account_id === card?.id);
   const statementId = statement?.id;
+  useEffect(() => {
+    if (focusSelectedStatement.current) {
+      focusSelectedStatement.current = false;
+      selectedStatementHeading.current?.focus();
+    }
+  }, [statementId]);
   const [commitment, setCommitment] = useState<{
     committed_cents: number;
     credit_limit_cents: number | null;
@@ -576,10 +583,15 @@ export function Cards({
               <td>
                 <Button
                   aria-pressed={s.id === statementId}
+                  aria-controls="selected-statement"
                   onClick={() => {
-                    if (s.id !== statementId) setDetail(null);
+                    if (s.id === statementId) {
+                      selectedStatementHeading.current?.focus();
+                    } else {
+                      focusSelectedStatement.current = true;
+                      setDetail(null);
+                    }
                     setSelected(s.id);
-                    selectedStatementHeading.current?.focus();
                   }}
                 >
                   {humanDate(s.closing_date)}
@@ -673,9 +685,17 @@ export function Cards({
         <State kind="empty">Nenhuma fatura para este cartão.</State>
       )}
       {statement && (
-        <Panel className="statement-section">
+        <Panel
+          className="statement-section"
+          id="selected-statement"
+          aria-labelledby="selected-statement-heading"
+        >
           <div className="section-heading">
-            <h2 ref={selectedStatementHeading} tabIndex={-1}>
+            <h2
+              id="selected-statement-heading"
+              ref={selectedStatementHeading}
+              tabIndex={-1}
+            >
               Fatura com vencimento em {humanDate(statement.due_date)}
             </h2>
             <div className="statement-total">
@@ -930,18 +950,24 @@ export function Cards({
           </details>
         </Panel>
       )}
-      {summary('Fatura atual', current ? [current] : [])}
-      {summary(
-        'Faturas anteriores',
-        list.filter(
-          (s) =>
-            !s.is_current &&
-            (!current || s.closing_date < current.closing_date),
-        ),
-      )}
-      {summary(
-        'Faturas futuras',
-        list.filter((s) => current && s.closing_date > current.closing_date),
+      {list.length > 0 && (
+        <section aria-label="Lista de faturas">
+          {summary('Fatura atual', current ? [current] : [])}
+          {summary(
+            'Faturas anteriores',
+            list.filter(
+              (s) =>
+                !s.is_current &&
+                (!current || s.closing_date < current.closing_date),
+            ),
+          )}
+          {summary(
+            'Faturas futuras',
+            list.filter(
+              (s) => current && s.closing_date > current.closing_date,
+            ),
+          )}
+        </section>
       )}
       {mode && statement && (
         <StatementAction

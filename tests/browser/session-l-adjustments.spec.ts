@@ -52,3 +52,37 @@ test('resumo do mês se adapta à largura e lembra a escolha', async ({
   await expect(collapse).toBeVisible();
   await expect(summary).toBeVisible();
 });
+
+test('fatura selecionada e compras do ciclo vêm antes da lista de faturas', async ({
+  page,
+}) => {
+  await page.goto('/cartao?account=card-a');
+  const selectedStatement = page.getByRole('region', {
+    name: /^Fatura com vencimento em/,
+  });
+  const invoices = page.getByRole('region', { name: 'Lista de faturas' });
+  const purchases = selectedStatement.getByRole('table', {
+    name: 'Compras do ciclo',
+  });
+  await expect(purchases).toBeVisible();
+
+  const previousInvoice = invoices
+    .getByRole('table', { name: 'Faturas anteriores' })
+    .getByRole('button', { name: '20/10/2026' });
+  await previousInvoice.press('Enter');
+  await expect(previousInvoice).toHaveAttribute('aria-pressed', 'true');
+  await expect(
+    selectedStatement.getByRole('heading', {
+      name: 'Fatura com vencimento em 27/10/2026',
+    }),
+  ).toBeFocused();
+  await expect(purchases).toContainText('Mesa de trabalho');
+
+  const cycle = (await purchases.boundingBox())!;
+  expect(cycle.y + cycle.height).toBeLessThan(
+    (await invoices.boundingBox())!.y,
+  );
+  await expect(
+    invoices.and(page.locator('#selected-statement ~ section')),
+  ).toBeVisible();
+});
