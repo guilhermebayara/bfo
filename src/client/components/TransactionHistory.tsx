@@ -3,30 +3,11 @@ import type {
   TransactionHistory as History,
   TransactionSnapshot,
 } from '../../server/transaction-history';
+import { transactionFieldLabels as fields } from '../../shared/transaction-notice';
 import { formatMoney } from '../../shared/money';
 import type { Account, Category, Tag, Transaction } from '../../shared/types';
 import { api, humanDate } from '../api';
 import { Button, Modal, State } from './index';
-
-const fields: Record<string, string> = {
-  date: 'Data',
-  account_id: 'Conta',
-  payee: 'Beneficiário',
-  effective_payee: 'Beneficiário unificado',
-  amount_cents: 'Valor',
-  category_id: 'Categoria',
-  note: 'Nota',
-  currency: 'Moeda',
-  fx_rate: 'Cotação',
-  fx_source: 'Origem da cotação',
-  amount_brl_cents: 'Valor em reais',
-  tag_ids: 'Tags',
-  splits: 'Divisão',
-  recurring_id: 'Recorrente',
-  statement_id: 'Fatura',
-  advance_id: 'Antecipação',
-  cancellation: 'Cancelamento',
-};
 
 export function TransactionHistory({
   transaction,

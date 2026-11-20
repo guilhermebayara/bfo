@@ -218,3 +218,41 @@ it('preserva a trava de fatura fechada e permite desfazer classificação import
       .first('amount_cents'),
   ).toBe(500);
 });
+
+it('devolve um aviso por lote com os saldos das duas contas afetadas', async () => {
+  const beginningA = await balance();
+  const beginningB = await balance('s-b');
+  const { id } = await make('Primeira do lote S');
+  const other = await req('/transactions', 'POST', {
+    account_id: 's-b',
+    date: '2026-11-15',
+    amount_cents: 700,
+    payee: 'Segunda do lote S',
+  });
+  expect(other.status).toBe(201);
+  const second = (await other.json<{ id: string }>()).id;
+  const response = await app.request(
+    'https://bfo.test/api/transactions/batch',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-BFO-Avisos': '1',
+        'X-BFO-Sessao': session,
+      },
+      body: JSON.stringify({ ids: [id, second], delete: true }),
+    },
+    env,
+  );
+  expect(await response.json()).toMatchObject({
+    count: 2,
+    transaction_notice: {
+      id: response.headers.get('X-BFO-Acao'),
+      message: '2 transações excluídas.',
+      accounts: [
+        { id: 's-a', balance_cents: beginningA },
+        { id: 's-b', balance_cents: beginningB },
+      ],
+    },
+  });
+});

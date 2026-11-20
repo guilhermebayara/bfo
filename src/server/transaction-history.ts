@@ -1,3 +1,7 @@
+import {
+  transactionFieldLabels,
+  type TransactionNotice,
+} from '../shared/transaction-notice';
 export type TransactionSnapshot = Record<string, unknown> & {
   id: string;
   account_id: string;
@@ -67,15 +71,18 @@ export function historySource(path: string, method: string) {
 export function actionDatabase(
   db: D1Database,
   source: string,
-  onAction: (id: string) => void,
+  onAction: (id: string, notice?: TransactionNotice) => void,
   sessionId: string | null,
   reversesId: string | null,
+  balance?: string,
 ): D1Database {
   return new Proxy(db, {
     get(target, property) {
       if (property === 'batch')
         return async (writes: D1PreparedStatement[]) => {
           const id = crypto.randomUUID();
+          const notice = balance ? noticeQueries(target, id, balance) : [];
+          const tail = 2 + notice.length;
           const results = await target.batch([
             target
               .prepare(
@@ -96,9 +103,23 @@ export function actionDatabase(
             target
               .prepare('SELECT id FROM transaction_actions WHERE id=?')
               .bind(id),
+            ...notice,
           ]);
-          if (results.at(-1)?.results.length) onAction(id);
-          return results.slice(2, -2);
+          if (results.at(1 - tail)?.results.length) {
+            const changes = results.at(-2)?.results as StoredChange[];
+            onAction(
+              id,
+              balance
+                ? {
+                    id,
+                    message: describeAction(source, changes.map(decodeChange)),
+                    accounts: results.at(-1)!
+                      .results as TransactionNotice['accounts'],
+                  }
+                : undefined,
+            );
+          }
+          return results.slice(2, -tail);
         };
       const value = Reflect.get(target, property);
       return typeof value === 'function' ? value.bind(target) : value;
@@ -126,9 +147,10 @@ export async function transactionHistory(db: D1Database, id: string) {
       `SELECT a.id,a.source,a.created_at,c.transaction_id,c.before_json,c.after_json
      FROM transaction_changes c JOIN transaction_actions a ON a.id=c.action_id
      WHERE c.action_id IN (SELECT action_id FROM transaction_changes WHERE transaction_id=?)
+       AND (a.source<>'importação' OR c.transaction_id=?)
      ORDER BY a.rowid DESC,c.transaction_id`,
     )
-    .bind(id)
+    .bind(id, id)
     .all<StoredChange & Omit<TransactionHistory, 'changes'>>();
   const actions = new Map<string, TransactionHistory>();
   for (const row of results) {
@@ -186,4 +208,70 @@ export function restoreSplits(
     );
   }
   return writes;
+}
+
+function describeAction(source: string, changes: TransactionChange[]) {
+  if (source === 'desfazer') return 'Alteração desfeita.';
+  if (source === 'refazer') return 'Alteração refeita.';
+  const distinct = new Set(
+    changes.map(({ transaction_id, before, after }) => {
+      const pair = (after ?? before)?.transfer_pair_id;
+      return typeof pair === 'string'
+        ? [pair, transaction_id].sort()[0]
+        : transaction_id;
+    }),
+  );
+  const verb = changes.every(({ before }) => !before)
+    ? 'adicionada'
+    : changes.every(({ after }) => !after)
+      ? 'excluída'
+      : 'editada';
+  if (distinct.size > 1) return `${distinct.size} transações ${verb}s.`;
+  const { before, after } = changes[0];
+  const name = (after ?? before)?.effective_payee ?? (after ?? before)?.payee;
+  const fields =
+    before && after
+      ? Object.entries(transactionFieldLabels)
+          .filter(
+            ([key]) =>
+              key !== 'effective_payee' &&
+              key !== 'amount_brl_cents' &&
+              JSON.stringify(before[key]) !== JSON.stringify(after[key]),
+          )
+          .map(([, label]) => label.toLocaleLowerCase('pt-BR'))
+      : [];
+  if (
+    !fields.length &&
+    before?.effective_payee !== after?.effective_payee &&
+    before &&
+    after
+  )
+    fields.push('beneficiário');
+  return `Transação ${verb}: ${name}${fields.length ? ' (' + fields.join(', ') + ')' : ''}.`;
+}
+
+function noticeQueries(db: D1Database, id: string, balance: string) {
+  return [
+    db
+      .prepare(
+        'SELECT transaction_id,before_json,after_json FROM transaction_changes WHERE action_id=?',
+      )
+      .bind(id),
+    db
+      .prepare(
+        `WITH changed AS (
+       SELECT before_json AS snapshot FROM transaction_changes WHERE action_id=?
+       UNION ALL
+       SELECT after_json FROM transaction_changes WHERE action_id=?
+      ), accounts_changed AS (
+       SELECT json_extract(snapshot,'$.account_id') AS id FROM changed
+       UNION
+       SELECT s.account_id FROM changed JOIN statements s ON s.id=json_extract(snapshot,'$.statement_id')
+       WHERE json_extract(snapshot,'$.kind')='card_payment'
+      )
+      SELECT a.id,a.name,a.currency,${balance} AS balance_cents
+      FROM accounts a WHERE a.id IN (SELECT id FROM accounts_changed) ORDER BY a.name,a.id`,
+      )
+      .bind(id, id),
+  ];
 }

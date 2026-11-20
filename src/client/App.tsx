@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { Account, Category, Recurring } from '../shared/types';
 import { Button, Notice, State } from './components';
+import { TransactionNotice } from './components/TransactionNotice';
 import { Foundations } from './screens/Foundations';
 import { api } from './api';
 import { useTransactionSession } from './transaction-session';
@@ -234,6 +235,22 @@ export function App() {
             />
           )}
         </main>
+        {transactionSession.notice && (
+          <TransactionNotice
+            key={transactionSession.notice.id}
+            notice={transactionSession.notice}
+            busy={transactionSession.busy}
+            onUndo={
+              transactionSession.latest === transactionSession.notice.id
+                ? () =>
+                    void transactionSession.reverse(
+                      'undo',
+                      transactionSession.notice?.id,
+                    )
+                : undefined
+            }
+          />
+        )}
       </div>
     </div>
   );

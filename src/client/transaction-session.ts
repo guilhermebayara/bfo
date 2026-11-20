@@ -1,3 +1,4 @@
+import type { TransactionNotice } from '../shared/transaction-notice';
 import { useEffect, useRef, useState } from 'react';
 import { api, transactionActions, transactionWritePending } from './api';
 
@@ -6,15 +7,19 @@ export function useTransactionSession(onSaved: () => Promise<void>) {
   const redo = useRef<string[]>([]);
   const pending = useRef(false);
   const [latest, setLatest] = useState<string | null>(null);
+  const [notice, setNotice] = useState<TransactionNotice | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     const record = (event: Event) => {
-      const id = (event as CustomEvent<string>).detail;
+      const { id, notice } = (
+        event as CustomEvent<{ id: string; notice?: TransactionNotice }>
+      ).detail;
       undo.current.push(id);
       redo.current = [];
       setLatest(id);
+      setNotice(notice ?? null);
       setError('');
     };
     transactionActions.addEventListener('save', record);
@@ -36,16 +41,17 @@ export function useTransactionSession(onSaved: () => Promise<void>) {
     setError('');
     setBusy(true);
     try {
-      const result = await api<{ action_id: string }>(
-        `/transaction-actions/${id}/${direction}`,
-        {
-          method: 'POST',
-          body: '{}',
-        },
-      );
+      const result = await api<{
+        action_id: string;
+        transaction_notice?: TransactionNotice;
+      }>(`/transaction-actions/${id}/${direction}`, {
+        method: 'POST',
+        body: '{}',
+      });
       from.current.pop();
       to.current.push(result.action_id);
       setLatest(undo.current.at(-1) ?? null);
+      setNotice(result.transaction_notice ?? null);
       await onSaved();
     } catch (e) {
       setError((e as Error).message);
@@ -80,5 +86,5 @@ export function useTransactionSession(onSaved: () => Promise<void>) {
     return () => removeEventListener('keydown', onKey);
   }, [onSaved]);
 
-  return { latest, error, busy, reverse };
+  return { latest, error, busy, reverse, notice };
 }

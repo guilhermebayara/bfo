@@ -1,3 +1,4 @@
+import type { TransactionNotice } from '../shared/transaction-notice';
 export const transactionActions = new EventTarget();
 const transactionSession = crypto.randomUUID();
 let pendingWrite = Promise.resolve();
@@ -14,9 +15,15 @@ export async function api<T>(
   async function send() {
     const headers = new Headers(options.headers);
     headers.set('Content-Type', 'application/json');
-    if (write) headers.set('X-BFO-Sessao', transactionSession);
+    if (write) {
+      headers.set('X-BFO-Sessao', transactionSession);
+      headers.set('X-BFO-Avisos', '1');
+    }
     const response = await fetch(`/api${path}`, { ...options, headers });
-    const body = (await response.json()) as T & { error?: string };
+    const body = (await response.json()) as T & {
+      error?: string;
+      transaction_notice?: TransactionNotice;
+    };
     if (!response.ok)
       throw new Error(body.error ?? 'Não foi possível carregar os dados.');
     const actionId = response.headers.get('X-BFO-Acao');
@@ -24,7 +31,9 @@ export async function api<T>(
       if (path.startsWith('/transaction-actions/'))
         return { ...body, action_id: actionId };
       transactionActions.dispatchEvent(
-        new CustomEvent('save', { detail: actionId }),
+        new CustomEvent('save', {
+          detail: { id: actionId, notice: body.transaction_notice },
+        }),
       );
     }
     return body;

@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import type { TransactionNotice } from '../shared/transaction-notice';
 import { reverseTransactionAction, UndoConflict } from './transaction-undo';
 import {
   actionDatabase,
@@ -157,21 +158,38 @@ app.use('/api/*', async (c, next) => {
     /^\/api\/transaction-actions\/([^/]+)\/(undo|redo)$/.exec(
       url.pathname,
     )?.[1] ?? null;
+  let transactionNotice: TransactionNotice | undefined;
   c.set(
     'DB',
     source
       ? actionDatabase(
           db,
           source,
-          (id) => {
+          (id, notice) => {
             c.header('X-BFO-Acao', id);
+            transactionNotice = notice;
           },
           sessionId,
           reversesId,
+          c.req.header('X-BFO-Avisos') === '1'
+            ? balanceSql(c.var.today)
+            : undefined,
         )
       : db,
   );
   await next();
+  if (transactionNotice && c.res.ok) {
+    const body = await c.res.json<Record<string, unknown>>();
+    const headers = new Headers(c.res.headers);
+    headers.delete('Content-Length');
+    c.res = new Response(
+      JSON.stringify({ ...body, transaction_notice: transactionNotice }),
+      {
+        status: c.res.status,
+        headers,
+      },
+    );
+  }
 });
 app.get('/api/health', async (c) => {
   await c.var.DB.prepare('SELECT 1').first();

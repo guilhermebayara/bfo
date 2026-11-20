@@ -74,3 +74,27 @@ test('desfaz e refaz o valor na planilha e limpa a pilha ao recarregar', async (
   await page.keyboard.press('Control+z');
   await expect(cell).toContainText('25,00');
 });
+
+test('aviso da edição mostra saldo e permite desfazer sem sair da tabela', async ({
+  page,
+  request,
+}) => {
+  const payee = 'Aviso navegador S';
+  const { id, accountId } = await setup(request, payee);
+  await page.goto('/transacoes/2026-11?account=' + accountId);
+  const cell = page
+    .locator(`tr[data-transaction-id="${id}"]`)
+    .getByRole('cell', { name: 'Valor de ' + payee });
+  await cell.click();
+  await cell.getByLabel('Valor (BRL)').fill('25,00');
+  await cell.getByLabel('Valor (BRL)').press('Enter');
+  const notice = page.getByRole('status', { name: 'Aviso de transação' });
+  await expect(notice).toContainText(
+    'Transação editada: Aviso navegador S (valor).',
+  );
+  await expect(notice).toContainText('75,00');
+  await page.getByRole('button', { name: 'Desfazer', exact: true }).click();
+  await expect(notice).toContainText('Alteração desfeita.');
+  await expect(notice).toContainText('88,00');
+  await expect(cell).toContainText('12,00');
+});
