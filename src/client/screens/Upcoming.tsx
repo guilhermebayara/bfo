@@ -52,7 +52,8 @@ export function Upcoming({ revision }: { revision: number }) {
         <>
           <p className="section-help">
             Parcelas e recorrentes do cartão compõem as faturas. Cada valor
-            entra uma vez no total.
+            entra uma vez no total. Lançamento com data futura aparece até o dia
+            chegar.
           </p>
           {[data.from.slice(0, 7), data.to.slice(0, 7)].map((month) => {
             const list = data.items.filter((i) => i.date.startsWith(month));
