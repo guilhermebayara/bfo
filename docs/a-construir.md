@@ -87,6 +87,7 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
 - [ ] QA complementar (Sessão N, Claude Code): refazer o mês simulado pela API com relógio fixo e gabarito escrito antes de rodar, e conferir por amostragem o que a Sessão M marcou como Ok.
 - [x] Sessão R (Codex, em paralelo à Q): antecipação que devolve 409 no cenário composto, assinatura que recusa `is_subscription` como true/false e backup automático diário dos bancos com dados reais no R2 (decisões, Infraestrutura).
   - Ativação do backup na conta BFO conforme os passos em [docs/cloudflare.md](cloudflare.md#backup-diário-dos-d1).
+- [ ] Pagamento de fatura com data futura fica agendado até a data, em vez de pago na hora (decisões, Tabela de transações). Pequeno; entra na próxima sessão que mexer em fatura.
 - [ ] Histórico de alterações, desfazer e aviso de transação, depois da Q (decisões, Tabela de transações; brief em docs/briefs/historico-desfazer.md).
 
 - [ ] Conceito visual: feito no Claude depois que a estrutura da fase 1 estiver redonda. Duas propostas numa prévia, o dono escolhe olhando a tela, e só então o visual é aplicado.
