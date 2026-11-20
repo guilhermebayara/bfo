@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 test('filtra transações, edita uma importada e mantém os dados após recarregar', async ({
   page,
   request,

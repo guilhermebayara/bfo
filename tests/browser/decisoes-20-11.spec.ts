@@ -1,12 +1,6 @@
-import { test, expect, type APIRequestContext } from '@playwright/test';
-test.use({ extraHTTPHeaders: { 'x-bfo-data': '2026-11-15' } });
-test.beforeEach(async ({ page }) => {
-  await page.clock.setFixedTime(new Date('2026-11-15T15:00:00.000Z'));
-});
-const clock = { 'x-bfo-data': '2026-11-15' };
+import { test, expect, testDay, type APIRequestContext } from './fixtures';
 async function account(request: APIRequestContext) {
   const response = await request.post('/api/accounts', {
-    headers: clock,
     data: {
       name: 'Conta padrão navegador',
       kind: 'checking',
@@ -26,10 +20,9 @@ test('define, troca e remove o padrão, e a sugestão continua editável', async
   expect(
     (
       await request.post('/api/transactions', {
-        headers: clock,
         data: {
           account_id: id,
-          date: '2026-11-15',
+          date: testDay,
           amount_cents: 2200,
           payee: 'Loja padrão navegador',
           category_id: 'groceries',
@@ -83,7 +76,6 @@ test('define, troca e remove o padrão, e a sugestão continua editável', async
   const saved = await (
     await request.get(
       '/api/transactions?month=2026-11&search=Loja%20padr%C3%A3o%20navegador',
-      { headers: clock },
     )
   ).json();
   const edited = saved.items.find(
@@ -120,7 +112,6 @@ test('lançamento e transferência com data futura ficam em Próximos e fora do 
 }) => {
   const source = await account(request);
   const dest = await request.post('/api/accounts', {
-    headers: clock,
     data: {
       name: 'Destino futuro navegador',
       kind: 'checking',
@@ -155,9 +146,7 @@ test('lançamento e transferência com data futura ficam em Próximos e fora do 
   await transfer.getByLabel('Valor da transferência (BRL)').fill('10,00');
   await transfer.getByRole('button', { name: 'Salvar transferência' }).click();
   await expect(transfer.getByRole('status')).toHaveText('Transferência salva.');
-  const accounts = await (
-    await request.get('/api/accounts', { headers: clock })
-  ).json();
+  const accounts = await (await request.get('/api/accounts')).json();
   expect(
     accounts.find((a: { id: string }) => a.id === source).balance_cents,
   ).toBe(80000);
@@ -170,9 +159,7 @@ test('lançamento e transferência com data futura ficam em Próximos e fora do 
   await expect(
     page.getByText('Transferência → Destino futuro navegador'),
   ).toBeVisible();
-  const upcoming = await (
-    await request.get('/api/upcoming', { headers: clock })
-  ).json();
+  const upcoming = await (await request.get('/api/upcoming')).json();
   expect(
     upcoming.items.filter(
       (i: { label: string }) => i.label === 'Boleto futuro navegador',
@@ -189,7 +176,6 @@ test('saldo do cartão em Contas deixa a parcela futura no comprometido', async 
   request,
 }) => {
   const created = await request.post('/api/accounts', {
-    headers: clock,
     data: {
       name: 'Cartão saldo navegador',
       kind: 'credit_card',
@@ -204,18 +190,18 @@ test('saldo do cartão em Contas deixa a parcela futura no comprometido', async 
   const card = (await created.json()).id as string;
   for (const data of [
     {
-      date: '2026-11-15',
+      date: testDay,
       amount_cents: 8000,
       payee: 'Compra à vista navegador',
     },
     {
-      date: '2026-11-15',
+      date: testDay,
       amount_cents: 9000,
       payee: 'Compra parcelada navegador',
       installment_count: 3,
     },
     {
-      date: '2026-11-18',
+      date: '2026-11-20',
       amount_cents: 2500,
       payee: 'Compra ainda não vencida navegador',
     },
@@ -223,7 +209,6 @@ test('saldo do cartão em Contas deixa a parcela futura no comprometido', async 
     expect(
       (
         await request.post('/api/transactions', {
-          headers: clock,
           data: {
             account_id: card,
             category_id: 'groceries',
@@ -234,9 +219,7 @@ test('saldo do cartão em Contas deixa a parcela futura no comprometido', async 
       ).status(),
     ).toBe(201);
   }
-  const accounts = await (
-    await request.get('/api/accounts', { headers: clock })
-  ).json();
+  const accounts = await (await request.get('/api/accounts')).json();
   expect(
     accounts.find((a: { id: string }) => a.id === card).balance_cents,
   ).toBe(-11000);

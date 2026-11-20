@@ -1,3 +1,4 @@
+import { FinancialInput } from '../privacy';
 import { positionMenu } from './menu';
 import { createPortal } from 'react-dom';
 import type { Transaction } from '../../shared/types';
@@ -213,7 +214,7 @@ export function MoneyField({
   return (
     <label htmlFor={id}>
       {label}
-      <Field
+      <FinancialInput
         id={id}
         aria-label={label}
         inputMode="decimal"

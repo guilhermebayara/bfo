@@ -1,3 +1,6 @@
+import { StatementProjection } from './Home';
+import { transactionsUrl } from '../transaction-filters';
+import { FinancialInput, useMoney } from '../privacy';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type {
   Account,
@@ -5,7 +8,7 @@ import type {
   StatementCheck,
   Transaction,
 } from '../../shared/types';
-import { formatMoney, parseMoney } from '../../shared/money';
+import { parseMoney } from '../../shared/money';
 import { api, humanDate } from '../api';
 import {
   Badge,
@@ -70,6 +73,7 @@ export function StatementAction({
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
+  const formatMoney = useMoney();
   const checking = accounts.filter(
     (a) =>
       a.kind === 'checking' && a.cutoff_date && !a.closed_at && !a.archived,
@@ -283,7 +287,7 @@ export function StatementAction({
             (pay || Boolean(preview?.difference_cents)) && (
               <label>
                 Cotação do cartão para BRL (opcional)
-                <input
+                <FinancialInput
                   inputMode="decimal"
                   value={cardRate}
                   onChange={(e) => setCardRate(e.target.value)}
@@ -297,7 +301,7 @@ export function StatementAction({
             source.currency !== card.currency && (
               <label>
                 Cotação da conta corrente para BRL (opcional)
-                <input
+                <FinancialInput
                   inputMode="decimal"
                   value={sourceRate}
                   onChange={(e) => setSourceRate(e.target.value)}
@@ -351,6 +355,7 @@ function HistoryChanges({
   after: string;
   currency: string;
 }) {
+  const formatMoney = useMoney();
   const a = JSON.parse(before),
     b = JSON.parse(after),
     original = a.statement ?? a;
@@ -478,6 +483,7 @@ export function Cards({
   onSaved: () => Promise<void>;
   revision: number;
 }) {
+  const formatMoney = useMoney();
   const cards = accounts.filter((a) => a.kind === 'credit_card');
   const [cardId, setCardId] = useState(
     new URLSearchParams(location.search).get('account') ?? '',
@@ -501,6 +507,10 @@ export function Cards({
     statements.find((s) => s.account_id === card?.id && s.is_current) ??
     statements.find((s) => s.account_id === card?.id);
   const statementId = statement?.id;
+  const forecastParams = new URLSearchParams(location.search);
+  const showForecast =
+    forecastParams.get('previsao') === '1' &&
+    forecastParams.get('statement') === statementId;
   useEffect(() => {
     if (focusSelectedStatement.current) {
       focusSelectedStatement.current = false;
@@ -577,6 +587,20 @@ export function Cards({
       </>
     );
   const money = (amount: number) => formatMoney(amount, card.currency);
+  const statementLink = (s: Statement, total = false) =>
+    transactionsUrl(s.closing_date.slice(0, 7), {
+      account: s.account_id,
+      statement: s.id,
+      statementTotal: total ? '1' : '',
+    });
+  const totalLink = (s: Statement) => (
+    <a
+      href={statementLink(s, true)}
+      aria-label={`Total da fatura de ${humanDate(s.due_date)}: ${money(s.total_cents)}. Ver transações`}
+    >
+      {money(s.total_cents)}
+    </a>
+  );
   const summary = (label: string, list: Statement[]) =>
     list.length > 0 && (
       <Panel className="statement-section">
@@ -616,7 +640,7 @@ export function Cards({
               <td>
                 <StatementStatus statement={s} />
               </td>
-              <td className="numeric">{money(s.total_cents)}</td>
+              <td className="numeric">{totalLink(s)}</td>
               <td className="numeric">
                 {s.difference_cents === null
                   ? 'Sem conferência'
@@ -717,9 +741,7 @@ export function Cards({
             </h2>
             <div className="statement-total">
               <StatementStatus statement={statement} />
-              <strong className="amount-total">
-                {money(statement.total_cents)}
-              </strong>
+              <strong className="amount-total">{totalLink(statement)}</strong>
             </div>
           </div>
           <p className="section-help">
@@ -745,12 +767,17 @@ export function Cards({
               )}
             </p>
           )}
+          {showForecast && (
+            <StatementProjection id={statement.id} revision={revision} />
+          )}
           {!detail && !error && (
             <State kind="loading">Carregando fatura…</State>
           )}
           {detail && (
             <>
-              <h3>Compras do ciclo</h3>
+              <h3>
+                <a href={statementLink(statement)}>Compras do ciclo</a>
+              </h3>
               {detail.items.length ? (
                 <Table
                   label="Compras do ciclo"
@@ -774,7 +801,15 @@ export function Cards({
                         )}
                       </td>
                       <td className="numeric">
-                        {money(item.amount_cents)}
+                        <a
+                          href={transactionsUrl(item.date.slice(0, 7), {
+                            account: card.id,
+                            transaction: item.id,
+                          })}
+                          aria-label={`Valor de ${item.payee}: ${money(item.amount_cents)}. Ver transação`}
+                        >
+                          {money(item.amount_cents)}
+                        </a>
                         {card.currency !== 'BRL' && (
                           <small>{formatMoney(item.amount_brl_cents)}</small>
                         )}
@@ -953,7 +988,7 @@ export function Cards({
             >
               <label className="compact-field">
                 Limite opcional ({card.currency})
-                <input
+                <FinancialInput
                   inputMode="decimal"
                   value={limit}
                   onChange={(e) => setLimit(e.target.value)}

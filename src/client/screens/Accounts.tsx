@@ -1,7 +1,9 @@
+import { transactionsUrl } from '../transaction-filters';
+import { FinancialInput, useMoney } from '../privacy';
 import { today } from '../../shared/dates';
 import { useEffect, useState, type FormEvent } from 'react';
 import type { Account, ActivationPreview } from '../../shared/types';
-import { formatMoney, parseMoney, convert } from '../../shared/money';
+import { parseMoney, convert } from '../../shared/money';
 import {
   PageHeader,
   Panel,
@@ -25,6 +27,7 @@ function Activate({
   onClose: () => void;
   onActivated: () => Promise<void>;
 }) {
+  const formatMoney = useMoney();
   const [cutoff, setCutoff] = useState(today());
   const [fxRate, setFxRate] = useState('');
   const [opening, setOpening] = useState('0,00');
@@ -84,7 +87,7 @@ function Activate({
           {account.currency !== 'BRL' && (
             <label>
               Cotação manual (opcional)
-              <input
+              <FinancialInput
                 value={fxRate}
                 onChange={(e) => changed(() => setFxRate(e.target.value))}
               />
@@ -159,13 +162,21 @@ export function Accounts({
   accounts: Account[];
   onActivated: () => Promise<void>;
 }) {
+  const formatMoney = useMoney();
   const [editing, setEditing] = useState<Account | null>(null);
   const [editName, setEditName] = useState('');
   const [editCurrency, setEditCurrency] = useState('BRL');
   const [editError, setEditError] = useState('');
   const [editBusy, setEditBusy] = useState(false);
   const [selected, setSelected] = useState<Account | null>(null);
-  const [reconcile, setReconcile] = useState<Account | null>(null);
+  const [reconcile, setReconcile] = useState<Account | null>(() => {
+    const account = new URLSearchParams(location.search).get('account');
+    return (
+      accounts.find(
+        (a) => a.id === account && a.cutoff_date && !a.closed_at && !a.archived,
+      ) ?? null
+    );
+  });
   const [grouping, setGrouping] = useState('institution');
   const [rates, setRates] = useState<Record<string, number>>({ BRL: 1 });
   useEffect(() => {
@@ -216,7 +227,15 @@ export function Accounts({
                   : 'Só arquivo'}
             </td>
             <td className="numeric">
-              {formatMoney(a.balance_cents, a.currency)}
+              <a
+                href={transactionsUrl(today().slice(0, 7), {
+                  account: a.id,
+                  balance: 'current',
+                })}
+                aria-label={`Saldo de ${a.name}: ${formatMoney(a.balance_cents, a.currency)}. Ver transações`}
+              >
+                {formatMoney(a.balance_cents, a.currency)}
+              </a>
               {a.currency !== 'BRL' && (
                 <small>
                   {rates[a.currency]

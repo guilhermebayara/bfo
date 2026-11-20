@@ -1,3 +1,4 @@
+import { FinancialInput, useMoney } from '../privacy';
 import { useEffect, useState } from 'react';
 import type {
   Category,
@@ -5,7 +6,7 @@ import type {
   Transaction,
   TransactionSplit,
 } from '../../shared/types';
-import { formatMoney, parseMoney } from '../../shared/money';
+import { parseMoney } from '../../shared/money';
 import { splitAmounts } from '../../shared/splits';
 import { api } from '../api';
 import { Button, Modal } from './index';
@@ -35,6 +36,7 @@ export function SplitTransaction({
   onSaved: () => Promise<void>;
   onClose: () => void;
 }) {
+  const formatMoney = useMoney();
   const [mode, setMode] = useState('amount'),
     [parts, setParts] = useState<Part[]>([empty(), empty()]),
     [busy, setBusy] = useState(false),
@@ -146,7 +148,7 @@ export function SplitTransaction({
                 {mode === 'percent'
                   ? 'Percentual (%)'
                   : `Valor (${t.currency})`}
-                <input
+                <FinancialInput
                   required
                   inputMode="decimal"
                   value={p.value}
@@ -234,6 +236,7 @@ export function SplitDetails({
   currency: string;
   refresh?: unknown;
 }) {
+  const formatMoney = useMoney();
   const [parts, setParts] = useState<TransactionSplit[]>([]),
     [error, setError] = useState('');
   useEffect(() => {

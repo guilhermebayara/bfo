@@ -75,7 +75,8 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
   - [x] Navegação, cabeçalhos e hierarquia das telas revisados. Tokens, componentes e estados catalogados em `/fundacoes`.
   - [x] Testes de navegador cobrem a navegação, o catálogo e a geometria das células da planilha.
 
-- [ ] Defeito encontrado na Sessão K, para a sessão de correção depois da QA: tests/browser/session-i.spec.ts (pagamento parcial pela tabela) depende da data do dia e quebra no dia 20, fechamento da fatura do seed. Os testes de navegador precisam de data fixa.
+- [x] Defeito encontrado na Sessão K, para a sessão de correção depois da QA: tests/browser/session-i.spec.ts (pagamento parcial pela tabela) depende da data do dia e quebra no dia 20, fechamento da fatura do seed. Os testes de navegador precisam de data fixa.
+  - Corrigido na Sessão U. A suíte usa 19/11/2026 como data padrão no navegador e na API, pela fixture em `tests/browser/fixtures.ts`.
 - [x] Ajustes da revisão da Sessão L (pelo dono em 20/11/2026), para a sessão de correção depois da QA: resumo do mês em Transações recolhível, ao lado quando houver espaço, para a tabela ganhar largura; no Cartão, a fatura selecionada e as compras do ciclo vêm antes da lista de faturas; na navegação, os títulos dos grupos (Movimento, Cadastros, Aplicativo) pareciam itens desativados e precisam se distinguir claramente dos itens clicáveis.
 
 - [x] Decisões de 20/11/2026 depois da QA, para a sessão de correção: aceitar data futura no lançamento manual, contando no saldo só quando a data chegar e aparecendo em Próximos (decisões, Tabela de transações); conferir que o saldo do cartão em Contas mostra só o já lançado até hoje, com parcelas futuras no comprometido (decisões, Contas).
@@ -94,11 +95,16 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
   - [x] Pilha de desfazer e refazer enquanto a página estiver aberta, respeitando as travas.
   - [x] Aviso com novo saldo das contas afetadas e botão Desfazer. O lote mostra um aviso só.
 
-- [ ] Ferramentas de uso diário (Sessão V, Codex, em paralelo à N): total leva às transações, saldo corrido por conta, filtro de privacidade e exportação em CSV (decisões, Tabela de transações; brief em docs/briefs/uso-diario.md).
+- [x] Ferramentas de uso diário (Sessão V, Codex, em paralelo à N): total leva às transações, saldo corrido por conta, filtro de privacidade e exportação em CSV (decisões, Tabela de transações; brief em docs/briefs/uso-diario.md).
+
+- [x] Tela inicial, regras e números (Sessão X): as quatro perguntas, com projeção de 30 dias e página neutra (decisões, Tabela de transações; brief em docs/briefs/tela-inicial.md). O arranjo entra no conceito visual.
 
 - [ ] Conceito visual: feito no Claude depois que a estrutura da fase 1 estiver redonda. Duas propostas numa prévia, o dono escolhe olhando a tela, e só então o visual é aplicado.
   - Consolidado das referências em [docs/referencia-visual-consolidado.md](referencia-visual-consolidado.md), sem decisão.
+  - As duas direções desenham também a tela inicial, com os números da Sessão X.
   - Pendente: análise das nove telas do Mobbin pelo dono com o chat, depois de 23/11. A revisão visual começa depois disso.
+
+- [ ] Web app no Mac, depois do conceito visual (decisões, Produto): manifesto e ícone para Adicionar ao Dock no Safari, notificações por Web Push enviadas pelo Worker (chaves VAPID como segredo, digitadas pelo dono) com os itens de "o que pede atenção" da tela inicial, e selo no ícone. Respeitar o Access: a assinatura das notificações só acontece com o dono logado.
 
 - [x] Ajuste técnico (Sessão B): a Cloudflare trocou as prévias por versão com alias pelo recurso Previews, com comando padrão `npx wrangler preview`. Migrar a configuração (bloco `previews` no ambiente homologacao do wrangler, comando de prévia com o ambiente) e atualizar docs/cloudflare.md com os nomes atuais do painel (Settings > Build, preview builds, Preview command).
 

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 test('células mantêm dimensões em repouso, hover e edição; campos novos ocupam as colunas', async ({
   page,

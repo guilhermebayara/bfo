@@ -1,6 +1,7 @@
+import { useMoney } from '../privacy';
 import { useEffect, useState } from 'react';
 import type { Category, Recurring, Tag, Transaction } from '../../shared/types';
-import { formatMoney, roundRatio } from '../../shared/money';
+import { roundRatio } from '../../shared/money';
 import { api } from '../api';
 import {
   Button,
@@ -22,6 +23,7 @@ export function BulkTransactions({
   onSaved: () => Promise<void>;
   onClear: () => void;
 }) {
+  const formatMoney = useMoney();
   const [field, setField] = useState('category_id'),
     [value, setValue] = useState(''),
     [add, setAdd] = useState<string[]>([]),

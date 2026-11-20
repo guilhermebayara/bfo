@@ -1,4 +1,19 @@
 import { Hono } from 'hono';
+import {
+  compareMonth,
+  monthlyAmountSql,
+  monthlyDateJoin,
+  monthlyDateSql,
+  readMonthSummary,
+} from './month-summary';
+import { shiftDay } from '../shared/dates';
+import type { AttentionItem, DueComponent, DueItem } from '../shared/home';
+import {
+  projectAvailable,
+  type ActiveRecurring,
+  type RecurringProjection,
+} from './home';
+import { transactionCsv } from './transaction-csv';
 import { applyScheduledPayments } from './scheduled-payments';
 import type { TransactionNotice } from '../shared/transaction-notice';
 import { reverseTransactionAction, UndoConflict } from './transaction-undo';
@@ -19,8 +34,10 @@ import {
   monthBounds,
   datesInMonth,
   nextOccurrence,
+  previousOccurrence,
   monthlyEquivalent,
   renewalSoon,
+  RECOGNITION_DAYS,
 } from '../shared/recurring';
 import type { Recurring } from '../shared/types';
 import { ptax } from './fx';
@@ -152,7 +169,7 @@ app.use('/api/*', async (c, next) => {
       : c.env.DB;
   if (!db) throw new Error('Binding D1 ausente para este endereço.');
   if (
-    /^\/api\/(accounts|cards|transactions|statements|upcoming|transaction-actions|installment-plans)(\/|$)/.test(
+    /^\/api\/(accounts|cards|transactions(?:\.csv)?|statements|upcoming|home|transaction-actions|installment-plans)(\/|$)/.test(
       url.pathname,
     )
   )
@@ -202,12 +219,17 @@ app.get('/api/health', async (c) => {
   await c.var.DB.prepare('SELECT 1').first();
   return c.json({ ok: true });
 });
-const balanceSql = (day: string) => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) fail('Data inválida.');
-  return `CASE WHEN a.cutoff_date IS NULL THEN
- -COALESCE((SELECT SUM(t.amount_cents) FROM account_movements t WHERE t.account_id=a.id AND t.date<='${day}'),0)
- ELSE a.opening_balance_cents-COALESCE((SELECT SUM(t.amount_cents) FROM account_movements t WHERE t.account_id=a.id AND t.date>a.cutoff_date AND t.date<='${day}'),0) END`;
-};
+function accountBalanceSql(
+  account: 'a' | 'balance_account',
+  day: string,
+  historical = false,
+) {
+  const cutoff = `${account}.cutoff_date`;
+  return `CASE WHEN ${cutoff} IS NULL ${historical ? `OR ${day}<=${cutoff}` : ''} THEN
+ -COALESCE((SELECT SUM(m.amount_cents) FROM account_movements m WHERE m.account_id=${account}.id AND m.date<=${day}),0)
+ ELSE ${account}.opening_balance_cents-COALESCE((SELECT SUM(m.amount_cents) FROM account_movements m WHERE m.account_id=${account}.id AND m.date>${cutoff} AND m.date<=${day}),0) END`;
+}
+const balanceSql = (day: string) => accountBalanceSql('a', `'${date(day)}'`);
 app.get('/api/accounts', async (c) => {
   const { results } = await c.var.DB.prepare(
     `SELECT a.*, i.name AS institution_name, ${balanceSql(c.var.today)} AS balance_cents FROM accounts a LEFT JOIN institutions i ON i.id=a.institution_id ORDER BY i.sort,i.name,a.name`,
@@ -232,16 +254,73 @@ app.get('/api/categories', async (c) =>
     ).results,
   ),
 );
-app.get('/api/transactions', async (c) => {
+app.on('GET', ['/api/transactions', '/api/transactions.csv'], async (c) => {
   const query = c.req.query();
+  const csv = c.req.path.endsWith('.csv');
   const conditions: string[] = [
-    '(t.advance_id IS NULL OR t.installment_number IS NULL)',
     "(t.kind<>'transfer' OR t.transfer_pair_id IS NULL OR t.amount_cents>0)",
-    'NOT EXISTS(SELECT 1 FROM installment_cancellations ic WHERE ic.transaction_id=t.id)',
   ];
   const params: string[] = [];
-  if (query.month) {
-    if (!validMonth(query.month)) fail('Mês inválido.');
+  const contributionParams: (string | number)[] = [];
+  let contribution = '';
+  if (query.month && !validMonth(query.month)) fail('Mês inválido.');
+  const from = query.from ? date(query.from) : null;
+  const to = query.to ? date(query.to) : null;
+  if (from && to && from > to)
+    fail('O início do período deve ser anterior ao fim.');
+  if (query.summary) {
+    if (!query.month || !['income', 'expense'].includes(query.summary))
+      return fail('Resumo inválido.');
+    const parts = ['mt.spending_month=?', 'mt.is_income=?'];
+    contributionParams.push(query.month, query.summary === 'income' ? 1 : 0);
+    if (query.group === 'none') parts.push('ec.category_group_id IS NULL');
+    else if (query.group) {
+      parts.push('ec.category_group_id=?');
+      contributionParams.push(query.group);
+    }
+    if (query.category === 'none') parts.push('mt.category_id IS NULL');
+    else if (query.category) {
+      parts.push('mt.category_id=?');
+      contributionParams.push(query.category);
+    }
+    if (from) {
+      parts.push(`${monthlyDateSql}>=?`);
+      contributionParams.push(from);
+    }
+    if (to) {
+      parts.push(`${monthlyDateSql}<=?`);
+      contributionParams.push(to);
+    }
+    contribution = `JOIN (
+      SELECT mt.id,SUM(${monthlyAmountSql}) AS amount_cents
+      FROM monthly_totals mt LEFT JOIN effective_categories ec ON ec.id=mt.category_id
+      ${from || to ? monthlyDateJoin : ''}
+      WHERE ${parts.join(' AND ')} GROUP BY mt.id
+    ) contribution ON contribution.id=t.id`;
+  }
+  if (query.statement) {
+    conditions.push(
+      'EXISTS(SELECT 1 FROM statement_items si WHERE si.statement_id=? AND si.id=t.id)',
+    );
+    params.push(query.statement);
+  }
+  if (query.transaction) {
+    conditions.push('t.id=?');
+    params.push(query.transaction);
+  }
+  if (query.balance === 'current') {
+    if (!query.account) return fail('Escolha uma conta para conferir o saldo.');
+    conditions.push(
+      `t.date<=? AND EXISTS(SELECT 1 FROM accounts ba WHERE ba.id=? AND (ba.cutoff_date IS NULL OR t.date>ba.cutoff_date))`,
+    );
+    params.push(c.var.today, query.account);
+  }
+  if (
+    query.month &&
+    !query.summary &&
+    !query.statement &&
+    query.balance !== 'current'
+  ) {
     const bounds = monthBounds(query.month);
     conditions.push('t.date>=? AND t.date<=?');
     params.push(bounds.from, bounds.to);
@@ -251,7 +330,7 @@ app.get('/api/transactions', async (c) => {
     ['category', 'category_id'],
     ['origin', 'origin'],
   ] as const)
-    if (query[key]) {
+    if (query[key] && !(key === 'category' && query.summary)) {
       conditions.push(
         key === 'category'
           ? '(CASE WHEN EXISTS(SELECT 1 FROM transaction_splits WHERE transaction_id=t.id) THEN EXISTS(SELECT 1 FROM transaction_splits WHERE transaction_id=t.id AND category_id=?) ELSE t.category_id=? END)'
@@ -280,35 +359,169 @@ app.get('/api/transactions', async (c) => {
     );
     params.push(...Array(3).fill(`%${query.search.slice(0, 200)}%`));
   }
-  if (query.from) {
+  if (from && !query.summary) {
     conditions.push('t.date>=?');
-    params.push(date(query.from));
+    params.push(from);
   }
-  if (query.to) {
+  if (to && !query.summary) {
     conditions.push('t.date<=?');
-    params.push(date(query.to));
+    params.push(to);
   }
-  if (query.from && query.to && query.from > query.to)
-    fail('O início do período deve ser anterior ao fim.');
   const page = Number(query.page ?? 1);
   if (!Number.isSafeInteger(page) || page < 1 || page > 1000000)
     fail('Página inválida.');
-  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-  const total = await c.var.DB.prepare(
-    `SELECT COUNT(*) AS count FROM transactions t ${where}`,
-  )
-    .bind(...params)
-    .first<{ count: number }>();
-  const { results } = await c.var.DB.prepare(
-    `SELECT t.*, COALESCE((SELECT a.name FROM transactions pair JOIN accounts a ON a.id=pair.account_id WHERE pair.id=t.transfer_pair_id),(SELECT a.name FROM statements s JOIN accounts a ON a.id=s.account_id WHERE s.id=t.statement_id AND t.kind='card_payment')) AS destination_name, COALESCE((SELECT pair.account_id FROM transactions pair WHERE pair.id=t.transfer_pair_id),(SELECT s.account_id FROM statements s WHERE s.id=t.statement_id AND t.kind='card_payment')) AS destination_account_id, COALESCE((SELECT pair.amount_cents FROM transactions pair WHERE pair.id=t.transfer_pair_id),-t.card_amount_cents) AS destination_amount_cents, COALESCE((SELECT pair.currency FROM transactions pair WHERE pair.id=t.transfer_pair_id),(SELECT a.currency FROM statements s JOIN accounts a ON a.id=s.account_id WHERE s.id=t.statement_id AND t.kind='card_payment')) AS destination_currency, (SELECT status FROM statements WHERE id=t.statement_id OR (t.statement_id IS NULL AND t.kind='regular' AND t.origin<>'adjustment' AND account_id=t.account_id AND t.date BETWEEN period_start AND closing_date) LIMIT 1) AS statement_status, (SELECT p.payment_date FROM scheduled_statement_payments p JOIN statements s ON s.id=p.statement_id WHERE p.applied=0 AND (s.id=t.statement_id OR (t.statement_id IS NULL AND t.kind='regular' AND t.origin<>'adjustment' AND s.account_id=t.account_id AND t.date BETWEEN s.period_start AND s.closing_date)) LIMIT 1) AS statement_scheduled_payment_date, (SELECT COUNT(*) FROM transaction_splits WHERE transaction_id=t.id) AS split_count, ip.count AS installment_count, CASE WHEN t.origin='imported' THEN t.payee ELSE COALESCE(canonical.name,p.name,t.payee) END AS payee, COALESCE(p.merged_into_id,p.id) AS payee_id, a.name AS account_name, ag.name AS allocation_name, (SELECT json_group_array(json_object('id',tags.id,'name',tags.name,'color',tags.color)) FROM transaction_tags tt JOIN tags ON tags.id=tt.tag_id WHERE tt.transaction_id=t.id) AS tags_json FROM transactions t JOIN accounts a ON a.id=t.account_id LEFT JOIN installment_plans ip ON ip.id=t.installment_plan_id LEFT JOIN payees p ON p.id=t.payee_id LEFT JOIN payees canonical ON canonical.id=p.merged_into_id LEFT JOIN categories cat ON cat.id=t.category_id LEFT JOIN category_groups cg ON cg.id=cat.category_group_id LEFT JOIN allocation_groups ag ON ag.id=cg.allocation_group_id ${where} ORDER BY t.date DESC,t.id LIMIT 50 OFFSET ?`,
-  )
-    .bind(...params, (page - 1) * 50)
-    .all();
-  const tagged = results.map(({ tags_json, ...t }) => ({
+  const where = `WHERE ${conditions.join(' AND ')}`;
+  const running =
+    !csv &&
+    query.account &&
+    ![
+      query.category,
+      query.group,
+      query.summary,
+      query.statement,
+      query.transaction,
+      query.tag,
+      query.origin,
+      query.from,
+      query.to,
+      query.search,
+    ].some(Boolean);
+  // A lista mostra o lançamento mais recente primeiro. No mesmo dia, o saldo
+  // final do dia volta uma movimentação a cada linha anterior na lista.
+  const runningColumns = running
+    ? `,
+    ${accountBalanceSql('balance_account', 't.date', true)} + COALESCE(SUM(
+      CASE WHEN t.account_id=balance_account.id THEN t.amount_cents
+        WHEN t.kind='transfer' THEN (SELECT pair.amount_cents FROM transactions pair WHERE pair.id=t.transfer_pair_id)
+        WHEN t.kind='card_payment' THEN -COALESCE(t.card_amount_cents,(SELECT s.bank_amount_cents FROM statements s WHERE s.id=t.statement_id))
+      END
+    ) OVER(PARTITION BY t.date ORDER BY t.id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING),0) AS running_balance_cents,
+    CASE WHEN t.date>? THEN 'forecast' WHEN balance_account.cutoff_date IS NOT NULL AND t.date<=balance_account.cutoff_date THEN 'archive' END AS running_balance_state`
+    : '';
+  const db = c.var.DB;
+  const needsTotal = query.summary || query.statement || query.transaction;
+  const totalExpression = query.summary
+    ? 'contribution.amount_cents'
+    : 't.amount_cents';
+  const totals = db
+    .prepare(
+      `SELECT COUNT(*) AS count,${needsTotal ? `SUM(${totalExpression})` : '0'} AS amount_cents FROM active_transactions t ${contribution} ${where}`,
+    )
+    .bind(...contributionParams, ...params);
+  const list = db
+    .prepare(
+      `SELECT t.*,
+        COALESCE(
+          (SELECT a.name FROM transactions pair JOIN accounts a ON a.id=pair.account_id WHERE pair.id=t.transfer_pair_id),
+          (SELECT a.name FROM statements s JOIN accounts a ON a.id=s.account_id WHERE s.id=t.statement_id AND t.kind='card_payment')
+        ) AS destination_name,
+        COALESCE(
+          (SELECT pair.account_id FROM transactions pair WHERE pair.id=t.transfer_pair_id),
+          (SELECT s.account_id FROM statements s WHERE s.id=t.statement_id AND t.kind='card_payment')
+        ) AS destination_account_id,
+        COALESCE(
+          (SELECT pair.amount_cents FROM transactions pair WHERE pair.id=t.transfer_pair_id),
+          -COALESCE(t.card_amount_cents,(SELECT bank_amount_cents FROM statements WHERE id=t.statement_id AND t.kind='card_payment'))
+        ) AS destination_amount_cents,
+        COALESCE(
+          (SELECT pair.currency FROM transactions pair WHERE pair.id=t.transfer_pair_id),
+          (SELECT a.currency FROM statements s JOIN accounts a ON a.id=s.account_id WHERE s.id=t.statement_id AND t.kind='card_payment')
+        ) AS destination_currency,
+        (SELECT status FROM statements WHERE id=t.statement_id OR
+          (t.statement_id IS NULL AND t.kind='regular' AND t.origin<>'adjustment' AND account_id=t.account_id AND t.date BETWEEN period_start AND closing_date) LIMIT 1
+        ) AS statement_status,
+        (SELECT p.payment_date FROM scheduled_statement_payments p JOIN statements s ON s.id=p.statement_id WHERE p.applied=0 AND
+          (s.id=t.statement_id OR (t.statement_id IS NULL AND t.kind='regular' AND t.origin<>'adjustment' AND s.account_id=t.account_id AND t.date BETWEEN s.period_start AND s.closing_date)) LIMIT 1
+        ) AS statement_scheduled_payment_date,
+        (SELECT COUNT(*) FROM transaction_splits WHERE transaction_id=t.id) AS split_count,
+        ip.count AS installment_count,
+        CASE WHEN t.origin='imported' THEN t.payee ELSE COALESCE(canonical.name,p.name,t.payee) END AS payee,
+        COALESCE(p.merged_into_id,p.id) AS payee_id,
+        a.name AS account_name, ag.name AS allocation_name,
+        ${
+          csv
+            ? `
+        CASE WHEN EXISTS (SELECT 1 FROM transaction_splits p WHERE p.transaction_id=t.id)
+          THEN (SELECT group_concat(name, ', ') FROM (SELECT DISTINCT COALESCE(c.name, 'Sem categoria') AS name
+            FROM transaction_splits p LEFT JOIN categories c ON c.id=p.category_id WHERE p.transaction_id=t.id ORDER BY name))
+          ELSE cat.name END AS category_name,
+        CASE WHEN EXISTS (SELECT 1 FROM transaction_splits p WHERE p.transaction_id=t.id)
+          THEN (SELECT group_concat(name, ', ') FROM (SELECT DISTINCT COALESCE(g.name, 'Sem grupo') AS name
+            FROM transaction_splits p LEFT JOIN categories c ON c.id=p.category_id LEFT JOIN category_groups g ON g.id=c.category_group_id
+            WHERE p.transaction_id=t.id ORDER BY name))
+          ELSE cg.name END AS group_name,
+        `
+            : ''
+        }
+        (SELECT json_group_array(json_object('id',tags.id,'name',tags.name,'color',tags.color)) FROM tags WHERE tags.id IN (
+          SELECT tt.tag_id FROM transaction_tags tt WHERE tt.transaction_id=t.id
+          ${csv ? 'UNION SELECT st.tag_id FROM transaction_splits p JOIN split_tags st ON st.split_id=p.id WHERE p.transaction_id=t.id' : ''}
+        )) AS tags_json
+    ${query.summary ? ',contribution.amount_cents AS total_amount_cents' : ''}${runningColumns}
+    FROM active_transactions t
+    JOIN accounts a ON a.id=t.account_id
+    LEFT JOIN installment_plans ip ON ip.id=t.installment_plan_id
+    LEFT JOIN payees p ON p.id=t.payee_id LEFT JOIN payees canonical ON canonical.id=p.merged_into_id
+    LEFT JOIN categories cat ON cat.id=t.category_id LEFT JOIN category_groups cg ON cg.id=cat.category_group_id
+    LEFT JOIN allocation_groups ag ON ag.id=cg.allocation_group_id
+    ${contribution}
+    ${running ? 'JOIN accounts balance_account ON balance_account.id=?' : ''}
+    ${where} ORDER BY t.date DESC,t.id ${csv ? '' : 'LIMIT 50 OFFSET ?'}`,
+    )
+    .bind(
+      ...(running ? [c.var.today] : []),
+      ...contributionParams,
+      ...(running ? [query.account] : []),
+      ...params,
+      ...(csv ? [] : [(page - 1) * 50]),
+    );
+  type Row = Transaction & {
+    tags_json: string;
+    category_name: string | null;
+    group_name: string | null;
+  };
+  const withTags = ({ tags_json, ...t }: Row) => ({
     ...t,
-    tags: JSON.parse(String(tags_json)),
-  }));
-  return c.json({ items: tagged, total: total!.count, page, page_size: 50 });
+    tags: JSON.parse(tags_json),
+  });
+  if (csv) {
+    const { results } = await list.all<Row>();
+    const month =
+      query.balance === 'current'
+        ? c.var.today.slice(0, 7)
+        : (query.month ?? c.var.today.slice(0, 7));
+    return c.body(transactionCsv(results.map(withTags)), 200, {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="transacoes-${month}.csv"`,
+      'Cache-Control': 'no-store',
+    });
+  }
+  const carry =
+    query.statement && query.statementTotal === '1'
+      ? db
+          .prepare(
+            'SELECT previous_balance_cents AS cents FROM statement_totals WHERE id=?',
+          )
+          .bind(query.statement)
+      : db.prepare('SELECT 0 AS cents');
+  const [count, rows, previous] = await db.batch<
+    Row & { count: number; cents: number }
+  >([totals, list, carry]);
+  const total = Number(count.results[0].count);
+  const previousBalance = Number(previous.results[0]?.cents ?? 0);
+  const totalAmount = Number(count.results[0].amount_cents ?? 0);
+  return c.json({
+    items: rows.results.map(withTags),
+    total,
+    page,
+    page_size: 50,
+    ...(needsTotal
+      ? {
+          total_amount_cents: totalAmount + previousBalance,
+          previous_balance_cents: previousBalance,
+        }
+      : {}),
+  });
 });
 async function cardCalendar(
   db: D1Database,
@@ -620,15 +833,7 @@ app.patch('/api/accounts/:id', async (c) => {
 app.get('/api/month-summary', async (c) => {
   const month = c.req.query('month') ?? c.var.today.slice(0, 7);
   if (!validMonth(month)) fail('Mês inválido.');
-  const rows = await c.var.DB.prepare(
-    `SELECT t.category_id,COALESCE(cat.name,'Sem categoria') AS category_name,COALESCE(g.name,'Sem grupo') AS group_name,t.is_income,t.exclude_budget,
-    SUM(CASE WHEN t.is_income=1 THEN -t.amount_brl_cents ELSE t.amount_brl_cents END) AS amount_cents
-    FROM monthly_totals t LEFT JOIN categories cat ON cat.id=t.category_id LEFT JOIN category_groups g ON g.id=cat.category_group_id
-    WHERE t.spending_month=? GROUP BY t.category_id,t.is_income,t.exclude_budget ORDER BY t.is_income DESC,g.sort,g.name,cat.name`,
-  )
-    .bind(month)
-    .all();
-  return c.json(rows.results);
+  return c.json(await readMonthSummary(c.var.DB, month));
 });
 app.post('/api/transactions/batch', async (c) => {
   const db = c.var.DB,
@@ -3229,10 +3434,37 @@ for (const [route, fields] of Object.entries(configTables)) {
       },
     );
 }
-const recurringSql = `SELECT r.*,a.name AS account_name,a.currency,c.name AS category_name,ag.name AS allocation_name,st.name AS type_name
- FROM recurring r JOIN accounts a ON a.id=r.account_id LEFT JOIN categories c ON c.id=r.category_id
+const recurringSql = `SELECT r.*,COALESCE(c.effective_income,0) AS effective_income,a.name AS account_name,a.currency,c.name AS category_name,ag.name AS allocation_name,st.name AS type_name
+ FROM recurring r JOIN accounts a ON a.id=r.account_id LEFT JOIN effective_categories c ON c.id=r.category_id
  LEFT JOIN category_groups cg ON cg.id=c.category_group_id LEFT JOIN allocation_groups ag ON ag.id=cg.allocation_group_id
  LEFT JOIN subscription_types st ON st.id=r.subscription_type_id`;
+function recurringTransactions(
+  db: D1Database,
+  fromMonth: string,
+  toMonth: string,
+) {
+  return db
+    .prepare(
+      `SELECT t.id,t.account_id,t.amount_cents,t.date,
+     CASE WHEN t.origin='imported' THEN t.payee ELSE COALESCE(canonical.name,p.name,t.payee) END AS payee,
+     (SELECT recurring_id FROM recurring_sources WHERE transaction_id=t.id) AS source_id
+     FROM active_transactions t LEFT JOIN payees p ON p.id=t.payee_id LEFT JOIN payees canonical ON canonical.id=p.merged_into_id
+     WHERE t.date BETWEEN ? AND ? AND (t.kind='regular' OR (t.kind='installment' AND t.installment_number IS NOT NULL))
+     AND t.origin<>'adjustment' ORDER BY t.date,t.id`,
+    )
+    .bind(
+      shiftDay(monthBounds(shiftMonth(fromMonth, -1)).from, -RECOGNITION_DAYS),
+      shiftDay(monthBounds(shiftMonth(toMonth, 1)).to, RECOGNITION_DAYS),
+    )
+    .all<{
+      id: string;
+      account_id: string;
+      amount_cents: number;
+      date: string;
+      payee: string;
+      source_id: string | null;
+    }>();
+}
 app.get('/api/recurring', async (c) => {
   const month = c.req.query('month') ?? c.var.today.slice(0, 7);
   if (!validMonth(month)) fail('Mês inválido.');
@@ -3251,31 +3483,11 @@ app.get('/api/recurring', async (c) => {
       })),
       summary: {},
     });
-  const { results: transactions } = await db
-    .prepare(
-      `SELECT t.id,t.account_id,t.amount_cents,t.date,CASE WHEN t.origin='imported' THEN t.payee ELSE COALESCE(canonical.name,p.name,t.payee) END AS payee,
-    (SELECT recurring_id FROM recurring_sources WHERE transaction_id=t.id) AS source_id
-    FROM active_transactions t LEFT JOIN payees p ON p.id=t.payee_id LEFT JOIN payees canonical ON canonical.id=p.merged_into_id
-    WHERE t.date>=? AND t.date<=? AND (t.kind='regular' OR (t.kind='installment' AND t.installment_number IS NOT NULL)) AND t.origin<>'adjustment' ORDER BY t.date,t.id`,
-    )
-    .bind(
-      new Date(
-        Date.parse(monthBounds(shiftMonth(month, -1)).from) - 7 * 86400000,
-      )
-        .toISOString()
-        .slice(0, 10),
-      new Date(Date.parse(monthBounds(shiftMonth(month, 1)).to) + 7 * 86400000)
-        .toISOString()
-        .slice(0, 10),
-    )
-    .all<{
-      id: string;
-      account_id: string;
-      amount_cents: number;
-      date: string;
-      payee: string;
-      source_id: string | null;
-    }>();
+  const { results: transactions } = await recurringTransactions(
+    db,
+    month,
+    month,
+  );
   const items = matchRecurring(rows, transactions, month).map(
     ({ r, due, match }) => ({
       ...r,
@@ -3305,38 +3517,21 @@ async function projectedRecurring(
   fromMonth: string,
   toMonth: string,
 ) {
-  const rows = (
-    await db
+  const [{ results: rows }, { results: tx }] = await Promise.all([
+    db
       .prepare(
         recurringSql +
-          ' WHERE r.active=1 AND a.closed_at IS NULL AND a.archived=0',
+          ' WHERE r.active=1 AND a.closed_at IS NULL AND a.archived=0 AND a.cutoff_date IS NOT NULL',
       )
-      .all<Recurring>()
-  ).results;
-  const tx = (
-    await db
-      .prepare(
-        `SELECT t.id,t.account_id,t.amount_cents,t.date,COALESCE(p.name,t.payee) AS payee,(SELECT recurring_id FROM recurring_sources WHERE transaction_id=t.id) AS source_id FROM active_transactions t LEFT JOIN payees p ON p.id=t.payee_id WHERE (kind='regular' OR (kind='installment' AND installment_number IS NOT NULL)) AND origin<>'adjustment' AND date BETWEEN date(?,'-7 days') AND date(?,'+7 days')`,
-      )
-      .bind(
-        monthBounds(shiftMonth(fromMonth, -1)).from,
-        monthBounds(shiftMonth(toMonth, 1)).to,
-      )
-      .all<{
-        id: string;
-        account_id: string;
-        amount_cents: number;
-        date: string;
-        payee: string;
-        source_id: string | null;
-      }>()
-  ).results;
-  const projected: { r: Recurring; date: string }[] = [];
+      .all<ActiveRecurring>(),
+    recurringTransactions(db, fromMonth, toMonth),
+  ]);
+  const projected: RecurringProjection[] = [];
   for (let month = fromMonth; month <= toMonth; month = shiftMonth(month, 1)) {
     for (const { r, due, match } of matchRecurring(rows, tx, month))
       if (!match) projected.push({ r, date: due });
   }
-  return projected;
+  return { rows, projected };
 }
 app.get('/api/cards/:id/commitment', async (c) => {
   const db = c.var.DB,
@@ -3358,7 +3553,11 @@ app.get('/api/cards/:id/commitment', async (c) => {
     last && last > monthBounds(shiftMonth(month, 1)).to
       ? last
       : monthBounds(shiftMonth(month, 1)).to;
-  const projections = await projectedRecurring(db, month, horizon.slice(0, 7));
+  const { projected: projections } = await projectedRecurring(
+    db,
+    month,
+    horizon.slice(0, 7),
+  );
   let expected = 0;
   for (const p of projections.filter(
     (p) =>
@@ -3393,42 +3592,31 @@ app.get('/api/cards/:id/commitment', async (c) => {
     recurring_until: horizon,
   });
 });
-app.get('/api/upcoming', async (c) => {
-  const db = c.var.DB,
-    from = c.var.today,
-    to = monthBounds(shiftMonth(from.slice(0, 7), 1)).to;
-  type Component = {
-    id: string;
-    type: string;
-    label: string;
-    amount_cents: number;
-  };
-  type Due = {
-    id: string;
-    type: string;
-    label: string;
-    date: string;
-    amount_cents: number;
-    currency: string;
-    account_id: string;
-    account_name: string;
-    components: Component[];
-  };
+async function upcomingItems(
+  db: D1Database,
+  from: string,
+  to: string,
+  forProjection = false,
+) {
   const accounts = (
     await db
       .prepare(
-        'SELECT * FROM accounts WHERE cutoff_date IS NOT NULL AND archived=0 AND closed_at IS NULL',
+        `SELECT a.*${forProjection ? `,${balanceSql(from)} AS balance_cents` : ''}
+     FROM accounts a WHERE cutoff_date IS NOT NULL AND archived=0 AND closed_at IS NULL`,
       )
       .all<Account>()
   ).results;
-  const items: Due[] = [];
+  const items: DueItem[] = [];
   const statements = (
     await db
       .prepare(
-        `SELECT s.*,COALESCE(bank_amount_cents,total_cents)-paid_cents-carried_out_cents AS remaining_cents FROM statement_totals s WHERE s.due_date BETWEEN ? AND ? AND s.status<>'paid' AND s.scheduled_payment_date IS NULL`,
+        `SELECT s.*,COALESCE(bank_amount_cents,total_cents)-paid_cents-carried_out_cents AS remaining_cents,
+         COALESCE((SELECT SUM(p.carry_cents) FROM scheduled_statement_payments p
+           WHERE p.carry_statement_id=s.id AND p.applied=0 AND p.payment_date<=s.due_date),0) AS scheduled_carry_cents
+         FROM statement_totals s WHERE s.due_date BETWEEN ? AND ? AND s.status<>'paid' AND s.scheduled_payment_date IS NULL`,
       )
       .bind(from, to)
-      .all<Statement>()
+      .all<Statement & { scheduled_carry_cents: number }>()
   ).results;
   for (const st of statements) {
     const a = accounts.find((a) => a.id === st.account_id);
@@ -3436,10 +3624,10 @@ app.get('/api/upcoming', async (c) => {
     const components = (
       await db
         .prepare(
-          `SELECT id,payee AS label,CASE WHEN installment_number IS NOT NULL THEN 'installment' ELSE 'purchase' END AS type,amount_cents FROM statement_items WHERE statement_id=?`,
+          `SELECT id,date,payee AS label,CASE WHEN installment_number IS NOT NULL THEN 'installment' ELSE 'purchase' END AS type,amount_cents FROM statement_items WHERE statement_id=?`,
         )
         .bind(st.id)
-        .all<Component>()
+        .all<DueComponent>()
     ).results;
     if (st.previous_balance_cents)
       components.push({
@@ -3448,31 +3636,51 @@ app.get('/api/upcoming', async (c) => {
         label: 'Saldo anterior',
         amount_cents: st.previous_balance_cents,
       });
+    if (st.scheduled_carry_cents)
+      components.push({
+        id: 'scheduled-balance-' + st.id,
+        type: 'balance',
+        label: 'Saldo anterior previsto',
+        amount_cents: st.scheduled_carry_cents,
+      });
+    if (st.remaining_cents !== st.total_cents)
+      components.push({
+        id: 'remaining-' + st.id,
+        type: 'adjustment',
+        label: 'Diferença entre total e saldo a pagar',
+        amount_cents: st.remaining_cents! - st.total_cents,
+      });
     items.push({
       id: st.id,
       type: 'statement',
       label: 'Fatura ' + a.name,
       date: st.due_date,
-      amount_cents: st.remaining_cents!,
+      amount_cents: cents(st.remaining_cents! + st.scheduled_carry_cents),
       currency: a.currency,
       account_id: a.id,
       account_name: a.name,
       components,
     });
   }
-  const projected = await projectedRecurring(
+  const { rows: recurring, projected } = await projectedRecurring(
     db,
     shiftMonth(from.slice(0, 7), -1),
     to.slice(0, 7),
   );
+  const recognitionFrom = shiftDay(from, -RECOGNITION_DAYS);
   for (const p of projected) {
     const a = accounts.find((a) => a.id === p.r.account_id);
     if (!a) continue;
     if (a.kind !== 'credit_card') {
-      if (p.date >= from && p.date <= to)
+      const first =
+        forProjection && p.r.effective_income && p.r.amount_cents < 0
+          ? recognitionFrom
+          : from;
+      if (p.date >= first && p.date <= to)
         items.push({
           id: p.r.id + p.date,
           type: 'recurring',
+          recurring_id: p.r.id,
           label: p.r.payee,
           date: p.date,
           amount_cents: p.r.amount_cents,
@@ -3527,18 +3735,19 @@ app.get('/api/upcoming', async (c) => {
       type: 'recurring',
       label: p.r.payee + ' (previsto)',
       amount_cents: p.r.amount_cents,
+      recurring_id: p.r.id,
+      date: p.date,
     });
   }
-  const shown = new Set(
-    items.flatMap((item) => [item.id, ...item.components.map((p) => p.id)]),
-  );
   const scheduled = await db
     .prepare(
-      `SELECT t.id,t.date,t.amount_cents,t.payee,t.kind,t.statement_id,t.account_id,a.name AS account_name,a.currency,
-      (SELECT da.name FROM transactions pair JOIN accounts da ON da.id=pair.account_id WHERE pair.id=t.transfer_pair_id) AS destination_name
+      `SELECT t.id,t.date,t.amount_cents,t.payee,t.kind,t.account_id,a.name AS account_name,a.currency,
+      pair.account_id AS destination_account_id, da.name AS destination_name
       FROM active_transactions t JOIN accounts a ON a.id=t.account_id
+      LEFT JOIN transactions pair ON pair.id=t.transfer_pair_id LEFT JOIN accounts da ON da.id=pair.account_id
       WHERE t.date>? AND t.date<=? AND t.origin<>'adjustment' AND a.cutoff_date IS NOT NULL AND a.archived=0 AND a.closed_at IS NULL
-      AND (t.kind<>'transfer' OR t.amount_cents>0)`,
+      AND (t.kind<>'transfer' OR t.amount_cents>0)
+      AND (a.kind<>'credit_card' OR t.kind NOT IN ('regular','installment'))`,
     )
     .bind(from, to)
     .all<{
@@ -3547,18 +3756,13 @@ app.get('/api/upcoming', async (c) => {
       amount_cents: number;
       payee: string;
       kind: string;
-      statement_id: string | null;
       account_id: string;
       account_name: string;
       currency: string;
       destination_name: string | null;
+      destination_account_id: string | null;
     }>();
   for (const t of scheduled.results) {
-    if (
-      shown.has(t.id) ||
-      (t.kind !== 'card_payment' && t.statement_id && shown.has(t.statement_id))
-    )
-      continue;
     items.push({
       id: t.id,
       type:
@@ -3578,19 +3782,168 @@ app.get('/api/upcoming', async (c) => {
       currency: t.currency,
       account_id: t.account_id,
       account_name: t.account_name,
+      destination_account_id: t.destination_account_id,
       components: [],
     });
   }
-  return c.json({
-    from,
-    to,
+  return {
+    accounts,
+    recurring,
     items: items
       .filter((i) => i.amount_cents !== 0 || i.type === 'payment')
       .sort(
         (a, b) =>
           a.date.localeCompare(b.date) || a.label.localeCompare(b.label),
       ),
+  };
+}
+
+app.get('/api/upcoming', async (c) => {
+  const from = c.var.today;
+  const to = monthBounds(shiftMonth(from.slice(0, 7), 1)).to;
+  const { items } = await upcomingItems(c.var.DB, from, to);
+  return c.json({ from, to, items });
+});
+
+async function attentionItems(
+  db: D1Database,
+  day: string,
+  accounts: Account[],
+  recurring: ActiveRecurring[],
+) {
+  const results: AttentionItem[] = [];
+  const expiredOn = shiftDay(day, -RECOGNITION_DAYS - 1);
+  const latest = new Map<string, string>();
+  for (const r of recurring) {
+    const date = previousOccurrence(r, expiredOn);
+    if (date) latest.set(r.id, date);
+    if (
+      r.is_subscription &&
+      r.renewal_date &&
+      renewalSoon(r.renewal_date, day, r.notice_days)
+    )
+      results.push({
+        type: 'renewal',
+        id: r.id,
+        account_id: r.account_id,
+        label: r.payee,
+        date: r.renewal_date,
+      });
+  }
+  const months = new Set([...latest.values()].map((date) => date.slice(0, 7)));
+  const [statements, ...transactions] = await Promise.all([
+    db
+      .prepare(
+        `SELECT s.id,s.account_id,s.closing_date,a.name
+      FROM statement_totals s JOIN accounts a ON a.id=s.account_id
+      WHERE a.closed_at IS NULL AND a.archived=0 AND a.cutoff_date IS NOT NULL
+      AND ((s.status='closed' AND s.bank_amount_cents IS NULL)
+        OR (s.status='open' AND s.closing_date<? AND (s.previous_balance_cents<>0
+          OR EXISTS (SELECT 1 FROM statement_items i WHERE i.statement_id=s.id))))
+      ORDER BY s.closing_date,s.id`,
+      )
+      .bind(day)
+      .all<{
+        id: string;
+        account_id: string;
+        closing_date: string;
+        name: string;
+      }>(),
+    ...[...months].map((month) => recurringTransactions(db, month, month)),
+  ]);
+  for (const s of statements.results)
+    results.push({
+      type: 'statement',
+      id: s.id,
+      account_id: s.account_id,
+      label: s.name,
+      date: s.closing_date,
+    });
+  for (const [index, month] of [...months].entries()) {
+    for (const { r, due, match } of matchRecurring(
+      recurring,
+      transactions[index].results,
+      month,
+    ))
+      if (!match && latest.get(r.id) === due)
+        results.push({
+          type: 'recurring',
+          id: r.id,
+          account_id: r.account_id,
+          label: r.payee,
+          date: due,
+        });
+  }
+  const staleBefore = shiftDay(day, -30);
+  for (const a of accounts)
+    if (
+      ['checking', 'cash', 'credit_card'].includes(a.kind) &&
+      (a.last_reconciled_at ?? a.cutoff_date!) < staleBefore
+    )
+      results.push({
+        type: 'balance',
+        id: a.id,
+        account_id: a.id,
+        label: a.name,
+        date: a.last_reconciled_at,
+      });
+  return results.sort(
+    (a, b) =>
+      (a.date ?? '').localeCompare(b.date ?? '') ||
+      a.label.localeCompare(b.label),
+  );
+}
+
+app.get('/api/home', async (c) => {
+  const day = c.var.today;
+  const to = shiftDay(day, 30);
+  const { accounts, recurring, items } = await upcomingItems(
+    c.var.DB,
+    day,
+    to,
+    true,
+  );
+  const [attention, month] = await Promise.all([
+    attentionItems(c.var.DB, day, accounts, recurring),
+    compareMonth(c.var.DB, day),
+  ]);
+  // Renda recorrente atrasada segue prevista até chegar, contada a partir de hoje (decisão de 20/11/2026).
+  const byId = new Map(recurring.map((r) => [r.id, r]));
+  const late: DueItem[] = attention.flatMap((a) => {
+    const r = a.type === 'recurring' ? byId.get(a.id) : undefined;
+    if (!r || !r.effective_income || r.amount_cents >= 0) return [];
+    const account = accounts.find((x) => x.id === r.account_id);
+    if (!account) return [];
+    const [, m, d] = (a.date ?? day).split('-');
+    return [
+      {
+        type: 'recurring' as const,
+        recurring_id: r.id,
+        id: `atrasada-${r.id}-${a.date ?? day}`,
+        label: `${r.payee} (atrasada, prevista para ${d}/${m})`,
+        date: day,
+        amount_cents: r.amount_cents,
+        currency: account.currency,
+        account_id: account.id,
+        account_name: account.name,
+        components: [],
+      },
+    ];
   });
+  const projection = await projectAvailable(
+    c.var.DB,
+    day,
+    to,
+    accounts,
+    recurring,
+    [...late, ...items],
+  );
+  const dueTo = shiftDay(day, 6);
+  const due = {
+    to: dueTo,
+    items: items.filter((item) => item.date >= day && item.date <= dueTo),
+  };
+  return c.json({ day, projection, attention, due, month });
 });
 
 app.get('/api/subscriptions', async (c) => {

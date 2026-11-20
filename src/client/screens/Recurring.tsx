@@ -1,3 +1,4 @@
+import { FinancialInput, useMoney } from '../privacy';
 import { useEffect, useState, useRef } from 'react';
 import type {
   Account,
@@ -6,8 +7,13 @@ import type {
   Recurring,
   Transaction,
 } from '../../shared/types';
-import { currentMonth } from '../../shared/recurring';
-import { formatMoney, parseMoney } from '../../shared/money';
+import {
+  currentMonth,
+  RECOGNITION_DAYS,
+  validMonth,
+} from '../../shared/recurring';
+import { shiftDay } from '../../shared/dates';
+import { parseMoney } from '../../shared/money';
 import { api, humanDate } from '../api';
 import {
   PageHeader,
@@ -157,7 +163,7 @@ export function RecurringEditor({
           </label>
           <label>
             Valor ({code})
-            <input
+            <FinancialInput
               required
               inputMode="decimal"
               value={form.amount}
@@ -292,7 +298,13 @@ export function RecurringScreen({
   onSaved: () => Promise<void>;
   subscriptions?: boolean;
 }) {
-  const [month, setMonth] = useState(currentMonth()),
+  const formatMoney = useMoney();
+  const params = new URLSearchParams(location.search);
+  const requestedMonth = params.get('month') ?? '';
+  const recurringId = params.get('recurring');
+  const [month, setMonth] = useState(
+      validMonth(requestedMonth) ? requestedMonth : currentMonth(),
+    ),
     [rows, setRows] = useState<Recurring[]>([]),
     [summary, setSummary] = useState<Summary>({}),
     [error, setError] = useState(''),
@@ -331,9 +343,18 @@ export function RecurringScreen({
     };
   }, [month, subscriptions, catalog]);
   const groupKey = subscriptions ? group : 'category_name';
+  const requestedDate =
+    !subscriptions && !catalog && requestedMonth === month
+      ? params.get('date')
+      : null;
+  const visible = rows.filter(
+    (r) =>
+      (!recurringId || r.id === recurringId) &&
+      (!requestedDate || r.due_date === requestedDate),
+  );
   const groups = [
     ...new Set(
-      rows.map((r) =>
+      visible.map((r) =>
         String(
           r[groupKey as keyof Recurring] ??
             (groupKey === 'category_name' ? 'Sem categoria' : 'Sem grupo'),
@@ -358,6 +379,14 @@ export function RecurringScreen({
           </Button>
         }
       />
+      {recurringId && (
+        <a
+          className="action-link"
+          href={subscriptions ? '/assinaturas' : `/recorrentes?month=${month}`}
+        >
+          Ver todos
+        </a>
+      )}
       {subscriptions ? (
         <>
           <p>
@@ -390,17 +419,18 @@ export function RecurringScreen({
             conta e com o mesmo beneficiário. Cada lançamento atende uma
             cobrança.
           </p>
-          {Object.entries(summary).map(([currency, s]) => (
-            <Panel className="recurring-totals" key={currency}>
-              {Object.entries(s).map(([side, v]) => (
-                <p key={side}>
-                  {side === 'income' ? 'Entradas' : 'Saídas'}: esperado{' '}
-                  {formatMoney(v.expected, currency)} · realizado{' '}
-                  {formatMoney(v.actual, currency)}
-                </p>
-              ))}
-            </Panel>
-          ))}
+          {!recurringId &&
+            Object.entries(summary).map(([currency, s]) => (
+              <Panel className="recurring-totals" key={currency}>
+                {Object.entries(s).map(([side, v]) => (
+                  <p key={side}>
+                    {side === 'income' ? 'Entradas' : 'Saídas'}: esperado{' '}
+                    {formatMoney(v.expected, currency)} · realizado{' '}
+                    {formatMoney(v.actual, currency)}
+                  </p>
+                ))}
+              </Panel>
+            ))}
         </>
       )}
       {loading && <State kind="loading">Carregando…</State>}
@@ -412,13 +442,13 @@ export function RecurringScreen({
           {error}
         </State>
       )}
-      {!loading && !error && !rows.length && (
+      {!loading && !error && !visible.length && (
         <State kind="empty">Nenhum item neste período.</State>
       )}
       {!loading &&
         !error &&
         groups.map((name) => {
-          const items = rows.filter(
+          const items = visible.filter(
             (r) =>
               String(
                 r[groupKey as keyof Recurring] ??
@@ -563,10 +593,7 @@ export function SubscriptionTypes({
 }
 
 function recognitionWindow(day: string) {
-  const label = (offset: number) => {
-    const d = new Date(`${day}T12:00:00Z`);
-    d.setUTCDate(d.getUTCDate() + offset);
-    return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
-  };
-  return `reconhece de ${label(-7)} a ${label(7)}`;
+  const label = (offset: number) =>
+    humanDate(shiftDay(day, offset)).slice(0, 5);
+  return `reconhece de ${label(-RECOGNITION_DAYS)} a ${label(RECOGNITION_DAYS)}`;
 }

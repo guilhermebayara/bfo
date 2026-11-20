@@ -1,9 +1,10 @@
+import { FinancialInput, useMoney } from '../privacy';
 import { movementAccounts } from './AccountOptions';
 import { statementCycle } from '../../shared/installments';
 import { today } from '../../shared/dates';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import type { Account, Category, Tag, Payee } from '../../shared/types';
-import { parseMoney, formatMoney, convert } from '../../shared/money';
+import { parseMoney, convert } from '../../shared/money';
 import { api } from '../api';
 import { Button } from './index';
 import { CategoryPicker } from './CategoryPicker';
@@ -20,6 +21,7 @@ export function ManualTransaction({
   categories: Category[];
   onSaved: () => Promise<void>;
 }) {
+  const formatMoney = useMoney();
   const active = movementAccounts(accounts);
   const requestedAccount = new URLSearchParams(location.search).get('account');
   const [account, setAccount] = useState(
@@ -235,7 +237,7 @@ export function ManualTransaction({
               ? 'Valor da parcela'
               : 'Valor'}{' '}
             ({code})
-            <input
+            <FinancialInput
               required
               inputMode="decimal"
               value={amount}
@@ -402,7 +404,7 @@ export function ManualTransaction({
           {code !== 'BRL' && (
             <label>
               Cotação para BRL
-              <input
+              <FinancialInput
                 required
                 inputMode="decimal"
                 value={rate}

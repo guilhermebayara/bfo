@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures';
 
 test('abre o parcelamento original e paga uma fatura em uma linha', async ({
   page,

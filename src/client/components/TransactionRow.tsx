@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { FinancialInput, useMoney, Privacy } from '../privacy';
+import { useContext, useState } from 'react';
 import { Menu, Modal } from './index';
 import { TransactionHistory } from './TransactionHistory';
 import { TransactionAction } from './TransactionAction';
 import { StatementFromTable } from '../screens/Cards';
 import type { Account, Category, Transaction, Tag } from '../../shared/types';
-import { formatMoney, parseMoney } from '../../shared/money';
+import { parseMoney } from '../../shared/money';
 import { Badge, Button, CategoryOptions } from './index';
 import { SpreadsheetCell } from './SpreadsheetCell';
 import { AccountOptions } from './AccountOptions';
@@ -20,6 +21,8 @@ export function TransactionRow({
   selected,
   onSelect,
   accountFilter,
+  balanceAccount,
+  showContribution,
 }: {
   t: Transaction;
   accounts: Account[];
@@ -31,7 +34,11 @@ export function TransactionRow({
   selected: boolean;
   onSelect: () => void;
   accountFilter: string;
+  balanceAccount?: Account;
+  showContribution: boolean;
 }) {
+  const formatMoney = useMoney();
+  const hidden = useContext(Privacy);
   const installment =
     t.kind === 'installment' &&
     !!t.installment_number &&
@@ -123,6 +130,7 @@ export function TransactionRow({
       ? -Math.abs(t.destination_amount_cents ?? t.amount_cents)
       : Math.abs(t.amount_cents)
     : t.amount_cents;
+  const extraColumn = balanceAccount || showContribution;
   const showDirection = !transfer || !!accountFilter;
   const payeeText = [
     transfer ? `→ ${t.destination_name ?? 'Destino'}` : t.payee,
@@ -134,7 +142,7 @@ export function TransactionRow({
   ]
     .filter(Boolean)
     .join(' · ');
-  const amountText = `${showDirection ? (displayAmount < 0 ? '+ ' : '− ') : ''}${formatMoney(
+  const amountText = `${showDirection && !hidden ? (displayAmount < 0 ? '+ ' : '− ') : ''}${formatMoney(
     Math.abs(displayAmount),
     transfer && accountFilter === t.destination_account_id
       ? (t.destination_currency ?? t.currency)
@@ -213,7 +221,7 @@ export function TransactionRow({
             rate: String(t.fx_rate),
           })}
           locked={financialLock}
-          className={`numeric ${!showDirection ? 'amount-transfer' : displayAmount < 0 ? 'amount-in' : 'amount-out'}`}
+          className={`numeric ${!showDirection || hidden ? 'amount-transfer' : displayAmount < 0 ? 'amount-in' : 'amount-out'}`}
           display={amountText}
           save={(value) => {
             const v = JSON.parse(value);
@@ -242,7 +250,7 @@ export function TransactionRow({
                   >
                     {v.income ? '[+]' : '[-]'}
                   </Button>
-                  <input
+                  <FinancialInput
                     required
                     aria-label={`Valor (${t.currency})`}
                     inputMode="decimal"
@@ -256,7 +264,7 @@ export function TransactionRow({
                   <Menu trigger="Cotação" className="fx-menu">
                     <label>
                       Cotação manual
-                      <input
+                      <FinancialInput
                         inputMode="decimal"
                         value={v.rate}
                         onChange={(e) =>
@@ -273,6 +281,19 @@ export function TransactionRow({
             );
           }}
         />
+        {balanceAccount && (
+          <td className="numeric" aria-label={`Saldo após ${t.payee}`}>
+            {t.running_balance_cents !== undefined &&
+              formatMoney(t.running_balance_cents, balanceAccount.currency)}
+            {t.running_balance_state === 'forecast' && <small>Previsto</small>}
+            {t.running_balance_state === 'archive' && <small>Arquivo</small>}
+          </td>
+        )}
+        {showContribution && (
+          <td className="numeric" aria-label={`No total de ${t.payee}`}>
+            {formatMoney(t.total_amount_cents ?? 0)}
+          </td>
+        )}
         <SpreadsheetCell
           column={4}
           label={`Categoria de ${t.payee}`}
@@ -478,7 +499,7 @@ export function TransactionRow({
       </tr>
       {showHistory && (
         <tr className="dialog-row">
-          <td colSpan={12}>
+          <td colSpan={extraColumn ? 13 : 12}>
             <TransactionHistory
               transaction={t}
               accounts={accounts}
@@ -492,7 +513,7 @@ export function TransactionRow({
       )}
       {scope && (
         <tr className="dialog-row">
-          <td colSpan={12}>
+          <td colSpan={extraColumn ? 13 : 12}>
             <Modal
               title="Editar parcela"
               busy={scopeBusy}
@@ -538,7 +559,7 @@ export function TransactionRow({
       )}
       {action && (
         <tr className="dialog-row">
-          <td colSpan={12}>
+          <td colSpan={extraColumn ? 13 : 12}>
             <TransactionAction
               transaction={t}
               mode={action}
@@ -550,7 +571,7 @@ export function TransactionRow({
       )}
       {statementAction && (
         <tr className="dialog-row">
-          <td colSpan={12}>
+          <td colSpan={extraColumn ? 13 : 12}>
             <StatementFromTable
               transaction={t}
               accounts={accounts}

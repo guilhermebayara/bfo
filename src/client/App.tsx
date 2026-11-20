@@ -5,18 +5,21 @@ import { Button, Notice, State } from './components';
 import { TransactionNotice } from './components/TransactionNotice';
 import { Foundations } from './screens/Foundations';
 import { api } from './api';
+import { Privacy, usePrivacy } from './privacy';
 import { useTransactionSession } from './transaction-session';
 import { Transactions } from './screens/Transactions';
 import { RecurringScreen, SubscriptionTypes } from './screens/Recurring';
 import { Cards } from './screens/Cards';
 import { InstallmentPurchase } from './screens/InstallmentPurchase';
 import { Upcoming } from './screens/Upcoming';
+import { Home, ProjectionDetails, projectionView } from './screens/Home';
 import { Accounts } from './screens/Accounts';
 import { Categories, Tags, Payees, Preferences } from './screens/Configuration';
 const navigation = [
   {
     label: 'Movimento',
     links: [
+      ['/', 'Início'],
       ['/transacoes', 'Transações'],
       ['/contas', 'Contas'],
       ['/cartao', 'Cartão'],
@@ -44,7 +47,10 @@ const navigation = [
 ];
 
 export function App() {
-  const [path, setPath] = useState(location.pathname);
+  const [address, setAddress] = useState(location.pathname + location.search);
+  const [path, search = ''] = address.split('?');
+  const projection = projectionView(search);
+  const privacy = usePrivacy();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [renewals, setRenewals] = useState<Recurring[]>([]);
@@ -81,7 +87,7 @@ export function App() {
   }
   useEffect(() => {
     void load();
-    const onPop = () => setPath(location.pathname);
+    const onPop = () => setAddress(location.pathname + location.search);
     addEventListener('popstate', onPop);
     let lastDay = today();
     const refreshDay = () => {
@@ -108,19 +114,19 @@ export function App() {
   function go(to: string, replace = false) {
     if (replace) history.replaceState({}, '', to);
     else history.pushState({}, '', to);
-    setPath(to.split('?')[0]);
+    setAddress(to);
   }
   function navigate(event: React.MouseEvent<HTMLAnchorElement>, to: string) {
     if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey)
       return;
     event.preventDefault();
-    if (path !== to) {
+    if (address !== to) {
       focusMain.current = true;
       window.scrollTo(0, 0);
       go(to);
     }
   }
-  return (
+  const layout = (
     <div className="app">
       <a className="skip" href="#main">
         Pular para o conteúdo
@@ -135,8 +141,7 @@ export function App() {
                 {links.map(([url, name]) => {
                   const current =
                     path === url ||
-                    (url === '/transacoes' &&
-                      (path === '/' || path.startsWith('/transacoes/')));
+                    (url === '/transacoes' && path.startsWith('/transacoes/'));
                   const purchase =
                     url === '/cartao' && path.startsWith('/parceladas/');
                   return (
@@ -167,7 +172,17 @@ export function App() {
         </nav>
       </aside>
       <div className="workspace">
-        {renewals.length > 0 && (
+        <div className="privacy-control">
+          <Button
+            variant={privacy.hidden ? 'primary' : 'quiet'}
+            aria-pressed={privacy.hidden}
+            aria-keyshortcuts={privacy.shortcut}
+            onClick={privacy.toggle}
+          >
+            Ocultar valores
+          </Button>
+        </div>
+        {path !== '/' && renewals.length > 0 && (
           <Notice
             tone="warning"
             className="alert-space"
@@ -205,6 +220,8 @@ export function App() {
             </State>
           ) : !ready ? (
             <State kind="loading">Carregando contas…</State>
+          ) : path === '/' ? (
+            <Home revision={revision} />
           ) : path === '/recorrentes' || path === '/assinaturas' ? (
             <RecurringScreen
               key={path}
@@ -216,7 +233,11 @@ export function App() {
           ) : path === '/tipos-assinatura' ? (
             <SubscriptionTypes onSaved={load} />
           ) : path === '/proximos' ? (
-            <Upcoming revision={revision} />
+            projection ? (
+              <ProjectionDetails view={projection} revision={revision} />
+            ) : (
+              <Upcoming revision={revision} />
+            )
           ) : path === '/cartao' ? (
             <Cards accounts={accounts} onSaved={load} revision={revision} />
           ) : path.startsWith('/parceladas/') ? (
@@ -240,6 +261,7 @@ export function App() {
           ) : (
             <Transactions
               path={path}
+              urlSearch={search}
               navigate={go}
               accounts={accounts}
               categories={categories}
@@ -267,4 +289,5 @@ export function App() {
       </div>
     </div>
   );
+  return <Privacy.Provider value={privacy.hidden}>{layout}</Privacy.Provider>;
 }
