@@ -24,12 +24,22 @@
     "run_worker_first": ["/api/*"],
   },
 
-  // Em produção, o binding DB aponta para o banco de produção.
+  // O backup roda só em produção, às 03h em America/Sao_Paulo (06h UTC).
+  "triggers": { "crons": ["0 6 * * *"] },
+  "r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "bfo-backups" }],
+
+  // A API usa DB em produção. O segundo binding fica reservado ao backup.
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "bfo-producao",
       "database_id": "32c0ee02-7cdf-4fc7-b83f-e8808ba3f4de",
+      "migrations_dir": "migrations",
+    },
+    {
+      "binding": "BACKUP_DB_HOMOLOGACAO",
+      "database_name": "bfo-homologacao",
+      "database_id": "9db4bc67-bacb-4176-8701-34d24f7c7bce",
       "migrations_dir": "migrations",
     },
   ],

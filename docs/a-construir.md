@@ -80,9 +80,10 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
 
 - [ ] Decisões de 20/11/2026 depois da QA, para a sessão de correção: aceitar data futura no lançamento manual, contando no saldo só quando a data chegar e aparecendo em Próximos (decisões, Tabela de transações); conferir que o saldo do cartão em Contas mostra só o já lançado até hoje, com parcelas futuras no comprometido (decisões, Contas).
 - [ ] Categoria e tags padrão no beneficiário, para a sessão de correção: editáveis na tela de beneficiários; a sugestão ao digitar o beneficiário usa o padrão quando existir e a última vez quando não (decisões, Tags e beneficiários).
-- [ ] Possível defeito da QA, para a sessão de correção investigar: antecipação de parcelas devolve 409 ("As parcelas ou a fatura atual mudaram") num cenário composto, depois de fechar a fatura anterior e lançar outra compra parcelada no mesmo cartão. Isolada, funciona. Detalhe em docs/qa/fase-1.md.
+- [x] Possível defeito da QA, para a sessão de correção investigar: antecipação de parcelas devolve 409 ("As parcelas ou a fatura atual mudaram") num cenário composto, depois de fechar a fatura anterior e lançar outra compra parcelada no mesmo cartão. Isolada, funciona. Detalhe em docs/qa/fase-1.md. Corrigido na Sessão R.
 - [ ] QA complementar (Sessão N, Claude Code): refazer o mês simulado pela API com relógio fixo e gabarito escrito antes de rodar, e conferir por amostragem o que a Sessão M marcou como Ok.
-- [ ] Sessão R (Codex, em paralelo à Q): antecipação que devolve 409 no cenário composto, assinatura que recusa `is_subscription` como true/false e backup automático diário dos bancos com dados reais no R2 (decisões, Infraestrutura).
+- [x] Sessão R (Codex, em paralelo à Q): antecipação que devolve 409 no cenário composto, assinatura que recusa `is_subscription` como true/false e backup automático diário dos bancos com dados reais no R2 (decisões, Infraestrutura).
+  - Ativação do backup na conta BFO conforme os passos em [docs/cloudflare.md](cloudflare.md#backup-diário-dos-d1).
 - [ ] Histórico de alterações, desfazer e aviso de transação, depois da Q (decisões, Tabela de transações; brief em docs/briefs/historico-desfazer.md).
 
 - [ ] Conceito visual: feito no Claude depois que a estrutura da fase 1 estiver redonda. Duas propostas numa prévia, o dono escolhe olhando a tela, e só então o visual é aplicado.

@@ -61,3 +61,27 @@ O seed mantém os comandos existentes e usa marcador `session-i` para preservar 
 ## Sessão K
 
 A importação do Lunch Money tem comandos próprios em [docs/importacao.md](importacao.md). A carga simulada e a carga real usam só o D1 `bfo-teste`. Homologação e produção ficam de fora desses comandos. O token é digitado na coleta e não fica gravado.
+
+## Backup diário dos D1
+
+O cron `0 6 * * *` do Worker `bfo` roda às 03h em America/Sao_Paulo (06h UTC). Ele grava `d1/bfo-producao/AAAA-MM-DD.sql` e `d1/bfo-homologacao/AAAA-MM-DD.sql` no bucket privado `bfo-backups`, usando a data local do disparo. Cada arquivo contém o esquema e os dados das tabelas, incluindo `d1_migrations`, além dos índices, views e gatilhos. Uma segunda execução no mesmo dia preserva o arquivo existente de cada banco.
+
+O cron e os bindings de backup ficam na configuração de produção. As prévias usam seus bindings próprios. O backup usa os bindings D1 e R2, sem credencial adicional no Worker. A exportação tem os limites de resposta do D1 e de memória e CPU do Worker. Em caso de falha, o evento indica a data e o banco afetado no painel. [Limites do D1](https://developers.cloudflare.com/d1/platform/limits/)
+
+### Passos no painel da conta BFO
+
+1. Em **R2 Object Storage**, crie o bucket `bfo-backups` com acesso privado. Caso já exista, confirme que o endereço público `r2.dev` e os domínios públicos estão desativados.
+2. Em **bfo-backups > Settings > Object Lifecycle Rules**, crie uma regra de expiração para o prefixo `d1/`, com exclusão dos objetos após 30 dias. [Regras de ciclo de vida do R2](https://developers.cloudflare.com/r2/buckets/object-lifecycles/)
+3. Depois da publicação aprovada de `main`, abra **Workers & Pages > bfo > Settings > Triggers** e confira o cron `0 6 * * *`. Após o primeiro disparo, confira o resultado do evento e a presença dos dois arquivos SQL do dia no bucket. [Gatilhos agendados](https://developers.cloudflare.com/workers/configuration/cron-triggers/)
+
+### Restaurar um backup escolhido
+
+Na raiz do projeto, com as dependências instaladas, escolha a origem e a data pelo nome do arquivo no bucket. Para a conta BFO, use uma sessão do Wrangler já autenticada e autorizada a ler o bucket e a escrever no D1 de destino. Prefira restaurar primeiro em um D1 vazio para conferir o conteúdo. Se o destino estiver em uso, pause as gravações durante a restauração e confirme que o backup corresponde à versão do Worker que vai usar o banco.
+
+```sh
+node scripts/restore-backup.mjs bfo-homologacao AAAA-MM-DD NOME_DO_D1 --cloud
+```
+
+O script baixa o SQL do bucket privado, confere a origem e a data no arquivo e pede que você digite o nome do D1 de destino. Com a confirmação, aplica em uma operação o descarte do esquema anterior e a importação do backup. Os arquivos temporários são removidos ao terminar. O D1 pode ficar indisponível enquanto o arquivo é aplicado.
+
+Para usar D1 e R2 locais, troque `--cloud` por `--local` e informe `--persist-to PASTA` se o estado local estiver em uma pasta própria. O destino local deve constar na configuração do Wrangler, selecionável com `--config ARQUIVO`. `npm run test:backup` usa estado isolado, popula os bancos com o seed fictício, aciona o cron local, restaura um arquivo em um D1 vazio e compara o esquema, a contagem de cada tabela, as somas de `amount_cents` e as chaves estrangeiras. Também verifica o cancelamento e a substituição com confirmação.

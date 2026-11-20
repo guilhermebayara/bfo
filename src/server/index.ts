@@ -16,11 +16,11 @@ import type { Recurring } from '../shared/types';
 import { ptax } from './fx';
 import { installmentAmount, statementCycle, today } from './statements';
 import type { Account, Statement, Transaction } from '../shared/types';
+import { scheduledBackup, type BackupBindings } from './backup';
 type Bindings = {
-  DB: D1Database;
   DB_HOMOLOGACAO?: D1Database;
   ASSETS: Fetcher;
-};
+} & BackupBindings;
 const app = new Hono<{ Bindings: Bindings; Variables: { DB: D1Database } }>();
 class InputError extends Error {
   constructor(
@@ -3305,4 +3305,4 @@ for (const method of ['post', 'patch'] as const)
   );
 app.all('/api/*', (c) => c.json({ error: 'Rota não encontrada.' }, 404));
 app.all('*', (c) => c.env.ASSETS.fetch(c.req.raw));
-export default app;
+export default Object.assign(app, { scheduled: scheduledBackup });
