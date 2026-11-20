@@ -1,7 +1,8 @@
+import { FinancialInput, useMoney } from '../privacy';
 import { useEffect, useState } from 'react';
 import type { Tag, Account, Statement } from '../../shared/types';
 import { today } from '../../shared/dates';
-import { formatMoney, parseMoney } from '../../shared/money';
+import { parseMoney } from '../../shared/money';
 import { api, humanDate } from '../api';
 import { Menu, Button } from './index';
 export function NewTransferRow({
@@ -9,6 +10,7 @@ export function NewTransferRow({
   tags,
   month,
   initialAccount,
+  extraColumn,
   onSaved,
   onCancel,
 }: {
@@ -16,9 +18,11 @@ export function NewTransferRow({
   tags: Tag[];
   month: string;
   initialAccount: string;
+  extraColumn: boolean;
   onSaved: () => Promise<void>;
   onCancel: () => void;
 }) {
+  const formatMoney = useMoney();
   const active = accounts.filter(
     (a) => !a.closed_at && !a.archived && a.cutoff_date,
   );
@@ -191,7 +195,7 @@ export function NewTransferRow({
       <td>
         <div className="signed-value">
           <span>{code}</span>
-          <input
+          <FinancialInput
             aria-label={`Valor da transferência (${code})`}
             inputMode="decimal"
             value={amount}
@@ -200,6 +204,7 @@ export function NewTransferRow({
           />
         </div>
       </td>
+      {extraColumn && <td data-readonly-column />}
       <td>
         {card ? (
           <select

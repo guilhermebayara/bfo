@@ -2,6 +2,8 @@ import { test, expect, testDay } from './fixtures';
 test('mês no endereço, setas, escolha, recarga, histórico e filtros dentro do mês', async ({
   page,
 }) => {
+  await page.clock.setFixedTime(new Date('2026-11-15T15:00:00Z'));
+  await page.setExtraHTTPHeaders({ 'x-bfo-data': '2026-11-15' });
   await page.goto('/transacoes');
   await page.getByRole('button', { name: /^Filtros/ }).click();
   await expect(page).toHaveURL(`/transacoes/${testDay.slice(0, 7)}`);
@@ -10,25 +12,39 @@ test('mês no endereço, setas, escolha, recarga, histórico e filtros dentro do
     .getByRole('region', { name: 'Filtros de transações' })
     .getByRole('combobox', { name: 'Conta', exact: true })
     .selectOption('seed-recurring-account');
+  await expect(page).toHaveURL(
+    '/transacoes/2026-11?conta=seed-recurring-account',
+  );
   await expect(
     page.getByText('2 transações ·', { exact: false }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Próximo mês', exact: true }).click();
-  await expect(page).toHaveURL('/transacoes/2026-12');
+  await expect(page).toHaveURL(
+    '/transacoes/2026-12?conta=seed-recurring-account',
+  );
   await expect(
     page.getByText('0 transações ·', { exact: false }),
   ).toBeVisible();
   await page.goBack();
-  await expect(page).toHaveURL('/transacoes/2026-11');
+  await expect(page).toHaveURL(
+    '/transacoes/2026-11?conta=seed-recurring-account',
+  );
   await expect(
     page.getByText('2 transações ·', { exact: false }),
   ).toBeVisible();
   await page.reload();
   await expect(page.getByLabel('Ir para o mês')).toHaveValue('2026-11');
+  await expect(
+    page.getByText('2 transações ·', { exact: false }),
+  ).toBeVisible();
   await page.getByRole('button', { name: 'Mês anterior', exact: true }).click();
-  await expect(page).toHaveURL('/transacoes/2026-10');
+  await expect(page).toHaveURL(
+    '/transacoes/2026-10?conta=seed-recurring-account',
+  );
   await page.getByRole('button', { name: 'Voltar para este mês' }).click();
-  await expect(page).toHaveURL(`/transacoes/${testDay.slice(0, 7)}`);
+  await expect(page).toHaveURL(
+    `/transacoes/${testDay.slice(0, 7)}?conta=seed-recurring-account`,
+  );
 });
 test('Enter lança pela linha, prepara o próximo e edita campos na linha', async ({
   page,

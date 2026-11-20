@@ -1,6 +1,7 @@
+import { FinancialInput, useMoney } from '../privacy';
 import { useState, type FormEvent } from 'react';
 import type { Account } from '../../shared/types';
-import { formatMoney, parseMoney } from '../../shared/money';
+import { parseMoney } from '../../shared/money';
 import { api } from '../api';
 import { Button, Modal } from './index';
 type Preview = {
@@ -17,6 +18,7 @@ export function Reconcile({
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
+  const formatMoney = useMoney();
   const [balance, setBalance] = useState('');
   const [rate, setRate] = useState('');
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -67,7 +69,7 @@ export function Reconcile({
         <fieldset disabled={busy}>
           <label>
             Saldo do banco ({account.currency})
-            <input
+            <FinancialInput
               required
               inputMode="decimal"
               value={balance}
@@ -80,7 +82,7 @@ export function Reconcile({
           {account.currency !== 'BRL' && (
             <label>
               Cotação manual (opcional)
-              <input
+              <FinancialInput
                 inputMode="decimal"
                 value={rate}
                 onChange={(e) => setRate(e.target.value)}

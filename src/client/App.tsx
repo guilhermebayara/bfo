@@ -5,6 +5,7 @@ import { Button, Notice, State } from './components';
 import { TransactionNotice } from './components/TransactionNotice';
 import { Foundations } from './screens/Foundations';
 import { api } from './api';
+import { Privacy, usePrivacy } from './privacy';
 import { useTransactionSession } from './transaction-session';
 import { Transactions } from './screens/Transactions';
 import { RecurringScreen, SubscriptionTypes } from './screens/Recurring';
@@ -44,7 +45,9 @@ const navigation = [
 ];
 
 export function App() {
-  const [path, setPath] = useState(location.pathname);
+  const [address, setAddress] = useState(location.pathname + location.search);
+  const [path, search = ''] = address.split('?');
+  const privacy = usePrivacy();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [renewals, setRenewals] = useState<Recurring[]>([]);
@@ -81,7 +84,7 @@ export function App() {
   }
   useEffect(() => {
     void load();
-    const onPop = () => setPath(location.pathname);
+    const onPop = () => setAddress(location.pathname + location.search);
     addEventListener('popstate', onPop);
     let lastDay = today();
     const refreshDay = () => {
@@ -108,19 +111,19 @@ export function App() {
   function go(to: string, replace = false) {
     if (replace) history.replaceState({}, '', to);
     else history.pushState({}, '', to);
-    setPath(to.split('?')[0]);
+    setAddress(to);
   }
   function navigate(event: React.MouseEvent<HTMLAnchorElement>, to: string) {
     if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey)
       return;
     event.preventDefault();
-    if (path !== to) {
+    if (address !== to) {
       focusMain.current = true;
       window.scrollTo(0, 0);
       go(to);
     }
   }
-  return (
+  const layout = (
     <div className="app">
       <a className="skip" href="#main">
         Pular para o conteúdo
@@ -167,6 +170,16 @@ export function App() {
         </nav>
       </aside>
       <div className="workspace">
+        <div className="privacy-control">
+          <Button
+            variant={privacy.hidden ? 'primary' : 'quiet'}
+            aria-pressed={privacy.hidden}
+            aria-keyshortcuts={privacy.shortcut}
+            onClick={privacy.toggle}
+          >
+            Ocultar valores
+          </Button>
+        </div>
         {renewals.length > 0 && (
           <Notice
             tone="warning"
@@ -240,6 +253,7 @@ export function App() {
           ) : (
             <Transactions
               path={path}
+              urlSearch={search}
               navigate={go}
               accounts={accounts}
               categories={categories}
@@ -267,4 +281,5 @@ export function App() {
       </div>
     </div>
   );
+  return <Privacy.Provider value={privacy.hidden}>{layout}</Privacy.Provider>;
 }

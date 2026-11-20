@@ -1,7 +1,8 @@
+import { FinancialInput, useMoney } from '../privacy';
 import { useEffect, useRef, useState } from 'react';
 import type { Account, Category, Tag, Payee } from '../../shared/types';
 import { today } from '../../shared/dates';
-import { parseMoney, formatMoney, convert } from '../../shared/money';
+import { parseMoney, convert } from '../../shared/money';
 import { api, humanDate } from '../api';
 import { Menu, Button, CategoryOptions } from './index';
 import { AccountOptions } from './AccountOptions';
@@ -10,6 +11,7 @@ export function NewTransactionRow({
   categories,
   tags,
   initialAccount,
+  extraColumn,
   month,
   onSaved,
   onCancel,
@@ -18,10 +20,12 @@ export function NewTransactionRow({
   categories: Category[];
   tags: Tag[];
   initialAccount: string;
+  extraColumn: boolean;
   month: string;
   onSaved: () => Promise<void>;
   onCancel: () => void;
 }) {
+  const formatMoney = useMoney();
   const [account, setAccount] = useState(initialAccount),
     [day, setDay] = useState(
       month === today().slice(0, 7) ? today() : `${month}-01`,
@@ -257,7 +261,9 @@ export function NewTransactionRow({
           (e.target as HTMLElement).tagName !== 'SELECT'
         ) {
           const current = (e.target as HTMLElement).closest('td');
-          const cells = [...row.current!.querySelectorAll('td')];
+          const cells = [
+            ...row.current!.querySelectorAll('td:not([data-readonly-column])'),
+          ];
           const index = current ? cells.indexOf(current) : -1;
           const target =
             e.key === 'ArrowLeft'
@@ -345,7 +351,7 @@ export function NewTransactionRow({
           >
             {income ? '[+]' : '[-]'}
           </Button>
-          <input
+          <FinancialInput
             aria-label={`Valor (${code})`}
             disabled={busy}
             inputMode="decimal"
@@ -358,7 +364,7 @@ export function NewTransactionRow({
           <Menu trigger="Cotação" className="fx-menu">
             <label>
               Cotação para BRL
-              <input
+              <FinancialInput
                 value={rate}
                 onChange={(e) => {
                   rateEdited.current = true;
@@ -382,6 +388,7 @@ export function NewTransactionRow({
           </Menu>
         )}
       </td>
+      {extraColumn && <td data-readonly-column />}
       <td>
         <select
           aria-label="Categoria"

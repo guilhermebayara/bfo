@@ -1,3 +1,4 @@
+import { FinancialInput } from '../privacy';
 import { useEffect, useState, type FormEvent } from 'react';
 import { api } from '../api';
 import { parseMoney } from '../../shared/money';
@@ -127,7 +128,7 @@ export function CreateAccount({
           </label>
           <label>
             Saldo inicial ({currency})
-            <input
+            <FinancialInput
               required
               value={balance}
               onChange={(e) => setBalance(e.target.value)}
@@ -141,7 +142,7 @@ export function CreateAccount({
             <>
               <label>
                 Limite opcional ({currency})
-                <input
+                <FinancialInput
                   inputMode="decimal"
                   value={limit}
                   onChange={(e) => setLimit(e.target.value)}
