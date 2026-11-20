@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { shiftDay } from '../shared/dates';
-import type { DueComponent, DueItem } from '../shared/home';
+import type { AttentionItem, DueComponent, DueItem } from '../shared/home';
 import {
   projectAvailable,
   type ActiveRecurring,
@@ -27,6 +27,7 @@ import {
   monthBounds,
   datesInMonth,
   nextOccurrence,
+  previousOccurrence,
   monthlyEquivalent,
   renewalSoon,
   RECOGNITION_DAYS,
@@ -3785,6 +3786,95 @@ app.get('/api/upcoming', async (c) => {
   return c.json({ from, to, items });
 });
 
+async function attentionItems(
+  db: D1Database,
+  day: string,
+  accounts: Account[],
+  recurring: ActiveRecurring[],
+) {
+  const results: AttentionItem[] = [];
+  const expiredOn = shiftDay(day, -RECOGNITION_DAYS - 1);
+  const latest = new Map<string, string>();
+  for (const r of recurring) {
+    const date = previousOccurrence(r, expiredOn);
+    if (date) latest.set(r.id, date);
+    if (
+      r.is_subscription &&
+      r.renewal_date &&
+      renewalSoon(r.renewal_date, day, r.notice_days)
+    )
+      results.push({
+        type: 'renewal',
+        id: r.id,
+        account_id: r.account_id,
+        label: r.payee,
+        date: r.renewal_date,
+      });
+  }
+  const months = new Set([...latest.values()].map((date) => date.slice(0, 7)));
+  const [statements, ...transactions] = await Promise.all([
+    db
+      .prepare(
+        `SELECT s.id,s.account_id,s.closing_date,a.name
+      FROM statement_totals s JOIN accounts a ON a.id=s.account_id
+      WHERE a.closed_at IS NULL AND a.archived=0 AND a.cutoff_date IS NOT NULL
+      AND ((s.status='closed' AND s.bank_amount_cents IS NULL)
+        OR (s.status='open' AND s.closing_date<? AND (s.previous_balance_cents<>0
+          OR EXISTS (SELECT 1 FROM statement_items i WHERE i.statement_id=s.id))))
+      ORDER BY s.closing_date,s.id`,
+      )
+      .bind(day)
+      .all<{
+        id: string;
+        account_id: string;
+        closing_date: string;
+        name: string;
+      }>(),
+    ...[...months].map((month) => recurringTransactions(db, month, month)),
+  ]);
+  for (const s of statements.results)
+    results.push({
+      type: 'statement',
+      id: s.id,
+      account_id: s.account_id,
+      label: s.name,
+      date: s.closing_date,
+    });
+  for (const [index, month] of [...months].entries()) {
+    for (const { r, due, match } of matchRecurring(
+      recurring,
+      transactions[index].results,
+      month,
+    ))
+      if (!match && latest.get(r.id) === due)
+        results.push({
+          type: 'recurring',
+          id: r.id,
+          account_id: r.account_id,
+          label: r.payee,
+          date: due,
+        });
+  }
+  const staleBefore = shiftDay(day, -30);
+  for (const a of accounts)
+    if (
+      ['checking', 'cash', 'credit_card'].includes(a.kind) &&
+      (a.last_reconciled_at ?? a.cutoff_date!) < staleBefore
+    )
+      results.push({
+        type: 'balance',
+        id: a.id,
+        account_id: a.id,
+        label: a.name,
+        date: a.last_reconciled_at,
+      });
+  return results.sort(
+    (a, b) =>
+      (a.date ?? '').localeCompare(b.date ?? '') ||
+      a.label.localeCompare(b.label),
+  );
+}
+
 app.get('/api/home', async (c) => {
   const day = c.var.today;
   const to = shiftDay(day, 30);
@@ -3794,15 +3884,11 @@ app.get('/api/home', async (c) => {
     to,
     true,
   );
-  const projection = await projectAvailable(
-    c.var.DB,
-    day,
-    to,
-    accounts,
-    recurring,
-    items,
-  );
-  return c.json({ day, projection });
+  const [projection, attention] = await Promise.all([
+    projectAvailable(c.var.DB, day, to, accounts, recurring, items),
+    attentionItems(c.var.DB, day, accounts, recurring),
+  ]);
+  return c.json({ day, projection, attention });
 });
 
 app.get('/api/subscriptions', async (c) => {

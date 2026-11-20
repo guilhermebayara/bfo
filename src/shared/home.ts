@@ -49,3 +49,12 @@ export type Projection = {
   low_cents: number;
   low_date: string;
 };
+
+export type AttentionItem = {
+  id: string;
+  account_id: string;
+  label: string;
+} & (
+  | { type: 'statement' | 'recurring' | 'renewal'; date: string }
+  | { type: 'balance'; date: string | null }
+);

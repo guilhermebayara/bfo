@@ -2,7 +2,7 @@ import { env } from 'cloudflare:workers';
 import { applyD1Migrations } from 'cloudflare:test';
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import app from '../src/server/index';
-import type { Projection } from '../src/shared/home';
+import type { AttentionItem, Projection } from '../src/shared/home';
 
 const db = env.DB as D1Database;
 const day = '2026-11-28';
@@ -91,5 +91,37 @@ it('projeta a virada do mês, com vale antes do salário e cada pagamento contad
     ['2026-12-10', 'statement', 25000],
     ['2026-12-12', 'transfer', 12000],
     ['2026-12-13', 'scheduled', 40000],
+  ]);
+});
+
+it('avisa sobre conferências, renovação e a última ocorrência com janela vencida', async () => {
+  await db.batch([
+    db.prepare(`INSERT INTO accounts(id,name,kind,currency,cutoff_date,last_reconciled_at) VALUES
+      ('x-stale','Conta sem conferir X','checking','BRL','2026-09-01','2026-10-28'),
+      ('x-limit','Conta no limite X','cash','BRL','2026-09-01','2026-10-29'),
+      ('x-never','Conta antiga X','cash','BRL','2026-10-01',NULL)`),
+    db.prepare(
+      `UPDATE recurring SET is_subscription=1,renewal_date='2026-12-08',notice_days=10 WHERE id='x-pending'`,
+    ),
+    db.prepare(`INSERT INTO recurring(id,account_id,payee,amount_cents,cadence,next_date) VALUES
+      ('x-arrived','x-checking','Compra de hoje X',10000,'yearly','2026-11-21'),
+      ('x-exact','x-checking','Prazo no limite X',2000,'yearly','2026-11-21')`),
+    db.prepare(`INSERT INTO statements(id,account_id,period_start,closing_date,due_date,status) VALUES
+      ('x-unchecked','x-card','2026-09-23','2026-10-22','2026-10-30','closed'),
+      ('x-open-old','x-card','2026-08-23','2026-09-22','2026-09-30','open'),
+      ('x-empty-old','x-card','2026-07-23','2026-08-22','2026-08-30','open')`),
+    db.prepare(`INSERT INTO transactions(id,account_id,date,amount_cents,amount_brl_cents,payee,origin,kind,statement_id) VALUES
+      ('x-open-old-item','x-card','2026-09-01',500,500,'Compra antiga X','manual','regular','x-open-old')`),
+  ]);
+  const { attention } = await (
+    await request('/home')
+  ).json<{ attention: AttentionItem[] }>();
+  expect(attention.map(({ type, id, date }) => [type, id, date])).toEqual([
+    ['balance', 'x-never', null],
+    ['statement', 'x-open-old', '2026-09-22'],
+    ['statement', 'x-unchecked', '2026-10-22'],
+    ['balance', 'x-stale', '2026-10-28'],
+    ['recurring', 'x-overdue', '2026-11-20'],
+    ['renewal', 'x-pending', '2026-12-08'],
   ]);
 });
