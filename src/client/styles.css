@@ -1160,3 +1160,17 @@ fieldset {
 .amount-transfer {
   color: var(--amount-transfer);
 }
+
+.transaction-notice {
+  position: fixed;
+  inset-inline-end: var(--gap-panel);
+  inset-block-end: var(--gap-panel);
+  z-index: var(--layer-menu);
+  max-inline-size: min(var(--modal-width), calc(100vw - 2 * var(--gap-panel)));
+  max-block-size: 45vh;
+  overflow: auto;
+  margin: 0;
+}
+.transaction-notice .inline-actions {
+  margin-block-start: var(--gap-control);
+}

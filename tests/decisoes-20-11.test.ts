@@ -12,14 +12,14 @@ import { applyD1Migrations } from 'cloudflare:test';
 import app from '../src/server/index';
 const db = env.DB as D1Database;
 const FIXED = '2026-11-15T15:00:00.000Z';
-const req = (path: string, method = 'GET', body?: object) =>
+const req = (path: string, method = 'GET', body?: object, day = '2026-11-15') =>
   app.request(
     `https://bfo.test/api${path}`,
     {
       method,
       headers: {
         'Content-Type': 'application/json',
-        'x-bfo-data': '2026-11-15',
+        'x-bfo-data': day,
       },
       body: body && JSON.stringify(body),
     },
@@ -423,13 +423,34 @@ it('transferência e pagamento futuros só mudam o saldo na data', async () => {
   ).toBe(201);
   expect(await balanceOn('2026-11-15', source)).toBe(100000);
   expect(await balanceOn('2026-11-15', card)).toBe(-5000);
-  const paid = (await (await req(`/cards/${card}/statements`)).json()) as {
-    id: string;
-    status: string;
-  }[];
-  expect(paid.find((s) => s.id === bill.id)?.status).toBe('paid');
+  const pending = await (
+    await req(`/cards/${card}/statements`)
+  ).json<
+    {
+      id: string;
+      status: string;
+      scheduled_payment_date: string | null;
+    }[]
+  >();
+  expect(pending.find((s) => s.id === bill.id)).toMatchObject({
+    status: 'closed',
+    scheduled_payment_date: '2026-11-22',
+  });
   expect(await balanceOn('2026-11-22', source)).toBe(92000);
   expect(await balanceOn('2026-11-22', card)).toBe(0);
+  const paid = await (
+    await req(`/cards/${card}/statements`, 'GET', undefined, '2026-11-22')
+  ).json<
+    {
+      id: string;
+      status: string;
+      scheduled_payment_date: string | null;
+    }[]
+  >();
+  expect(paid.find((s) => s.id === bill.id)).toMatchObject({
+    status: 'paid',
+    scheduled_payment_date: null,
+  });
 });
 it('compra futura cai na fatura da data e o recorrente reconhecido não duplica em Próximos', async () => {
   const checking = await fixture();

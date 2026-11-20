@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Menu, Modal } from './index';
+import { TransactionHistory } from './TransactionHistory';
 import { TransactionAction } from './TransactionAction';
 import { StatementFromTable } from '../screens/Cards';
 import type { Account, Category, Transaction, Tag } from '../../shared/types';
@@ -41,6 +42,7 @@ export function TransactionRow({
     resolve: () => void;
     reject: (e: Error) => void;
   } | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
   const [scopeError, setScopeError] = useState('');
   const [scopeBusy, setScopeBusy] = useState(false);
   const [action, setAction] = useState<
@@ -410,6 +412,9 @@ export function TransactionRow({
         />
         <td>
           <Menu trigger="⋯" label={`Ações de ${t.payee}`}>
+            <Button onClick={() => setShowHistory(true)}>
+              Histórico de alterações
+            </Button>
             {canSplit && (
               <Button onClick={() => onSplit(t)}>
                 {t.split_count ? 'Editar divisão' : 'Dividir transação'}
@@ -445,16 +450,17 @@ export function TransactionRow({
                     </Button>
                   </>
                 )}
-                {t.statement_status === 'closed' && (
-                  <>
-                    <Button onClick={() => setStatementAction('reopen')}>
-                      Reabrir fatura
-                    </Button>
-                    <Button onClick={() => setStatementAction('pay')}>
-                      Pagar fatura
-                    </Button>
-                  </>
-                )}
+                {t.statement_status === 'closed' &&
+                  !t.statement_scheduled_payment_date && (
+                    <>
+                      <Button onClick={() => setStatementAction('reopen')}>
+                        Reabrir fatura
+                      </Button>
+                      <Button onClick={() => setStatementAction('pay')}>
+                        Pagar fatura
+                      </Button>
+                    </>
+                  )}
               </>
             )}
             {t.installment_plan_id && (
@@ -470,6 +476,20 @@ export function TransactionRow({
           </Menu>
         </td>
       </tr>
+      {showHistory && (
+        <tr className="dialog-row">
+          <td colSpan={12}>
+            <TransactionHistory
+              transaction={t}
+              accounts={accounts}
+              categories={categories}
+              tags={tags}
+              onClose={() => setShowHistory(false)}
+              onSaved={onSaved}
+            />
+          </td>
+        </tr>
+      )}
       {scope && (
         <tr className="dialog-row">
           <td colSpan={12}>

@@ -1,0 +1,278 @@
+import {
+  transactionFieldLabels,
+  type TransactionNotice,
+} from '../shared/transaction-notice';
+export type TransactionSnapshot = Record<string, unknown> & {
+  id: string;
+  account_id: string;
+  payee: string;
+  kind: string;
+  origin: string;
+  tag_ids: string[];
+  splits: {
+    id: string;
+    position: number;
+    amount_cents: number;
+    amount_brl_cents: number;
+    category_id: string | null;
+    note: string;
+    tag_ids: string[];
+  }[];
+  recurring_id: string | null;
+  cancellation: { reason: string; created_at: string } | null;
+};
+
+export type TransactionChange = {
+  transaction_id: string;
+  before: TransactionSnapshot | null;
+  after: TransactionSnapshot | null;
+};
+
+export type TransactionHistory = {
+  id: string;
+  source: string;
+  created_at: string;
+  changes: TransactionChange[];
+};
+
+export const finishActionSql =
+  'UPDATE transaction_actions SET complete=1 WHERE id=(SELECT action_id FROM transaction_action_context)';
+
+export const importActionStartSql = [
+  "INSERT INTO transaction_actions(id,source,created_at) VALUES(lower(hex(randomblob(16))),'importação',strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+  'INSERT INTO transaction_action_context SELECT 1,id FROM transaction_actions WHERE rowid=last_insert_rowid()',
+];
+
+export function historySource(path: string, method: string) {
+  if (method === 'GET' || method === 'HEAD') return null;
+  if (path.endsWith('/undo')) return 'desfazer';
+  if (path.endsWith('/redo')) return 'refazer';
+  if (path.endsWith('/installment-edit')) return 'edição de parcelas';
+  if (path.endsWith('/restore-field')) return 'histórico';
+  if (path === '/api/transactions/batch' || path === '/api/payees/merge')
+    return 'lote';
+  if (path.endsWith('/splits')) return 'divisão';
+  if (
+    /\/installment-plans\/|\/(installment-edit|cancel-future|move-statement)$/.test(
+      path,
+    )
+  )
+    return 'parcelas';
+  if (path.endsWith('/pay')) return 'pagamento de fatura';
+  if (/^\/api\/(accounts\/[^/]+\/(activate|reconcile)|statements\/)/.test(path))
+    return 'conferência';
+  if (/^\/api\/recurring(\/|$)/.test(path)) return 'recorrente';
+  if (path === '/api/transfers') return 'transferência';
+  if (path === '/api/transactions') return 'lançamento';
+  if (/^\/api\/transactions\/[^/]+$/.test(path)) return 'célula';
+  return null;
+}
+
+export function actionDatabase(
+  db: D1Database,
+  source: string,
+  onAction: (id: string, notice?: TransactionNotice) => void,
+  sessionId: string | null,
+  reversesId: string | null,
+  balance?: string,
+): D1Database {
+  return new Proxy(db, {
+    get(target, property) {
+      if (property === 'batch')
+        return async (writes: D1PreparedStatement[]) => {
+          const id = crypto.randomUUID();
+          const notice = balance ? noticeQueries(target, id, balance) : [];
+          const tail = 2 + notice.length;
+          const results = await target.batch([
+            target
+              .prepare(
+                'INSERT INTO transaction_actions(id,source,created_at,session_id,reverses_id) VALUES(?,?,?,?,?)',
+              )
+              .bind(
+                id,
+                source,
+                new Date().toISOString(),
+                sessionId,
+                reversesId,
+              ),
+            target
+              .prepare('INSERT INTO transaction_action_context VALUES(1,?)')
+              .bind(id),
+            ...writes,
+            target.prepare(finishActionSql),
+            target
+              .prepare('SELECT id FROM transaction_actions WHERE id=?')
+              .bind(id),
+            ...notice,
+          ]);
+          if (results.at(1 - tail)?.results.length) {
+            const changes = results.at(-2)?.results as StoredChange[];
+            onAction(
+              id,
+              balance
+                ? {
+                    id,
+                    message: describeAction(source, changes.map(decodeChange)),
+                    accounts: results.at(-1)!
+                      .results as TransactionNotice['accounts'],
+                  }
+                : undefined,
+            );
+          }
+          return results.slice(2, -tail);
+        };
+      const value = Reflect.get(target, property);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+}
+
+export type StoredChange = {
+  transaction_id: string;
+  before_json: string | null;
+  after_json: string | null;
+};
+
+export function decodeChange(row: StoredChange): TransactionChange {
+  return {
+    transaction_id: row.transaction_id,
+    before: row.before_json && JSON.parse(row.before_json),
+    after: row.after_json && JSON.parse(row.after_json),
+  };
+}
+
+export async function transactionHistory(db: D1Database, id: string) {
+  const { results } = await db
+    .prepare(
+      `SELECT a.id,a.source,a.created_at,c.transaction_id,c.before_json,c.after_json
+     FROM transaction_changes c JOIN transaction_actions a ON a.id=c.action_id
+     WHERE c.action_id IN (SELECT action_id FROM transaction_changes WHERE transaction_id=?)
+       AND (a.source<>'importação' OR c.transaction_id=?)
+     ORDER BY a.rowid DESC,c.transaction_id`,
+    )
+    .bind(id, id)
+    .all<StoredChange & Omit<TransactionHistory, 'changes'>>();
+  const actions = new Map<string, TransactionHistory>();
+  for (const row of results) {
+    const action = actions.get(row.id) ?? {
+      id: row.id,
+      source: row.source,
+      created_at: row.created_at,
+      changes: [],
+    };
+    action.changes.push(decodeChange(row));
+    actions.set(row.id, action);
+  }
+  return [...actions.values()];
+}
+
+export const restorableFields = [
+  'account_id',
+  'date',
+  'amount_cents',
+  'payee',
+  'category_id',
+  'note',
+  'fx_rate',
+  'tag_ids',
+  'splits',
+  'recurring_id',
+  'statement_id',
+] as const;
+
+export function restoreSplits(
+  db: D1Database,
+  id: string,
+  splits: TransactionSnapshot['splits'],
+) {
+  const writes = [
+    db
+      .prepare('DELETE FROM transaction_splits WHERE transaction_id=?')
+      .bind(id),
+  ];
+  if (splits.length) {
+    const json = JSON.stringify(splits);
+    writes.push(
+      db
+        .prepare(
+          `INSERT INTO transaction_splits(id,transaction_id,position,amount_cents,amount_brl_cents,category_id,note)
+        SELECT value->>'id',?,value->>'position',value->>'amount_cents',value->>'amount_brl_cents',value->>'category_id',value->>'note'
+        FROM json_each(?)`,
+        )
+        .bind(id, json),
+      db
+        .prepare(
+          `INSERT INTO split_tags(split_id,tag_id)
+        SELECT p.value->>'id',tag.value FROM json_each(?) p CROSS JOIN json_each(p.value->'tag_ids') tag`,
+        )
+        .bind(json),
+    );
+  }
+  return writes;
+}
+
+function describeAction(source: string, changes: TransactionChange[]) {
+  if (source === 'desfazer') return 'Alteração desfeita.';
+  if (source === 'refazer') return 'Alteração refeita.';
+  const distinct = new Set(
+    changes.map(({ transaction_id, before, after }) => {
+      const pair = (after ?? before)?.transfer_pair_id;
+      return typeof pair === 'string'
+        ? [pair, transaction_id].sort()[0]
+        : transaction_id;
+    }),
+  );
+  const verb = changes.every(({ before }) => !before)
+    ? 'adicionada'
+    : changes.every(({ after }) => !after)
+      ? 'excluída'
+      : 'editada';
+  if (distinct.size > 1) return `${distinct.size} transações ${verb}s.`;
+  const { before, after } = changes[0];
+  const name = (after ?? before)?.effective_payee ?? (after ?? before)?.payee;
+  const fields =
+    before && after
+      ? Object.entries(transactionFieldLabels)
+          .filter(
+            ([key]) =>
+              key !== 'effective_payee' &&
+              key !== 'amount_brl_cents' &&
+              JSON.stringify(before[key]) !== JSON.stringify(after[key]),
+          )
+          .map(([, label]) => label.toLocaleLowerCase('pt-BR'))
+      : [];
+  if (
+    !fields.length &&
+    before?.effective_payee !== after?.effective_payee &&
+    before &&
+    after
+  )
+    fields.push('beneficiário');
+  return `Transação ${verb}: ${name}${fields.length ? ' (' + fields.join(', ') + ')' : ''}.`;
+}
+
+function noticeQueries(db: D1Database, id: string, balance: string) {
+  return [
+    db
+      .prepare(
+        'SELECT transaction_id,before_json,after_json FROM transaction_changes WHERE action_id=?',
+      )
+      .bind(id),
+    db
+      .prepare(
+        `WITH changed AS (
+       SELECT before_json AS snapshot FROM transaction_changes WHERE action_id=?
+       UNION ALL
+       SELECT after_json FROM transaction_changes WHERE action_id=?
+      ), accounts_changed AS (
+       SELECT json_extract(snapshot,'$.account_id') AS id FROM changed
+       UNION
+       SELECT s.account_id FROM changed JOIN statements s ON s.id=json_extract(snapshot,'$.statement_id')
+       WHERE json_extract(snapshot,'$.kind')='card_payment'
+      )
+      SELECT a.id,a.name,a.currency,${balance} AS balance_cents
+      FROM accounts a WHERE a.id IN (SELECT id FROM accounts_changed) ORDER BY a.name,a.id`,
+      )
+      .bind(id, id),
+  ];
+}

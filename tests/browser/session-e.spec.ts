@@ -64,8 +64,18 @@ test('Enter lança pela linha, prepara o próximo e edita campos na linha', asyn
   await row.getByLabel('Valor (BRL)').press('Tab');
   await expect(row).toContainText('25,99');
   await row.locator('[data-sheet-cell="6"]').click();
-  await row.getByRole('textbox',{name:'Nota de Lançamento fictício E',exact:true}).fill('Nota nova');
-  await row.getByRole('textbox',{name:'Nota de Lançamento fictício E',exact:true}).press('Tab');
+  await row
+    .getByRole('textbox', {
+      name: 'Nota de Lançamento fictício E',
+      exact: true,
+    })
+    .fill('Nota nova');
+  await row
+    .getByRole('textbox', {
+      name: 'Nota de Lançamento fictício E',
+      exact: true,
+    })
+    .press('Tab');
   await expect(row).toContainText('Nota nova');
   await row.locator('[data-sheet-cell="2"]').click();
   await row

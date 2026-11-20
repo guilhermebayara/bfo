@@ -56,7 +56,12 @@ export function NewTransferRow({
     })
       .then((rows) => {
         const pending = rows
-          .filter((s) => s.status === 'closed' && (s.remaining_cents ?? 1) > 0)
+          .filter(
+            (s) =>
+              s.status === 'closed' &&
+              !s.scheduled_payment_date &&
+              (s.remaining_cents ?? 1) > 0,
+          )
           .sort((a, b) => a.due_date.localeCompare(b.due_date));
         setStatements(pending);
         setStatement(pending[0]?.id ?? '');
@@ -99,7 +104,12 @@ export function NewTransferRow({
           `/cards/${dest}/statements`,
         );
         const pending = rows
-          .filter((s) => s.status === 'closed' && (s.remaining_cents ?? 1) > 0)
+          .filter(
+            (s) =>
+              s.status === 'closed' &&
+              !s.scheduled_payment_date &&
+              (s.remaining_cents ?? 1) > 0,
+          )
           .sort((a, b) => a.due_date.localeCompare(b.due_date));
         setStatements(pending);
         setStatement(

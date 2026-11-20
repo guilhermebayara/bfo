@@ -185,6 +185,7 @@ test('editar parcela oferece os dois alcances; menu move de fatura e cancela fut
     .getByRole('button', { name: 'Salvar recorrente' })
     .click();
   await expect(page.getByRole('dialog')).not.toBeVisible();
+  await row.locator('td:last-child > details.row-menu > summary').click();
   await row
     .getByRole('button', { name: 'Mover de fatura', exact: true })
     .click();
@@ -200,6 +201,7 @@ test('editar parcela oferece os dois alcances; menu move de fatura e cancela fut
   expect(tx.items.find((t: any) => t.id === purchase.id).statement_id).not.toBe(
     plan.installments[0].statement_id,
   );
+  await row.locator('td:last-child > details.row-menu > summary').click();
   await row.getByRole('button', { name: 'Cancelar parcelas futuras' }).click();
   await page
     .getByLabel('Motivo do cancelamento')
@@ -238,6 +240,7 @@ test('fechamento antecipado pela tabela pede conferência, reabre com motivo e e
     .getByRole('button', { name: 'Fechar fatura', exact: true })
     .click();
   await expect(page.getByRole('dialog')).not.toBeVisible();
+  await row.locator('td:last-child > details.row-menu > summary').click();
   await row
     .getByRole('button', { name: 'Reabrir fatura', exact: true })
     .click();

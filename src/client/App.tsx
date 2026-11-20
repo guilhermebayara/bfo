@@ -1,8 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { today } from '../shared/dates';
 import type { Account, Category, Recurring } from '../shared/types';
 import { Button, Notice, State } from './components';
+import { TransactionNotice } from './components/TransactionNotice';
 import { Foundations } from './screens/Foundations';
 import { api } from './api';
+import { useTransactionSession } from './transaction-session';
 import { Transactions } from './screens/Transactions';
 import { RecurringScreen, SubscriptionTypes } from './screens/Recurring';
 import { Cards } from './screens/Cards';
@@ -80,16 +83,28 @@ export function App() {
     void load();
     const onPop = () => setPath(location.pathname);
     addEventListener('popstate', onPop);
+    let lastDay = today();
+    const refreshDay = () => {
+      const day = today();
+      if (day === lastDay) return false;
+      lastDay = day;
+      void load();
+      return true;
+    };
     const timer = setInterval(() => {
+      if (refreshDay()) return;
       api<Recurring[]>('/subscriptions')
         .then((rows) => setRenewals(rows.filter((r) => r.renewal_soon)))
         .catch(() => {});
     }, 60_000);
+    addEventListener('focus', refreshDay);
     return () => {
       removeEventListener('popstate', onPop);
+      removeEventListener('focus', refreshDay);
       clearInterval(timer);
     };
   }, []);
+  const transactionSession = useTransactionSession(load);
   function go(to: string, replace = false) {
     if (replace) history.replaceState({}, '', to);
     else history.pushState({}, '', to);
@@ -171,6 +186,11 @@ export function App() {
             </a>
           </Notice>
         )}
+        {transactionSession.error && (
+          <Notice tone="error" className="alert-space" role="alert">
+            {transactionSession.error}
+          </Notice>
+        )}
         <main id="main" ref={main} tabIndex={-1}>
           {path === '/fundacoes' ? (
             <Foundations />
@@ -198,11 +218,12 @@ export function App() {
           ) : path === '/proximos' ? (
             <Upcoming revision={revision} />
           ) : path === '/cartao' ? (
-            <Cards accounts={accounts} onSaved={load} />
+            <Cards accounts={accounts} onSaved={load} revision={revision} />
           ) : path.startsWith('/parceladas/') ? (
             <InstallmentPurchase
               key={path}
               id={path.slice('/parceladas/'.length)}
+              appRevision={revision}
               onSaved={load}
               accounts={accounts}
             />
@@ -227,6 +248,22 @@ export function App() {
             />
           )}
         </main>
+        {transactionSession.notice && (
+          <TransactionNotice
+            key={transactionSession.notice.id}
+            notice={transactionSession.notice}
+            busy={transactionSession.busy}
+            onUndo={
+              transactionSession.latest === transactionSession.notice.id
+                ? () =>
+                    void transactionSession.reverse(
+                      'undo',
+                      transactionSession.notice?.id,
+                    )
+                : undefined
+            }
+          />
+        )}
       </div>
     </div>
   );

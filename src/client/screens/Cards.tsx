@@ -455,12 +455,28 @@ function HistoryChanges({
   );
 }
 
+function StatementStatus({ statement }: { statement: Statement }) {
+  return (
+    <Badge
+      state={statement.status}
+      label={
+        statement.scheduled_payment_date
+          ? 'Pagamento agendado para ' +
+            humanDate(statement.scheduled_payment_date).slice(0, 5)
+          : undefined
+      }
+    />
+  );
+}
+
 export function Cards({
   accounts,
   onSaved,
+  revision,
 }: {
   accounts: Account[];
   onSaved: () => Promise<void>;
+  revision: number;
 }) {
   const cards = accounts.filter((a) => a.kind === 'credit_card');
   const [cardId, setCardId] = useState(
@@ -473,7 +489,6 @@ export function Cards({
   const [loadingStatements, setLoadingStatements] = useState(true);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [error, setError] = useState('');
-  const [revision, setRevision] = useState(0);
   const [mode, setMode] = useState<StatementMode | null>(null);
   const selectedStatementHeading = useRef<HTMLHeadingElement>(null);
   const focusSelectedStatement = useRef(false);
@@ -599,7 +614,7 @@ export function Cards({
               </td>
               <td>{humanDate(s.due_date)}</td>
               <td>
-                <Badge state={s.status} />
+                <StatementStatus statement={s} />
               </td>
               <td className="numeric">{money(s.total_cents)}</td>
               <td className="numeric">
@@ -663,12 +678,14 @@ export function Cards({
                   </Button>
                 </>
               )}
-              {statement.status === 'closed' && (
-                <Button onClick={() => setMode('reopen')}>
-                  Reabrir fatura
-                </Button>
-              )}
               {statement.status === 'closed' &&
+                !statement.scheduled_payment_date && (
+                  <Button onClick={() => setMode('reopen')}>
+                    Reabrir fatura
+                  </Button>
+                )}
+              {statement.status === 'closed' &&
+                !statement.scheduled_payment_date &&
                 (statement.remaining_cents ?? 1) > 0 &&
                 (statement.bank_amount_cents ?? statement.total_cents) >= 0 && (
                   <Button variant="primary" onClick={() => setMode('pay')}>
@@ -699,7 +716,7 @@ export function Cards({
               Fatura com vencimento em {humanDate(statement.due_date)}
             </h2>
             <div className="statement-total">
-              <Badge state={statement.status} />
+              <StatementStatus statement={statement} />
               <strong className="amount-total">
                 {money(statement.total_cents)}
               </strong>
@@ -928,7 +945,6 @@ export function Cards({
                     }),
                   });
                   await onSaved();
-                  setRevision((v) => v + 1);
                   setLimitMessage('Limite salvo.');
                 } catch (e) {
                   setLimitMessage((e as Error).message);
@@ -978,10 +994,7 @@ export function Cards({
           card={card}
           accounts={accounts}
           onClose={() => setMode(null)}
-          onSaved={async () => {
-            await onSaved();
-            setRevision((v) => v + 1);
-          }}
+          onSaved={onSaved}
         />
       )}
     </>

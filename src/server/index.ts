@@ -1,4 +1,15 @@
 import { Hono } from 'hono';
+import { applyScheduledPayments } from './scheduled-payments';
+import type { TransactionNotice } from '../shared/transaction-notice';
+import { reverseTransactionAction, UndoConflict } from './transaction-undo';
+import {
+  actionDatabase,
+  historySource,
+  restorableFields,
+  restoreSplits,
+  transactionHistory,
+  type TransactionSnapshot,
+} from './transaction-history';
 import { convertBetween } from '../shared/money';
 import { splitAmounts } from '../shared/splits';
 import {
@@ -23,7 +34,11 @@ type Bindings = {
 } & BackupBindings;
 const app = new Hono<{
   Bindings: Bindings;
-  Variables: { DB: D1Database; today: string };
+  Variables: {
+    DB: D1Database;
+    today: string;
+    transactionSession: string | null;
+  };
 }>();
 class InputError extends Error {
   constructor(
@@ -61,6 +76,8 @@ function keys(body: Record<string, unknown>, allowed: string[]) {
     fail('Campo não permitido para este registro.');
 }
 app.onError((error, c) => {
+  if (error instanceof UndoConflict)
+    return c.json({ error: error.message }, 409);
   if (error instanceof InputError)
     return c.json({ error: error.message }, error.status);
   if (error instanceof SyntaxError)
@@ -134,8 +151,52 @@ app.use('/api/*', async (c, next) => {
       ? c.env.DB_HOMOLOGACAO
       : c.env.DB;
   if (!db) throw new Error('Binding D1 ausente para este endereço.');
-  c.set('DB', db);
+  if (
+    /^\/api\/(accounts|cards|transactions|statements|upcoming|transaction-actions|installment-plans)(\/|$)/.test(
+      url.pathname,
+    )
+  )
+    await applyScheduledPayments(db, c.var.today);
+  const source = historySource(url.pathname, c.req.method);
+  const session = c.req.header('X-BFO-Sessao') ?? '';
+  const sessionId = /^[a-f0-9-]{36}$/i.test(session) ? session : null;
+  c.set('transactionSession', sessionId);
+  const reversesId =
+    /^\/api\/transaction-actions\/([^/]+)\/(undo|redo)$/.exec(
+      url.pathname,
+    )?.[1] ?? null;
+  let transactionNotice: TransactionNotice | undefined;
+  c.set(
+    'DB',
+    source
+      ? actionDatabase(
+          db,
+          source,
+          (id, notice) => {
+            c.header('X-BFO-Acao', id);
+            transactionNotice = notice;
+          },
+          sessionId,
+          reversesId,
+          c.req.header('X-BFO-Avisos') === '1'
+            ? balanceSql(c.var.today)
+            : undefined,
+        )
+      : db,
+  );
   await next();
+  if (transactionNotice && c.res.ok) {
+    const body = await c.res.json<Record<string, unknown>>();
+    const headers = new Headers(c.res.headers);
+    headers.delete('Content-Length');
+    c.res = new Response(
+      JSON.stringify({ ...body, transaction_notice: transactionNotice }),
+      {
+        status: c.res.status,
+        headers,
+      },
+    );
+  }
 });
 app.get('/api/health', async (c) => {
   await c.var.DB.prepare('SELECT 1').first();
@@ -239,7 +300,7 @@ app.get('/api/transactions', async (c) => {
     .bind(...params)
     .first<{ count: number }>();
   const { results } = await c.var.DB.prepare(
-    `SELECT t.*, COALESCE((SELECT a.name FROM transactions pair JOIN accounts a ON a.id=pair.account_id WHERE pair.id=t.transfer_pair_id),(SELECT a.name FROM statements s JOIN accounts a ON a.id=s.account_id WHERE s.id=t.statement_id AND t.kind='card_payment')) AS destination_name, COALESCE((SELECT pair.account_id FROM transactions pair WHERE pair.id=t.transfer_pair_id),(SELECT s.account_id FROM statements s WHERE s.id=t.statement_id AND t.kind='card_payment')) AS destination_account_id, COALESCE((SELECT pair.amount_cents FROM transactions pair WHERE pair.id=t.transfer_pair_id),-t.card_amount_cents) AS destination_amount_cents, COALESCE((SELECT pair.currency FROM transactions pair WHERE pair.id=t.transfer_pair_id),(SELECT a.currency FROM statements s JOIN accounts a ON a.id=s.account_id WHERE s.id=t.statement_id AND t.kind='card_payment')) AS destination_currency, (SELECT status FROM statements WHERE id=t.statement_id OR (t.statement_id IS NULL AND t.kind='regular' AND t.origin<>'adjustment' AND account_id=t.account_id AND t.date BETWEEN period_start AND closing_date) LIMIT 1) AS statement_status, (SELECT COUNT(*) FROM transaction_splits WHERE transaction_id=t.id) AS split_count, ip.count AS installment_count, CASE WHEN t.origin='imported' THEN t.payee ELSE COALESCE(canonical.name,p.name,t.payee) END AS payee, COALESCE(p.merged_into_id,p.id) AS payee_id, a.name AS account_name, ag.name AS allocation_name, (SELECT json_group_array(json_object('id',tags.id,'name',tags.name,'color',tags.color)) FROM transaction_tags tt JOIN tags ON tags.id=tt.tag_id WHERE tt.transaction_id=t.id) AS tags_json FROM transactions t JOIN accounts a ON a.id=t.account_id LEFT JOIN installment_plans ip ON ip.id=t.installment_plan_id LEFT JOIN payees p ON p.id=t.payee_id LEFT JOIN payees canonical ON canonical.id=p.merged_into_id LEFT JOIN categories cat ON cat.id=t.category_id LEFT JOIN category_groups cg ON cg.id=cat.category_group_id LEFT JOIN allocation_groups ag ON ag.id=cg.allocation_group_id ${where} ORDER BY t.date DESC,t.id LIMIT 50 OFFSET ?`,
+    `SELECT t.*, COALESCE((SELECT a.name FROM transactions pair JOIN accounts a ON a.id=pair.account_id WHERE pair.id=t.transfer_pair_id),(SELECT a.name FROM statements s JOIN accounts a ON a.id=s.account_id WHERE s.id=t.statement_id AND t.kind='card_payment')) AS destination_name, COALESCE((SELECT pair.account_id FROM transactions pair WHERE pair.id=t.transfer_pair_id),(SELECT s.account_id FROM statements s WHERE s.id=t.statement_id AND t.kind='card_payment')) AS destination_account_id, COALESCE((SELECT pair.amount_cents FROM transactions pair WHERE pair.id=t.transfer_pair_id),-t.card_amount_cents) AS destination_amount_cents, COALESCE((SELECT pair.currency FROM transactions pair WHERE pair.id=t.transfer_pair_id),(SELECT a.currency FROM statements s JOIN accounts a ON a.id=s.account_id WHERE s.id=t.statement_id AND t.kind='card_payment')) AS destination_currency, (SELECT status FROM statements WHERE id=t.statement_id OR (t.statement_id IS NULL AND t.kind='regular' AND t.origin<>'adjustment' AND account_id=t.account_id AND t.date BETWEEN period_start AND closing_date) LIMIT 1) AS statement_status, (SELECT p.payment_date FROM scheduled_statement_payments p JOIN statements s ON s.id=p.statement_id WHERE p.applied=0 AND (s.id=t.statement_id OR (t.statement_id IS NULL AND t.kind='regular' AND t.origin<>'adjustment' AND s.account_id=t.account_id AND t.date BETWEEN s.period_start AND s.closing_date)) LIMIT 1) AS statement_scheduled_payment_date, (SELECT COUNT(*) FROM transaction_splits WHERE transaction_id=t.id) AS split_count, ip.count AS installment_count, CASE WHEN t.origin='imported' THEN t.payee ELSE COALESCE(canonical.name,p.name,t.payee) END AS payee, COALESCE(p.merged_into_id,p.id) AS payee_id, a.name AS account_name, ag.name AS allocation_name, (SELECT json_group_array(json_object('id',tags.id,'name',tags.name,'color',tags.color)) FROM transaction_tags tt JOIN tags ON tags.id=tt.tag_id WHERE tt.transaction_id=t.id) AS tags_json FROM transactions t JOIN accounts a ON a.id=t.account_id LEFT JOIN installment_plans ip ON ip.id=t.installment_plan_id LEFT JOIN payees p ON p.id=t.payee_id LEFT JOIN payees canonical ON canonical.id=p.merged_into_id LEFT JOIN categories cat ON cat.id=t.category_id LEFT JOIN category_groups cg ON cg.id=cat.category_group_id LEFT JOIN allocation_groups ag ON ag.id=cg.allocation_group_id ${where} ORDER BY t.date DESC,t.id LIMIT 50 OFFSET ?`,
   )
     .bind(...params, (page - 1) * 50)
     .all();
@@ -973,6 +1034,164 @@ app.patch('/api/transactions/:id', async (c) => {
   return c.json({ ok: true });
 });
 
+for (const direction of ['undo', 'redo'] as const) {
+  app.post(`/api/transaction-actions/:id/${direction}`, async (c) => {
+    try {
+      await reverseTransactionAction(
+        c.var.DB,
+        c.req.param('id'),
+        c.var.transactionSession,
+        direction,
+      );
+    } catch (error) {
+      if (
+        String((error as Error).cause ?? error).includes(
+          'Reabra a fatura que recebeu o saldo anterior.',
+        )
+      )
+        return fail('Reabra a fatura que recebeu o saldo anterior.', 409);
+      if (
+        /(constraint failed|foreign key constraint)/i.test(
+          String((error as Error).cause ?? error),
+        )
+      )
+        return fail(
+          'A transação, a conta ou a fatura mudou. Atualize antes de tentar novamente.',
+          409,
+        );
+      throw error;
+    }
+    return c.json({ ok: true });
+  });
+}
+
+app.get('/api/transactions/:id/history', async (c) =>
+  c.json(await transactionHistory(c.var.DB, c.req.param('id'))),
+);
+app.post('/api/transactions/:id/restore-field', async (c) => {
+  const db = c.var.DB;
+  const id = c.req.param('id');
+  const body = object(await c.req.json());
+  keys(body, ['action_id', 'field']);
+  const field = restorableFields.find((key) => key === body.field);
+  if (!field || typeof body.action_id !== 'string')
+    return fail('Campo do histórico inválido.');
+  const change = await db
+    .prepare(
+      'SELECT before_json FROM transaction_changes WHERE action_id=? AND transaction_id=?',
+    )
+    .bind(body.action_id, id)
+    .first<{ before_json: string | null }>();
+  if (!change?.before_json) return fail('Valor anterior indisponível.', 404);
+  const before = JSON.parse(change.before_json) as TransactionSnapshot;
+  const current = await db
+    .prepare('SELECT * FROM active_transactions WHERE id=?')
+    .bind(id)
+    .first<Transaction>();
+  if (!current) return fail('Transação indisponível.', 409);
+  if (field === 'splits') {
+    if (
+      before.splits.length &&
+      (before.amount_cents !== current.amount_cents ||
+        before.amount_brl_cents !== current.amount_brl_cents)
+    )
+      return fail(
+        'O valor mudou. Volte o valor anterior antes de recuperar a divisão.',
+        409,
+      );
+    await db.batch([
+      db
+        .prepare(
+          `INSERT INTO operation_guards VALUES('historico-divisao', CASE WHEN EXISTS (
+           SELECT 1 FROM active_transactions WHERE id=? AND amount_cents=? AND amount_brl_cents=?
+         ) THEN 1 ELSE 0 END)`,
+        )
+        .bind(id, current.amount_cents, current.amount_brl_cents),
+      ...restoreSplits(db, id, before.splits),
+      clearGuards(db),
+    ]);
+  } else if (field === 'statement_id') {
+    if (
+      current.origin !== 'manual' ||
+      !['regular', 'installment'].includes(current.kind) ||
+      current.advance_id
+    )
+      return fail('A fatura deste lançamento é protegida.', 409);
+    const source = current.statement_id
+      ? await readStatement(db, current.statement_id)
+      : null;
+    const target =
+      typeof before.statement_id === 'string'
+        ? await readStatement(db, before.statement_id)
+        : await db
+            .prepare(
+              'SELECT * FROM statement_totals WHERE account_id=? AND ? BETWEEN period_start AND closing_date',
+            )
+            .bind(current.account_id, current.date)
+            .first<Statement>();
+    if (!target || target.account_id !== current.account_id)
+      return fail('A fatura anterior não pertence à conta atual.', 409);
+    if ((source && source.status !== 'open') || target.status !== 'open')
+      return fail('Reabra as faturas antes de voltar à fatura anterior.', 409);
+    await db.batch([
+      ...(source ? [guardStatement(db, source)] : []),
+      guardStatement(db, target),
+      guardTransaction(db, current),
+      db
+        .prepare('UPDATE transactions SET statement_id=? WHERE id=?')
+        .bind(before.statement_id, id),
+      clearGuards(db),
+    ]);
+  } else if (field === 'recurring_id') {
+    if (before.recurring_id) {
+      const recurring = await db
+        .prepare('SELECT 1 FROM recurring WHERE id=? AND account_id=?')
+        .bind(before.recurring_id, current.account_id)
+        .first();
+      if (!recurring)
+        return fail(
+          'O recorrente anterior não está disponível nesta conta.',
+          409,
+        );
+    }
+    await db.batch([
+      db
+        .prepare('DELETE FROM recurring_sources WHERE transaction_id=?')
+        .bind(id),
+      ...(before.recurring_id
+        ? [
+            db
+              .prepare('INSERT INTO recurring_sources VALUES(?,?)')
+              .bind(before.recurring_id, id),
+          ]
+        : []),
+    ]);
+  } else if (
+    current.kind === 'installment' &&
+    current.installment_number &&
+    [
+      'date',
+      'amount_cents',
+      'payee',
+      'category_id',
+      'note',
+      'tag_ids',
+    ].includes(field)
+  ) {
+    await editInstallments(
+      db,
+      id,
+      { scope: 'one', [field]: before[field] },
+      c.var.today,
+    );
+  } else {
+    await db.batch(
+      await prepareTransactionPatch(db, id, { [field]: before[field] }),
+    );
+  }
+  return c.json({ ok: true });
+});
+
 async function activation(
   db: D1Database,
   id: string,
@@ -1042,10 +1261,10 @@ app.post('/api/accounts/:id/activate', async (c) => {
       a.archive,
     ),
     c.var.DB.prepare(
-      `UPDATE accounts SET cutoff_date=?,opening_balance_cents=? WHERE id=? AND cutoff_date IS NULL AND EXISTS (SELECT 1 FROM transactions WHERE id=?)`,
+      `UPDATE accounts SET cutoff_date=?,opening_balance_cents=? WHERE id=? AND cutoff_date IS NULL AND EXISTS (SELECT 1 FROM transactions WHERE id=?) RETURNING id`,
     ).bind(a.cutoff, a.opening, accountId, id),
   ]);
-  if (result[1].meta.changes !== 1)
+  if (result[1].results.length !== 1)
     fail('A conta ou o saldo do arquivo mudou. Confira novamente.', 409);
   return c.json({ ok: true, adjustment_id: id }, 201);
 });
@@ -1799,18 +2018,18 @@ app.put('/api/transactions/:id/splits', async (c) => {
 });
 app.delete('/api/transactions/:id/splits', async (c) => {
   await exists(c.var.DB, 'transactions', c.req.param('id'));
-  await c.var.DB.prepare(
-    'DELETE FROM transaction_splits WHERE transaction_id=?',
-  )
-    .bind(c.req.param('id'))
-    .run();
+  await c.var.DB.batch([
+    c.var.DB.prepare(
+      'DELETE FROM transaction_splits WHERE transaction_id=?',
+    ).bind(c.req.param('id')),
+  ]);
   return c.json({ ok: true });
 });
 
 function guardStatement(db: D1Database, st: Statement) {
   return db
     .prepare(
-      `INSERT INTO operation_guards(id,valid) SELECT ?,CASE WHEN EXISTS(SELECT 1 FROM statement_totals WHERE id=? AND status=? AND total_cents=? AND bank_amount_cents IS ? AND closing_date=? AND paid_cents=? AND carried_out_cents=?) THEN 1 ELSE 0 END`,
+      `INSERT INTO operation_guards(id,valid) SELECT ?,CASE WHEN EXISTS(SELECT 1 FROM statement_totals WHERE id=? AND status=? AND total_cents=? AND bank_amount_cents IS ? AND closing_date=? AND paid_cents=? AND carried_out_cents=? AND scheduled_payment_date IS ?) THEN 1 ELSE 0 END`,
     )
     .bind(
       crypto.randomUUID(),
@@ -1821,6 +2040,7 @@ function guardStatement(db: D1Database, st: Statement) {
       st.closing_date,
       st.paid_cents ?? 0,
       st.carried_out_cents ?? 0,
+      st.scheduled_payment_date ?? null,
     );
 }
 const clearGuards = (db: D1Database) =>
@@ -1882,9 +2102,12 @@ function statementEvent(
     )
     .bind(crypto.randomUUID(), id, action, reason, day, before, id);
 }
-app.post('/api/transactions/:id/installment-edit', async (c) => {
-  const db = c.var.DB,
-    b = object(await c.req.json());
+async function editInstallments(
+  db: D1Database,
+  id: string,
+  b: Record<string, unknown>,
+  dayToday: string,
+) {
   keys(b, [
     'scope',
     'amount_cents',
@@ -1898,7 +2121,7 @@ app.post('/api/transactions/:id/installment-edit', async (c) => {
     fail('Escolha só esta ou esta e as futuras.');
   const t = await db
     .prepare('SELECT * FROM active_transactions WHERE id=?')
-    .bind(c.req.param('id'))
+    .bind(id)
     .first<Transaction>();
   if (
     !t ||
@@ -2005,13 +2228,22 @@ app.post('/api/transactions/:id/installment-edit', async (c) => {
         'edit',
         'Edição de parcela: ' +
           (b.scope === 'one' ? 'só esta' : 'esta e as futuras'),
-        c.var.today,
+        dayToday,
         snapshots[i],
       ),
     ),
   );
   await db.batch([...writes, clearGuards(db)]);
-  return c.json({ updated: rows.length });
+  return rows.length;
+}
+app.post('/api/transactions/:id/installment-edit', async (c) => {
+  const updated = await editInstallments(
+    c.var.DB,
+    c.req.param('id'),
+    object(await c.req.json()),
+    c.var.today,
+  );
+  return c.json({ updated });
 });
 app.post('/api/transactions/:id/cancel-future', async (c) => {
   const db = c.var.DB,
@@ -2152,6 +2384,8 @@ app.post('/api/statements/:id/reopen', async (c) => {
   if (day > c.var.today) fail('A data está no futuro.');
   const st = await readStatement(db, c.req.param('id'));
   if (st.status !== 'closed') fail('Selecione uma fatura fechada.', 409);
+  if (st.scheduled_payment_date)
+    fail('Desfaça o pagamento agendado antes de reabrir a fatura.', 409);
   const carried = await db
     .prepare(
       'SELECT s.* FROM statement_carryovers c JOIN statement_totals s ON s.id=c.destination_statement_id WHERE c.source_statement_id=?',
@@ -2383,6 +2617,19 @@ app.post('/api/statements/:id/check', async (c) => {
   if (b.action === undefined) return c.json(preview);
   if (b.action !== 'search' && b.action !== 'close')
     return fail('Ação inválida.');
+  if (
+    b.action === 'close' &&
+    (await db
+      .prepare(
+        'SELECT 1 FROM scheduled_statement_payments WHERE carry_statement_id=? AND applied=0',
+      )
+      .bind(statement.id)
+      .first())
+  )
+    return fail(
+      'Aguarde a baixa do pagamento agendado que transfere saldo para esta fatura.',
+      409,
+    );
   if (b.action === 'search' && !difference)
     return fail('A fatura está conciliada.');
   if (cents(b.expected_total_cents) !== total)
@@ -2403,9 +2650,10 @@ app.post('/api/statements/:id/check', async (c) => {
     db
       .prepare(
         `INSERT INTO statement_checks(id,statement_id,app_amount_cents,bank_amount_cents,action)
-     SELECT ?,id,total_cents,?,? FROM statement_totals WHERE id=? AND status='open' AND total_cents=?`,
+     SELECT ?,id,total_cents,?,? FROM statement_totals WHERE id=? AND status='open' AND total_cents=?
+       AND (?<>'close' OR NOT EXISTS(SELECT 1 FROM scheduled_statement_payments WHERE carry_statement_id=? AND applied=0)) RETURNING id`,
       )
-      .bind(id, bank, b.action, statement.id, total),
+      .bind(id, bank, b.action, statement.id, total, b.action, statement.id),
   ];
   if (b.action === 'close') {
     if (difference) {
@@ -2469,17 +2717,12 @@ app.post('/api/statements/:id/check', async (c) => {
     );
   }
   const [check] = await db.batch([...writes, clearGuards(db)]);
-  if (check.meta.changes !== 1)
+  if (check.results.length !== 1)
     return fail('Fatura alterada. Confira novamente.', 409);
   return c.json(preview, 201);
 });
 
-async function carryoverWrites(
-  db: D1Database,
-  statement: Statement,
-  amount: number,
-  paymentId?: string,
-) {
+async function carryoverTarget(db: D1Database, statement: Statement) {
   const account = (await db
     .prepare('SELECT * FROM accounts WHERE id=?')
     .bind(statement.account_id)
@@ -2502,14 +2745,36 @@ async function carryoverWrites(
       409,
     );
   const id = target?.id ?? `cycle:${account.id}:${cycle.closingDate}`;
+  return {
+    id,
+    writes: [
+      ...(target ? [guardStatement(db, target)] : []),
+      insertCycle(
+        db,
+        account.id,
+        { ...cycle, scheduledClosingDate: cycle.closingDate },
+        id,
+      ),
+      db
+        .prepare(
+          `INSERT INTO operation_guards(id,valid) VALUES(?, CASE WHEN EXISTS (
+           SELECT 1 FROM statements WHERE id=? AND status='open'
+         ) THEN 1 ELSE 0 END)`,
+        )
+        .bind('saldo-anterior:' + id, id),
+    ],
+  };
+}
+
+async function carryoverWrites(
+  db: D1Database,
+  statement: Statement,
+  amount: number,
+  paymentId?: string,
+) {
+  const { id, writes } = await carryoverTarget(db, statement);
   return [
-    ...(target ? [guardStatement(db, target)] : []),
-    insertCycle(
-      db,
-      account.id,
-      { ...cycle, scheduledClosingDate: cycle.closingDate },
-      id,
-    ),
+    ...writes,
     db
       .prepare(
         `INSERT INTO statement_carryovers(source_statement_id,destination_statement_id,amount_cents) SELECT ?,?,? WHERE ${paymentId ? 'EXISTS(SELECT 1 FROM transactions WHERE id=?)' : "EXISTS(SELECT 1 FROM statements WHERE id=? AND status='closed')"}`,
@@ -2522,6 +2787,8 @@ app.post('/api/statements/:id/pay', async (c) => {
   const statement = await readStatement(db, c.req.param('id'));
   if (statement.status !== 'closed')
     return fail('Só é possível pagar uma fatura fechada.', 409);
+  if (statement.scheduled_payment_date)
+    return fail('Esta fatura já tem um pagamento agendado.', 409);
   const b = object(await c.req.json());
   keys(b, [
     'account_id',
@@ -2544,12 +2811,7 @@ app.post('/api/statements/:id/pay', async (c) => {
   if (!statement.cutoff_date || day <= statement.cutoff_date)
     return fail('O pagamento deve ser posterior ao corte do cartão.');
   const total = cents(statement.bank_amount_cents ?? statement.total_cents);
-  const paid = (await db
-    .prepare(
-      "SELECT COALESCE(SUM(card_amount_cents),0) AS amount FROM transactions WHERE statement_id=? AND kind='card_payment'",
-    )
-    .bind(statement.id)
-    .first<{ amount: number }>())!.amount;
+  const paid = statement.paid_cents ?? 0;
   const remaining = total - paid - (statement.carried_out_cents ?? 0);
   if (remaining <= 0 && (statement.carried_out_cents ?? 0) > 0)
     fail('O restante foi transportado para a fatura seguinte.', 409);
@@ -2585,10 +2847,40 @@ app.post('/api/statements/:id/pay', async (c) => {
   }).format(new Date(statement.due_date));
   const name = `Fatura ${statement.name} ${month}`;
   const id = crypto.randomUUID();
-  const carry =
-    amount < remaining
-      ? await carryoverWrites(db, statement, remaining - amount, id)
-      : [];
+  const scheduled = day > c.var.today;
+  const remainder = remaining - amount;
+  const target =
+    scheduled && remainder ? await carryoverTarget(db, statement) : null;
+  const settlement = scheduled
+    ? [
+        ...(target?.writes ?? []),
+        db
+          .prepare(
+            `INSERT INTO scheduled_statement_payments(payment_id,statement_id,payment_date,total_cents,bank_amount_before,carry_statement_id,carry_cents)
+       SELECT ?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM transactions WHERE id=?)`,
+          )
+          .bind(
+            id,
+            statement.id,
+            day,
+            total,
+            statement.bank_amount_cents,
+            target?.id ?? null,
+            remainder,
+            id,
+          ),
+      ]
+    : [
+        db
+          .prepare(
+            `UPDATE statements SET status=CASE WHEN ? >= ? THEN 'paid' ELSE 'closed' END,bank_amount_cents=?
+       WHERE id=? AND EXISTS (SELECT 1 FROM transactions WHERE id=?)`,
+          )
+          .bind(paid + amount, total, total, statement.id, id),
+        ...(remainder
+          ? await carryoverWrites(db, statement, remainder, id)
+          : []),
+      ];
   const before = await statementSnapshot(db, statement.id);
   const [, payment] = await db.batch([
     guardStatement(db, statement),
@@ -2599,7 +2891,8 @@ app.post('/api/statements/:id/pay', async (c) => {
        FROM statements s JOIN accounts a ON a.id=?
        WHERE s.id=? AND s.status='closed' AND a.closed_at IS NULL AND a.archived=0 AND a.cutoff_date<?
        AND NOT EXISTS(SELECT 1 FROM statement_carryovers WHERE source_statement_id=s.id)
-       AND COALESCE((SELECT SUM(card_amount_cents) FROM transactions WHERE statement_id=s.id AND kind='card_payment'),0)=?`,
+       AND NOT EXISTS(SELECT 1 FROM scheduled_statement_payments WHERE statement_id=s.id AND applied=0)
+       AND COALESCE((SELECT SUM(card_amount_cents) FROM transactions WHERE statement_id=s.id AND kind='card_payment'),0)=? RETURNING id`,
       )
       .bind(
         id,
@@ -2617,12 +2910,6 @@ app.post('/api/statements/:id/pay', async (c) => {
         day,
         paid,
       ),
-    db
-      .prepare(
-        `UPDATE statements SET status=CASE WHEN ? >= ? THEN 'paid' ELSE 'closed' END,bank_amount_cents=?
-       WHERE id=? AND EXISTS (SELECT 1 FROM transactions WHERE id=?)`,
-      )
-      .bind(paid + amount, total, total, statement.id, id),
     ...tags.map((tag) =>
       db
         .prepare(
@@ -2630,20 +2917,24 @@ app.post('/api/statements/:id/pay', async (c) => {
         )
         .bind(id, tag, id),
     ),
-    ...carry,
+    ...settlement,
     statementEvent(
       db,
       statement.id,
       'payment',
-      amount < remaining
-        ? 'Pagamento parcial com saldo anterior na fatura seguinte'
-        : 'Pagamento de fatura',
+      scheduled
+        ? remainder
+          ? 'Pagamento parcial agendado'
+          : 'Pagamento agendado'
+        : remainder
+          ? 'Pagamento parcial com saldo anterior na fatura seguinte'
+          : 'Pagamento de fatura',
       day,
       before,
     ),
     clearGuards(db),
   ]);
-  if (payment.meta.changes !== 1)
+  if (payment.results.length !== 1)
     return fail('Fatura ou conta alterada. Atualize a página.', 409);
   return c.json({ id }, 201);
 });
@@ -2835,7 +3126,7 @@ app.post('/api/accounts/:id/reconcile', async (c) => {
   const brl = converted(adjustment, q.rate);
   const results = await c.var.DB.batch([
     c.var.DB.prepare(
-      `INSERT INTO reconciliations(id,account_id,date,bank_balance_cents,app_balance_cents) SELECT ?,a.id,?,?,? FROM accounts a WHERE a.id=? AND a.closed_at IS NULL AND a.archived=0 AND a.cutoff_date IS NOT NULL AND ${balanceSql(c.var.today)}=?`,
+      `INSERT INTO reconciliations(id,account_id,date,bank_balance_cents,app_balance_cents) SELECT ?,a.id,?,?,? FROM accounts a WHERE a.id=? AND a.closed_at IS NULL AND a.archived=0 AND a.cutoff_date IS NOT NULL AND ${balanceSql(c.var.today)}=? RETURNING id`,
     ).bind(id, day, bank, a!.balance_cents, a!.id, a!.balance_cents),
     c.var.DB.prepare(
       "INSERT INTO transactions(id,account_id,date,amount_cents,currency,fx_rate,amount_brl_cents,fx_source,payee,note,origin,kind) SELECT ?,account_id,date,app_balance_cents-bank_balance_cents,?,?,?,?,'Conferência de saldo','Ajuste visível da conferência de saldo.','adjustment','regular' FROM reconciliations WHERE id=? AND app_balance_cents<>bank_balance_cents",
@@ -2847,7 +3138,7 @@ app.post('/api/accounts/:id/reconcile', async (c) => {
       'UPDATE accounts SET last_reconciled_at=? WHERE id=? AND EXISTS(SELECT 1 FROM reconciliations WHERE id=?)',
     ).bind(day, a!.id, id),
   ]);
-  if (results[0].meta.changes !== 1)
+  if (results[0].results.length !== 1)
     fail('Saldo alterado. Confira novamente.', 409);
   return c.json({ ok: true, id }, 201);
 });
@@ -3134,7 +3425,7 @@ app.get('/api/upcoming', async (c) => {
   const statements = (
     await db
       .prepare(
-        `SELECT s.*,COALESCE(bank_amount_cents,total_cents)-paid_cents-carried_out_cents AS remaining_cents FROM statement_totals s WHERE s.due_date BETWEEN ? AND ? AND s.status<>'paid'`,
+        `SELECT s.*,COALESCE(bank_amount_cents,total_cents)-paid_cents-carried_out_cents AS remaining_cents FROM statement_totals s WHERE s.due_date BETWEEN ? AND ? AND s.status<>'paid' AND s.scheduled_payment_date IS NULL`,
       )
       .bind(from, to)
       .all<Statement>()
@@ -3263,7 +3554,10 @@ app.get('/api/upcoming', async (c) => {
       destination_name: string | null;
     }>();
   for (const t of scheduled.results) {
-    if (shown.has(t.id) || (t.statement_id && shown.has(t.statement_id)))
+    if (
+      shown.has(t.id) ||
+      (t.kind !== 'card_payment' && t.statement_id && shown.has(t.statement_id))
+    )
       continue;
     items.push({
       id: t.id,
@@ -3276,7 +3570,9 @@ app.get('/api/upcoming', async (c) => {
       label:
         t.kind === 'transfer'
           ? `Transferência → ${t.destination_name ?? 'Destino'}`
-          : t.payee,
+          : t.kind === 'card_payment'
+            ? `Pagamento agendado: ${t.payee}`
+            : t.payee,
       date: t.date,
       amount_cents: t.amount_cents,
       currency: t.currency,
@@ -3289,7 +3585,7 @@ app.get('/api/upcoming', async (c) => {
     from,
     to,
     items: items
-      .filter((i) => i.amount_cents !== 0)
+      .filter((i) => i.amount_cents !== 0 || i.type === 'payment')
       .sort(
         (a, b) =>
           a.date.localeCompare(b.date) || a.label.localeCompare(b.label),

@@ -56,6 +56,7 @@ export interface Transaction {
   kind: string;
   statement_id: string | null;
   statement_status?: string | null;
+  statement_scheduled_payment_date?: string | null;
   installment_plan_id: string | null;
   retroactive: number;
   added_to_closed: number;
@@ -105,6 +106,7 @@ export interface Statement {
   difference_cents: number | null;
   is_current: number;
   scheduled_closing_date?: string;
+  scheduled_payment_date?: string | null;
   previous_balance_cents?: number;
   carried_out_cents?: number;
   remaining_cents?: number;
