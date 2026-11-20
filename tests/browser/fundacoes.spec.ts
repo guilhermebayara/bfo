@@ -88,7 +88,7 @@ test('catálogo de fundações mostra tokens, componentes e estados e funciona p
   ).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(details).toBeFocused();
+  await expect(trigger).toBeFocused();
 
   await page.getByRole('button', { name: 'Confirmar exemplo' }).click();
   await expect(page.getByText('Exemplo confirmado.')).toBeVisible();

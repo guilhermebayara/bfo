@@ -291,7 +291,12 @@ export function Modal({
     dialog.showModal();
     return () => {
       dialog.close();
-      previous?.focus();
+      // Se a ação veio de um menu que já fechou, o foco volta para o botão do menu.
+      const menu = previous?.closest?.(
+        'details.row-menu',
+      ) as HTMLDetailsElement | null;
+      if (menu && !menu.open) menu.querySelector('summary')?.focus();
+      else previous?.focus();
     };
   }, []);
   return createPortal(

@@ -48,14 +48,12 @@ test('abre o parcelamento original e paga uma fatura em uma linha', async ({
       .filter({ hasText: '20/10/2026' }),
   ).toContainText('Paga');
   await page.goto(`/transacoes?account=${id}`);
-  const payment = page
-    .getByRole('row')
-    .filter({
-      has: page.getByRole('checkbox', {
-        name: 'Selecionar Fatura Cartão Aurora outubro',
-        exact: true,
-      }),
-    });
+  const payment = page.getByRole('row').filter({
+    has: page.getByRole('checkbox', {
+      name: 'Selecionar Fatura Cartão Aurora outubro',
+      exact: true,
+    }),
+  });
   await expect(payment).toHaveCount(1);
   await expect(payment).toContainText('Sem categoria');
 });

@@ -118,6 +118,7 @@ test('divide por valor e percentual com soma fechada e desfaz na interface', asy
   expect(parts[0].note).toBe('Nota própria');
   expect(parts[1].tags[0].name).toBe('Planejado');
   await expect(row).toContainText('Dividida em 2 partes');
+  await row.locator('td:last-child > details.row-menu > summary').click();
   await row
     .getByRole('button', { name: 'Editar divisão', exact: true })
     .click();
@@ -137,6 +138,7 @@ test('divide por valor e percentual com soma fechada e desfaz na interface', asy
   expect(parts.map((p: { amount_cents: number }) => p.amount_cents)).toEqual([
     3333, 6668,
   ]);
+  await row.locator('td:last-child > details.row-menu > summary').click();
   await row
     .getByRole('button', { name: 'Editar divisão', exact: true })
     .click();
@@ -145,6 +147,7 @@ test('divide por valor e percentual com soma fechada e desfaz na interface', asy
     .getByRole('button', { name: 'Desfazer divisão' })
     .click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
+  await row.locator('td:last-child > details.row-menu > summary').click();
   await expect(
     row.getByRole('button', { name: 'Dividir transação', exact: true }),
   ).toBeVisible();
