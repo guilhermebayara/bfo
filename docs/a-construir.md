@@ -103,6 +103,7 @@ Ordem de construção. Cada sessão marca aqui o que entregou.
   - Consolidado das referências em [docs/referencia-visual-consolidado.md](referencia-visual-consolidado.md), sem decisão.
   - As duas direções desenham também a tela inicial, com os números da Sessão X.
   - Pesquisa com o dono (20/11/2026), para o arranjo da tela inicial: num mês apertado, o primeiro olhar foi para o cartão principal e os investimentos juntos, depois os outros cartões, depois o tamanho do déficit. Isso pesa contra deixar o patrimônio só numa superfície separada do dia a dia (ideia da fase 2, abaixo), sem decisão.
+  - Pergunta do dono para o conceito (20/11/2026), sem decisão: navegação lateral, como hoje, ou no topo. A escolha muda a organização das telas: a planilha de Transações e o mestre e detalhe em três colunas disputam largura; as fases 2 e 3 trazem mais itens de menu; a Mira usa pílula no topo, e os apps de finanças, barra lateral. As duas direções mostram a mesma tela nas duas navegações, para o dono escolher olhando.
   - Pendente: análise das nove telas do Mobbin pelo dono com o chat, depois de 23/11. A revisão visual começa depois disso.
 
 - [ ] Web app no Mac, depois do conceito visual (decisões, Produto): manifesto e ícone para Adicionar ao Dock no Safari, notificações por Web Push enviadas pelo Worker (chaves VAPID como segredo, digitadas pelo dono) com os itens de "o que pede atenção" da tela inicial, e selo no ícone. Respeitar o Access: a assinatura das notificações só acontece com o dono logado.
