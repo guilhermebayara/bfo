@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BFO · Conceito Visual Family Office Sob Medida</title>
+<style>
+  :root {
+    --bg: #0B0C0E;           /* 0 eu: Grafite arquitetônico */
+    --well: #08090B;         /* -1 eu: Poço debossed */
+    --surface: #121417;      /* 1 eu: Cartão principal */
+    --elevated: #171A1E;     /* 1.5 eu: Barra e cabeçalhos */
+    --navy-focal: radial-gradient(circle at 82% 24%, rgba(36, 70, 112, 0.34), transparent 58%),
+                  linear-gradient(155deg, #111D2C 0%, #0D141E 100%);
+    --border: rgba(255, 255, 255, 0.065);
+    --border-soft: rgba(255, 255, 255, 0.045);
+    --focus: #D9D4CA;
+
+    --ink: #EFECE6;          /* Marfim alabastro (nunca branco estourado) */
+    --ink-2: #989CA5;
+    --ink-3: #616670;
+    --link: #7CA4D6;         /* Marinho claro clicável (nunca colide com verde) */
+
+    --forest: #55AE87;       /* Verde floresta: positivo / folga */
+    --forest-bg: rgba(60, 148, 110, 0.13);
+    --forest-bd: rgba(85, 174, 135, 0.32);
+
+    --brass: #CCA052;        /* Ouro envelhecido / latão: alerta */
+    --brass-bg: rgba(201, 154, 73, 0.13);
+    --brass-bd: rgba(204, 160, 82, 0.36);
+
+    --terracotta: #D1655B;   /* Terracota sóbria: estouro / déficit */
+    --terracotta-bg: rgba(204, 94, 85, 0.14);
+    --terracotta-bd: rgba(209, 101, 91, 0.38);
+
+    --xfer: #7D8490;         /* Transferência neutra */
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif;
+    background: #060708;
+    color: var(--ink);
+    padding: 24px 28px 64px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  .nums { font-variant-numeric: tabular-nums lining-nums; }
+  .wrap { max-width: 1400px; margin: 0 auto; display: grid; gap: 22px; }
+
+  /* Barra de Controle do Protótipo */
+  .studio-bar {
+    background: #101215; border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px 18px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 14px;
+  }
+  .studio-bar h1 { font-size: 16px; font-weight: 600; letter-spacing: -0.015em; }
+  .studio-bar p { font-size: 12px; color: var(--ink-2); }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .seg {
+    background: var(--well); border: 1px solid var(--border); border-radius: 8px; padding: 3px; display: inline-flex; gap: 2px;
+  }
+  .seg button {
+    border: none; background: transparent; color: var(--ink-2); font-family: inherit; font-size: 11.5px; font-weight: 500;
+    padding: 5px 11px; border-radius: 6px; cursor: pointer;
+  }
+  .seg button.active { background: #23272E; color: var(--ink); font-weight: 600; }
+  .seg button.bad.active { background: var(--terracotta-bg); color: var(--terracotta); }
+
+  /* Janela do App BFO */
+  .mac-window {
+    background: var(--bg);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 16px;
+    box-shadow: 0 28px 70px rgba(0, 0, 0, 0.65);
+    overflow: hidden;
+    display: grid;
+  }
+  .mac-chrome {
+    background: #0F1013; border-bottom: 1px solid var(--border-soft);
+    padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  }
+  .traffic { display: flex; gap: 7px; align-items: center; }
+  .tl { width: 11px; height: 11px; border-radius: 50%; background: #2A2D33; }
+  .chrome-title { font-size: 12px; font-weight: 500; color: var(--ink-2); letter-spacing: 0.01em; }
+
+  /* Top Nav Mode vs Sidebar Nav Mode */
+  .app-body { display: grid; grid-template-columns: 204px 1fr; min-height: 680px; }
+  .app-body.topnav { grid-template-columns: 1fr; }
+  .sidebar {
+    background: #0E1012; border-right: 1px solid var(--border-soft);
+    padding: 16px 12px; display: flex; flex-direction: column; justify-content: space-between;
+  }
+  .app-body.topnav .sidebar { display: none; }
+  .topnav-bar {
+    display: none; background: #0E1012; border-bottom: 1px solid var(--border-soft);
+    padding: 10px 24px; justify-content: space-between; align-items: center;
+  }
+  .app-body.topnav .topnav-bar { display: flex; }
+
+  .nav-grp-label {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase;
+    color: var(--ink-3); padding: 12px 10px 5px;
+  }
+  .nav-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 10px; border-radius: 7px; font-size: 12.5px; color: var(--ink-2); cursor: pointer; margin-bottom: 1px;
+  }
+  .nav-item:hover { background: rgba(255,255,255,0.03); color: var(--ink); }
+  .nav-item.active { background: #19222E; color: var(--ink); font-weight: 500; }
+  .nav-badge { font-size: 10.5px; color: var(--brass); font-weight: 600; }
+
+  .top-links { display: flex; gap: 4px; background: var(--well); border: 1px solid var(--border); padding: 3px; border-radius: 8px; }
+  .top-links span { font-size: 12px; padding: 5px 12px; border-radius: 6px; color: var(--ink-2); cursor: pointer; }
+  .top-links span.active { background: #19222E; color: var(--ink); font-weight: 500; }
+
+  /* Área Principal */
+  .main { padding: 26px 30px; display: grid; gap: 24px; align-content: start; }
+  .eyebrow { font-size: 10.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+  .page-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; }
+  .page-head h2 { font-size: 26px; font-weight: 400; letter-spacing: -0.025em; color: var(--ink); margin-top: 4px; }
+  .page-head h2 strong { font-weight: 500; }
+  .page-head h2 span { color: var(--ink-2); }
+
+  .rs { font-size: 0.60em; font-weight: 400; color: var(--ink-3); margin-right: 4px; }
+  .rs-c { font-size: 10.5px; font-weight: 400; color: var(--ink-3); margin-right: 3px; }
+  .drill { color: inherit; text-decoration: none; border-bottom: 1px dotted rgba(124, 164, 214, 0.35); cursor: pointer; transition: color 0.12s; }
+  .drill:hover { color: var(--link); border-bottom-color: var(--link); }
+
+  /* Cartões e Hierarquia por Luz */
+  .grid-home-top { display: grid; grid-template-columns: 1.35fr 1fr; gap: 18px; }
+  .grid-home-bot { display: grid; grid-template-columns: 1fr 1.4fr; gap: 18px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; display: grid; gap: 14px; align-content: start;
+  }
+  .focal-navy {
+    background: var(--navy-focal); border: 1px solid rgba(124, 164, 214, 0.16); border-radius: 14px; padding: 22px; display: grid; gap: 14px;
+  }
+  .hero-num { font-size: 38px; font-weight: 300; letter-spacing: -0.03em; line-height: 1.1; }
+  .ind-num { font-size: 20px; font-weight: 500; letter-spacing: -0.02em; }
+
+  .pos { color: var(--forest); }
+  .warn { color: var(--brass); }
+  .over { color: var(--terracotta); }
+  .xfer { color: var(--xfer); }
+
+  /* Pílulas (9 estados) */
+  .pill {
+    display: inline-flex; align-items: center; font-size: 10.5px; font-weight: 500;
+    padding: 2px 8px; border-radius: 999px; border: 1px solid transparent; line-height: 1.35;
+  }
+  .p-aberta { background: rgba(124, 164, 214, 0.10); border-color: rgba(124, 164, 214, 0.28); color: #9BBCE6; }
+  .p-fechada { background: var(--brass-bg); border-color: var(--brass-bd); color: var(--brass); }
+  .p-paga { background: var(--forest-bg); border-color: var(--forest-bd); color: var(--forest); }
+  .p-importada { background: #191C21; border-color: rgba(255,255,255,0.12); color: #A6ACB8; }
+  .p-retroativa { background: #171A24; border-color: rgba(138, 152, 208, 0.28); color: #A8B4DF; }
+  .p-arquivo { background: transparent; border-style: dotted; border-color: rgba(255,255,255,0.16); color: var(--ink-3); }
+  .p-pendente { background: rgba(201, 154, 73, 0.06); border-style: dashed; border-color: var(--brass-bd); color: var(--brass); }
+  .p-ajuste { background: #211D15; border-color: rgba(201, 154, 73, 0.26); color: #D4B47C; }
+  .p-herdada { background: transparent; border-color: rgba(255,255,255,0.11); color: var(--ink-2); }
+
+  /* Atenção e Próximos 7 dias */
+  .row-item {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    padding: 9px 11px; border-radius: 9px; background: var(--well); border: 1px solid var(--border-soft); font-size: 12.5px;
+  }
+  .due-line {
+    display: flex; justify-content: space-between; align-items: center; padding: 9px 0;
+    border-bottom: 1px solid var(--border-soft); font-size: 12.5px;
+  }
+  .due-line:last-child { border-bottom: none; }
+  .date-sq {
+    width: 34px; text-align: center; padding: 3px 0; border-radius: 6px;
+    background: var(--elevated); border: 1px solid var(--border); font-size: 10px; font-weight: 600; color: var(--ink-2); line-height: 1.15;
+  }
+
+  /* 4 Grupos vs mês anterior */
+  .groups-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .g-box {
+    background: var(--well); border: 1px solid var(--border-soft); border-radius: 10px; padding: 12px; display: grid; gap: 5px;
+  }
+  .dots { display: flex; align-items: center; gap: 3px; height: 14px; margin-top: 2px; }
+  .d { width: 4.5px; height: 4.5px; border-radius: 50%; background: rgba(255,255,255,0.10); }
+  .d.on { background: var(--ink-2); }
+  .d.w { background: var(--brass); }
+  .d.o { background: var(--terracotta); }
+  .tick { width: 1.5px; height: 12px; background: var(--ink); margin: 0 1px; }
+
+  /* Tela de Transações (9 colunas + resumo recolhível) */
+  .tx-layout { display: grid; grid-template-columns: 1fr 250px; gap: 16px; align-items: start; }
+  .tx-toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+  .btn-soft {
+    background: var(--elevated); border: 1px solid var(--border); color: var(--ink); font-family: inherit;
+    font-size: 12px; padding: 6px 11px; border-radius: 6px; cursor: pointer;
+  }
+  .btn-navy {
+    background: #1B314D; border: 1px solid rgba(124, 164, 214, 0.35); color: #EAF1FA; font-family: inherit;
+    font-size: 12px; font-weight: 500; padding: 6px 12px; border-radius: 6px; cursor: pointer;
+  }
+  .table-box {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow-x: auto;
+  }
+  table.sheet { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.sheet th {
+    background: var(--elevated); color: var(--ink-2); font-size: 10.5px; font-weight: 600; text-align: left;
+    padding: 9px 10px; border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  table.sheet td {
+    height: 40px; padding: 0 10px; border-bottom: 1px solid var(--border-soft); white-space: nowrap; vertical-align: middle;
+  }
+  table.sheet tr.new-row td { background: #101722; border-bottom: 1px solid rgba(124, 164, 214, 0.2); color: var(--ink-2); }
+  table.sheet tr:hover td { background: rgba(255,255,255,0.025); }
+  table.sheet th.r, table.sheet td.r { text-align: right; }
+  .editing {
+    background: var(--well) !important; outline: 1.5px solid var(--focus); outline-offset: -2px; border-radius: 4px; color: var(--ink) !important;
+  }
+  .caret { display: inline-block; width: 1.5px; height: 13px; background: var(--focus); vertical-align: middle; margin-left: 2px; }
+
+  /* Cartão de Crédito (fatura selecionada acima do histórico) */
+  .card-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; }
+
+  /* Tokens Strip no Rodapé */
+  .tokens-panel {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px;
+    display: grid; gap: 16px;
+  }
+  .swatches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; }
+  .sw { background: var(--well); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .sw-c { height: 32px; }
+  .sw-m { padding: 6px 7px; font-size: 10px; }
+  .sw-m strong { display: block; color: var(--ink); }
+  .sw-m span { color: var(--ink-3); font-family: ui-monospace, monospace; }
+
+  .hidden { display: none !important; }
+  @media (max-width: 1120px) {
+    .app-body, .grid-home-top, .grid-home-bot, .tx-layout, .card-grid { grid-template-columns: 1fr; }
+    .swatches { grid-template-columns: repeat(4, 1fr); }
+    .groups-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <!-- Controles de Avaliação -->
+  <div class="studio-bar">
+    <div>
+      <h1>BFO · Moodboard Family Office Sob Medida</h1>
+      <p>Elevação por luz, marinho como destaque, verde floresta pontual, latão para alerta e terracota para estouro.</p>
+    </div>
+    <div class="controls">
+      <div class="seg" title="Alternar posição da navegação">
+        <button class="active" onclick="setNav('side', this)">Nav Lateral</button>
+        <button onclick="setNav('top', this)">Nav no Topo</button>
+      </div>
+      <div class="seg" title="Simular mês saudável ou mês apertado">
+        <button class="active" onclick="setHealth('ok', this)">Mês Saudável</button>
+        <button class="bad" onclick="setHealth('tight', this)">Mês Apertado (Déficit)</button>
+      </div>
+      <div class="seg">
+        <button class="active" onclick="setTab('all', this)">Tudo</button>
+        <button onclick="setTab('home', this)">Tela Inicial</button>
+        <button onclick="setTab('tx', this)">Transações (9 col.)</button>
+        <button onclick="setTab('card', this)">Cartão</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Janela Principal Mac -->
+  <div class="mac-window">
+    <div class="mac-chrome">
+      <div class="traffic"><span class="tl"></span><span class="tl"></span><span class="tl"></span></div>
+      <div class="chrome-title">BFO · Movimento · Novembro 2026</div>
+      <div style="font-size:11px;color:var(--ink-3);">Privacidade · Exportar CSV</div>
+    </div>
+
+    <div id="appBody" class="app-body">
+      <!-- Navegação no Topo (aparece quando selecionada) -->
+      <div class="topnav-bar">
+        <div style="font-size:13px;font-weight:600;letter-spacing:0.03em;">BFO</div>
+        <div class="top-links">
+          <span class="active">Início</span><span>Transações</span><span>Cartão</span><span>Contas</span><span>Assinaturas</span><span>Patrimônio</span>
+        </div>
+        <div style="font-size:11px;color:var(--ink-3);">Modo manual · BRL</div>
+      </div>
+
+      <!-- Navegação Lateral Recuada -->
+      <aside class="sidebar">
+        <div>
+          <div style="padding:2px 10px 10px;font-size:13px;font-weight:600;letter-spacing:0.04em;color:var(--ink);">BFO</div>
+          <div class="nav-grp-label">Movimento</div>
+          <div class="nav-item active"><span>Tela inicial</span><span id="navBadge" class="nav-badge">4</span></div>
+          <div class="nav-item"><span>Transações</span></div>
+          <div class="nav-item"><span>Cartão de crédito</span></div>
+          <div class="nav-item"><span>Contas</span></div>
+          <div class="nav-item"><span>Assinaturas</span></div>
+          <div class="nav-grp-label">Cadastros</div>
+          <div class="nav-item"><span>Categorias e grupos</span></div>
+          <div class="nav-item"><span>Beneficiários</span></div>
+          <div class="nav-item"><span>Recorrentes</span></div>
+          <div class="nav-grp-label">Futuro</div>
+          <div class="nav-item"><span>Patrimônio (Fase 2)</span></div>
+          <div class="nav-item"><span>Orçamento (Fase 3)</span></div>
+        </div>
+        <div style="padding:10px;border-top:1px solid var(--border-soft);font-size:11px;color:var(--ink-3);">
+          Conferido em 19/11<br/>Lançamento manual
+        </div>
+      </aside>
+
+      <!-- Área de Trabalho -->
+      <main class="main">
+        <!-- TELA INICIAL (4 PERGUNTAS) -->
+        <section id="sec-home" style="display:grid;gap:18px;">
+          <div class="page-head">
+            <div>
+              <div class="eyebrow">Sábado, 21 de novembro de 2026 · Tela Inicial</div>
+              <h2 id="homeHeadline"><strong>Posição controlada.</strong> <span>Folga positiva nos próximos 30 dias.</span></h2>
+            </div>
+            <div style="display:flex;gap:16px;font-size:12px;color:var(--ink-2);">
+              <span>Cartão principal + Liquidez: <strong class="nums" style="color:var(--ink);" id="topSnap">R$ 18.420</strong></span>
+            </div>
+          </div>
+
+          <div class="grid-home-top">
+            <!-- Pergunta 1 -->
+            <div class="focal-navy">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+                <div>
+                  <div class="eyebrow">1 · Quanto tenho disponível (projeção de 30 dias)</div>
+                  <div id="heroAvail" class="hero-num nums" style="margin-top:6px;"><span class="rs">R$</span>4.820,00</div>
+                  <div style="font-size:12px;color:var(--ink-2);margin-top:4px;">Disponível hoje somando Banco Alvorada e Banco Meridiano</div>
+                </div>
+                <div style="background:rgba(8,9,11,0.55);border:1px solid var(--border);border-radius:10px;padding:10px 13px;text-align:right;">
+                  <div id="minLabel" class="eyebrow warn">Ponto mais baixo · 28/11</div>
+                  <div id="minVal" class="ind-num nums warn" style="margin-top:2px;"><a class="drill"><span class="rs">R$</span>640,00</a></div>
+                </div>
+              </div>
+              <svg id="projSvg" viewBox="0 0 500 84" width="100%" height="84">
+                <line x1="0" y1="62" x2="500" y2="62" stroke="rgba(255,255,255,0.08)" stroke-dasharray="3 3"/>
+                <path id="projPath" d="M8,28 L90,34 L170,22 L250,42 L318,58 L400,32 L492,16" fill="none" stroke="#7CA4D6" stroke-width="1.8" stroke-dasharray="4 4"/>
+                <path d="M8,28 L90,34" fill="none" stroke="#55AE87" stroke-width="2.2"/>
+                <circle id="projDot" cx="318" cy="58" r="4.5" fill="#CCA052"/>
+                <text id="projTxt" x="318" y="77" text-anchor="middle" font-size="10" fill="#CCA052">mínimo em 28/11</text>
+              </svg>
+            </div>
+
+            <!-- Pergunta 2 -->
+            <div class="card">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div class="eyebrow">2 · O que pede atenção</div>
+                <span class="pill p-fechada">4 pendências</span>
+              </div>
+              <div style="display:grid;gap:8px;">
+                <div class="row-item"><a class="drill">Cartão Cobalto · fatura fechada sem conferência</a><span class="pill p-fechada">fechada</span></div>
+                <div class="row-item"><a class="drill">Aluguel Consultório · recorrente atrasado 2 dias</a><span class="pill" style="background:var(--terracotta-bg);border-color:var(--terracotta-bd);color:var(--terracotta);">atrasado</span></div>
+                <div class="row-item"><a class="drill">Suíte Nuvem · assinatura renova em 4 dias</a><span class="pill p-pendente">25/11</span></div>
+                <div class="row-item"><a class="drill">Banco Meridiano · sem conferência há 19 dias</a><span class="pill p-ajuste">conferir</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid-home-bot">
+            <!-- Pergunta 3 -->
+            <div class="card">
+              <div class="eyebrow">3 · O que vence nos próximos 7 dias</div>
+              <div>
+                <div class="due-line">
+                  <div style="display:flex;gap:10px;align-items:center;"><span class="date-sq">23<br>NOV</span><div><strong>Internet Fibra</strong><div style="font-size:11px;color:var(--ink-3);">Banco Alvorada</div></div></div>
+                  <a class="drill nums" style="font-weight:500;">-<span class="rs-c">R$</span>149,90</a>
+                </div>
+                <div class="due-line">
+                  <div style="display:flex;gap:10px;align-items:center;"><span class="date-sq">25<br>NOV</span><div><strong>Fatura Cartão Vértice</strong><div style="font-size:11px;color:var(--ink-3);">Pagamento previsto</div></div></div>
+                  <a id="dueCard" class="drill nums warn" style="font-weight:500;">-<span class="rs-c">R$</span>2.180,00</a>
+                </div>
+                <div class="due-line">
+                  <div style="display:flex;gap:10px;align-items:center;"><span class="date-sq">27<br>NOV</span><div><strong>Condomínio</strong><div style="font-size:11px;color:var(--ink-3);">Banco Meridiano</div></div></div>
+                  <a class="drill nums" style="font-weight:500;">-<span class="rs-c">R$</span>720,00</a>
+                </div>
+              </div>
+            </div>
+
+            <!-- Pergunta 4 -->
+            <div class="card">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div class="eyebrow">4 · Como o mês está andando (dias 1 a 21 vs. mesmo intervalo de out)</div>
+                <span class="eyebrow" style="color:var(--link);">Clique abre transações</span>
+              </div>
+              <div class="groups-grid">
+                <div class="g-box">
+                  <span style="font-size:11px;color:var(--ink-2);">Moradia</span>
+                  <a class="drill ind-num nums"><span class="rs">R$</span>2.450</a>
+                  <span class="nums pos" style="font-size:11px;">-4% vs. out</span>
+                  <div class="dots"><span class="d on"></span><span class="d on"></span><span class="d on"></span><span class="d on"></span><span class="tick"></span><span class="d"></span><span class="d"></span></div>
+                </div>
+                <div class="g-box">
+                  <span style="font-size:11px;color:var(--ink-2);">Mercado</span>
+                  <a class="drill ind-num nums"><span class="rs">R$</span>1.340</a>
+                  <span class="nums warn" style="font-size:11px;">+9% vs. out</span>
+                  <div class="dots"><span class="d on"></span><span class="d on"></span><span class="d on"></span><span class="d on"></span><span class="tick"></span><span class="d w"></span><span class="d"></span></div>
+                </div>
+                <div class="g-box">
+                  <span style="font-size:11px;color:var(--ink-2);">Restaurantes</span>
+                  <a id="grpRestVal" class="drill ind-num nums"><span class="rs">R$</span>810</a>
+                  <span id="grpRestPct" class="nums over" style="font-size:11px;">+29% vs. out</span>
+                  <div class="dots"><span class="d on"></span><span class="d on"></span><span class="d on"></span><span class="tick"></span><span class="d o"></span><span class="d o"></span><span class="d o"></span></div>
+                </div>
+                <div class="g-box">
+                  <span style="font-size:11px;color:var(--ink-2);">Transporte</span>
+                  <a class="drill ind-num nums"><span class="rs">R$</span>315</a>
+                  <span class="nums pos" style="font-size:11px;">-11% vs. out</span>
+                  <div class="dots"><span class="d on"></span><span class="d on"></span><span class="d on"></span><span class="tick"></span><span class="d"></span><span class="d"></span><span class="d"></span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- TELA DE TRANSAÇÕES (9 COLUNAS + RESUMO RECOLHÍVEL) -->
+        <section id="sec-tx" style="display:grid;gap:14px;">
+          <div class="tx-toolbar">
+            <div>
+              <div class="eyebrow">Transações · Planilha densa (9 colunas · edição direta na célula)</div>
+              <div style="font-size:16px;font-weight:500;margin-top:2px;">&lt; Novembro 2026 &gt; <span style="font-size:12px;color:var(--ink-2);font-weight:400;">· /transacoes/2026-11</span></div>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn-soft">Desfazer (Ctrl+Z)</button>
+              <button class="btn-soft">Nova transferência</button>
+              <button class="btn-navy">+ Adicionar (Alvorada)</button>
+            </div>
+          </div>
+
+          <div class="tx-layout">
+            <div class="table-box">
+              <table class="sheet nums">
+                <thead>
+                  <tr>
+                    <th>Data</th><th>Conta</th><th>Beneficiário</th><th class="r">Valor</th><th>Categoria</th><th>Alocação</th><th>Notas</th><th>Tags</th><th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="new-row">
+                    <td>21/11</td><td>Alvorada</td><td class="editing">Padaria Aurora<span class="caret"></span></td><td class="r">- <span class="rs-c">R$</span>34,00</td><td>Restaurantes</td><td>Essencial</td><td>Café</td><td>manhã</td><td><span class="pill p-aberta">nova</span></td>
+                  </tr>
+                  <tr>
+                    <td>20/11</td><td>Alvorada</td><td>→ Banco Meridiano</td><td class="r xfer">⇄ <span class="rs-c">R$</span>1.500,00</td><td>Transferência</td><td>Reserva</td><td>Aporte mensal</td><td>patrimônio</td><td><span class="pill p-paga">paga</span></td>
+                  </tr>
+                  <tr>
+                    <td>19/11</td><td>Cartão Cobalto</td><td>Quitanda do Bairro</td><td class="r">- <span class="rs-c">R$</span>284,50</td><td>Mercado</td><td>Essencial</td><td>Compras semana</td><td>casa</td><td><span class="pill p-aberta">aberta</span></td>
+                  </tr>
+                  <tr>
+                    <td>18/11</td><td>Alvorada</td><td>Cliente Norte Ltda</td><td class="r pos">+ <span class="rs-c">R$</span>5.400,00</td><td>Receita</td><td>Renda</td><td>Projeto fase 2</td><td>trabalho</td><td><span class="pill p-paga">paga</span></td>
+                  </tr>
+                  <tr>
+                    <td>15/11</td><td>Cartão Vértice</td><td>Marcenaria Pinho (4/6)</td><td class="r">- <span class="rs-c">R$</span>420,00</td><td>Moradia</td><td>Casa</td><td>Estante sala</td><td>parcelado</td><td><span class="pill p-herdada">herdada</span></td>
+                  </tr>
+                  <tr>
+                    <td>12/11</td><td>Alvorada</td><td>Acerto centavos saldo</td><td class="r">- <span class="rs-c">R$</span>12,30</td><td>Ajustes</td><td>Controle</td><td>Conferência</td><td>conciliação</td><td><span class="pill p-ajuste">ajuste</span></td>
+                  </tr>
+                  <tr>
+                    <td>10/11</td><td>Cartão Cobalto</td><td>Fatura out/2026</td><td class="r warn">- <span class="rs-c">R$</span>1.890,00</td><td>Cartão</td><td>Fatura</td><td>Fechou dia 10</td><td>conferir</td><td><span class="pill p-fechada">fechada</span></td>
+                  </tr>
+                  <tr>
+                    <td>04/11</td><td>Meridiano</td><td>Farmácia Central</td><td class="r">- <span class="rs-c">R$</span>76,20</td><td>Saúde</td><td>Pessoal</td><td>Lançada depois</td><td>histórico</td><td><span class="pill p-retroativa">retroativa</span> <span class="pill p-importada">importada</span></td>
+                  </tr>
+                  <tr>
+                    <td>01/11</td><td>Alvorada</td><td>Fatura paga ciclo ant.</td><td class="r" style="color:var(--ink-3);"><span class="rs-c">R$</span>980,00</td><td>Arquivo</td><td>Fora soma</td><td>Registro antigo</td><td>arquivo</td><td><span class="pill p-arquivo">só arquivo</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Resumo lateral do mês recolhível, sem marca de ritmo (Sessão H + L) -->
+            <div class="card" style="padding:16px;gap:10px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div class="eyebrow">Resumo do mês</div>
+                <span style="font-size:11px;color:var(--ink-3);">Recolher</span>
+              </div>
+              <div style="font-size:12px;display:grid;gap:6px;">
+                <div style="display:flex;justify-content:space-between;"><span>Moradia</span><a class="drill nums"><span class="rs-c">R$</span>2.450,00</a></div>
+                <div style="display:flex;justify-content:space-between;"><span>Mercado</span><a class="drill nums"><span class="rs-c">R$</span>1.340,00</a></div>
+                <div style="display:flex;justify-content:space-between;"><span>Restaurantes</span><a class="drill nums"><span class="rs-c">R$</span>810,00</a></div>
+                <div style="display:flex;justify-content:space-between;"><span>Transporte</span><a class="drill nums"><span class="rs-c">R$</span>315,00</a></div>
+              </div>
+              <div style="border-top:1px solid var(--border-soft);padding-top:8px;display:flex;justify-content:space-between;font-size:12px;">
+                <span style="color:var(--ink-2);">Total saídas</span>
+                <strong class="nums"><span class="rs-c">R$</span>4.915,00</strong>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- TELA DE CARTÃO (Fatura selecionada + compras antes da lista de ciclos) -->
+        <section id="sec-card" style="display:grid;gap:14px;">
+          <div class="eyebrow">Cartão de crédito · Fatura selecionada antes da lista de faturas (Ajuste Sessão L)</div>
+          <div class="card-grid">
+            <div class="focal-navy" style="padding:18px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div><strong>Cartão Cobalto · Fatura Novembro 2026</strong><div style="font-size:11.5px;color:var(--ink-2);">Fecha 10/11 · Vence 18/11</div></div>
+                <span class="pill p-fechada">fechada · conferir</span>
+              </div>
+              <div style="display:flex;gap:28px;align-items:baseline;">
+                <div><div class="eyebrow">Total da fatura</div><div class="ind-num nums warn"><span class="rs">R$</span>1.890,00</div></div>
+                <div><div class="eyebrow">Comprometido futuro</div><div class="ind-num nums"><span class="rs">R$</span>2.520,00</div></div>
+                <div><div class="eyebrow">Disponível no limite</div><div class="ind-num nums pos"><span class="rs">R$</span>7.590,00</div></div>
+              </div>
+              <div style="font-size:12px;border-top:1px solid var(--border);padding-top:10px;display:grid;gap:5px;">
+                <div style="display:flex;justify-content:space-between;"><span>19/11 · Quitanda do Bairro</span><span class="nums">- <span class="rs-c">R$</span>284,50</span></div>
+                <div style="display:flex;justify-content:space-between;"><span>14/11 · Computador Estúdio (3/12)</span><span class="nums">- <span class="rs-c">R$</span>650,00</span></div>
+              </div>
+            </div>
+
+            <div class="card" style="padding:18px;">
+              <div class="eyebrow">Lista de faturas do cartão</div>
+              <div class="due-line"><span>Dezembro 2026 <span class="pill p-aberta" style="margin-left:6px;">aberta</span></span><span class="nums"><span class="rs-c">R$</span>934,50</span></div>
+              <div class="due-line"><span>Novembro 2026 <span class="pill p-fechada" style="margin-left:6px;">fechada</span></span><span class="nums warn"><span class="rs-c">R$</span>1.890,00</span></div>
+              <div class="due-line"><span>Outubro 2026 <span class="pill p-paga" style="margin-left:6px;">paga</span></span><span class="nums pos"><span class="rs-c">R$</span>1.610,00</span></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- QUADRO DE TOKENS & 9 PÍLULAS -->
+        <section id="sec-tokens" class="tokens-panel">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+            <div class="eyebrow">Tokens BFO · Superfícies, sinais e todas as 9 pílulas de estado</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;">
+              <span class="pill p-aberta">aberta</span><span class="pill p-fechada">fechada</span><span class="pill p-paga">paga</span>
+              <span class="pill p-importada">importada</span><span class="pill p-retroativa">retroativa</span><span class="pill p-arquivo">só arquivo</span>
+              <span class="pill p-pendente">pendente</span><span class="pill p-ajuste">ajuste</span><span class="pill p-herdada">herdada</span>
+            </div>
+          </div>
+          <div class="swatches">
+            <div class="sw"><div class="sw-c" style="background:#0B0C0E"></div><div class="sw-m"><strong>Fundo 0 eu</strong><span>#0B0C0E</span></div></div>
+            <div class="sw"><div class="sw-c" style="background:#121417"></div><div class="sw-m"><strong>Cartão 1 eu</strong><span>#121417</span></div></div>
+            <div class="sw"><div class="sw-c" style="background:#111D2C"></div><div class="sw-m"><strong>Marinho focal</strong><span>#111D2C</span></div></div>
+            <div class="sw"><div class="sw-c" style="background:#EFECE6"></div><div class="sw-m"><strong>Tinta Marfim</strong><span>#EFECE6</span></div></div>
+            <div class="sw"><div class="sw-c" style="background:#55AE87"></div><div class="sw-m"><strong>Verde Floresta</strong><span>#55AE87</span></div></div>
+            <div class="sw"><div class="sw-c" style="background:#CCA052"></div><div class="sw-m"><strong>Latão Alerta</strong><span>#CCA052</span></div></div>
+            <div class="sw"><div class="sw-c" style="background:#D1655B"></div><div class="sw-m"><strong>Terracota Estouro</strong><span>#D1655B</span></div></div>
+            <div class="sw"><div class="sw-c" style="background:#7D8490"></div><div class="sw-m"><strong>Transf. Neutra</strong><span>#7D8490</span></div></div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+</div>
+
+<script>
+  function setNav(mode, btn) {
+    btn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('appBody').classList.toggle('topnav', mode === 'top');
+  }
+
+  function setHealth(state, btn) {
+    btn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const tight = state === 'tight';
+    document.getElementById('homeHeadline').innerHTML = tight
+      ? '<strong>Atenção no caixa em 28/11.</strong> <span>Déficit projetado de R$ 1.240 antes dos recebimentos.</span>'
+      : '<strong>Posição controlada.</strong> <span>Folga positiva nos próximos 30 dias.</span>';
+    document.getElementById('heroAvail').innerHTML = tight
+      ? '<span class="rs">R$</span>1.180,00'
+      : '<span class="rs">R$</span>4.820,00';
+    document.getElementById('minLabel').className = tight ? 'eyebrow over' : 'eyebrow warn';
+    document.getElementById('minVal').className = tight ? 'ind-num nums over' : 'ind-num nums warn';
+    document.getElementById('minVal').innerHTML = tight
+      ? '<a class="drill">-<span class="rs">R$</span>1.240,00</a>'
+      : '<a class="drill"><span class="rs">R$</span>640,00</a>';
+    document.getElementById('projPath').setAttribute('d', tight
+      ? 'M8,30 L90,38 L170,44 L250,55 L318,74 L400,52 L492,36'
+      : 'M8,28 L90,34 L170,22 L250,42 L318,58 L400,32 L492,16');
+    document.getElementById('projDot').setAttribute('cy', tight ? '74' : '58');
+    document.getElementById('projDot').setAttribute('fill', tight ? '#D1655B' : '#CCA052');
+    document.getElementById('projTxt').setAttribute('y', tight ? '64' : '77');
+    document.getElementById('projTxt').setAttribute('fill', tight ? '#D1655B' : '#CCA052');
+    document.getElementById('projTxt').textContent = tight ? 'déficit -R$ 1.240 em 28/11' : 'mínimo em 28/11';
+    document.getElementById('topSnap').textContent = tight ? 'R$ 9.140' : 'R$ 18.420';
+    document.getElementById('grpRestVal').innerHTML = tight ? '<span class="rs">R$</span>1.290' : '<span class="rs">R$</span>810';
+    document.getElementById('grpRestPct').textContent = tight ? '+104% vs. out' : '+29% vs. out';
+  }
+
+  function setTab(tab, btn) {
+    btn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const home = document.getElementById('sec-home');
+    const tx = document.getElementById('sec-tx');
+    const card = document.getElementById('sec-card');
+    home.classList.toggle('hidden', tab !== 'all' && tab !== 'home');
+    tx.classList.toggle('hidden', tab !== 'all' && tab !== 'tx');
+    card.classList.toggle('hidden', tab !== 'all' && tab !== 'card');
+  }
+</script>
+</body>
+</html>

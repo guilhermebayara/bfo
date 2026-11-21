@@ -360,3 +360,94 @@ Esta direção transporta para a tela inteira a atmosfera do cartão escuro da M
 ### Resumo prático da escolha entre A e B
 * **Direção A (Carvão Neutro)** maximiza neutralidade na planilha densa de **Transações**, pois nada compete com as 9 pílulas de estado e com os sinais de positivo, alerta e estouro durante horas de digitação manual.
 * **Direção B (Escuro Tingido)** preserva melhor a personalidade atmosférica do cartão escuro da Mira e dos blocos do Charted nas telas de leitura arejadas (**Tela inicial**, **Contas**, **Cartão de crédito** e **Assinaturas**), dando identidade própria sem perder legibilidade numérica.
+---
+
+# Rodada 4: refinada com as referências de family office
+
+Conversa do AI Studio, 21/11/2026, com docs/referencia-family-office.md e docs/a-construir.md como base. HTML em [referencias/ai-studio-family-office.html](referencias/ai-studio-family-office.html), com alternância de navegação (lateral ou topo) e de mês (saudável ou apertado). Sem decisão.
+
+Leitura do dono: melhorou, direção certa, mas ainda mais perto da origem (painel de produto comum) do que do destino (a sensação de family office).
+
+## Cruzamento
+
+### O que avançou
+
+- Marfim no lugar do branco puro, "R$" apagado, número herói em peso leve.
+- Latão para alerta e terracota para estouro: o mês ruim fica visível sem virar alarme.
+- Marinho só no bloco de destaque e nos links clicáveis, separado do verde de positivo.
+- Navegação recuada, em contraste mais baixo que a área de trabalho.
+- Alternância de mês apertado, para julgar o tom no aperto.
+
+### Por que ainda está perto da origem, na leitura do chat
+
+- A estrutura não mudou: a mesma grade de cartões com borda, um dentro do outro (cartão com caixinhas dentro), rótulos pequenos em caixa alta sobre cada bloco e pílula em quase toda linha. Trocou a paleta e manteve o esqueleto de painel.
+- Muitos contêineres disputando atenção. A sensação buscada pede menos caixas e mais estrutura sentida: espaço e alinhamento organizando a página, colunas que se alinham de uma seção para outra.
+- Cor ainda distribuída por toda parte (cada estado com sua cor). No destino, a página fica quase monocromática e a cor aparece só onde há exceção.
+- O gráfico de projeção é pequeno e decorativo; na tela inicial ele é a resposta principal.
+- O refino que define a sensação (ritmo de espaçamento, movimento, resposta ao teclado, acabamento dos detalhes) não aparece num protótipo estático.
+
+---
+
+Esta nova versão do moodboard deixa para trás a estética genérica de painel SaaS e traduz para o **BFO** a sobriedade de um escritório patrimonial sob medida, unindo o controle rigoroso da Fase 1 (`docs/a-construir.md`) às referências de family office, aplicativos nativos de Mac e finanças sóbrias.
+
+---
+
+## 1. O que muda a partir das novas referências
+
+| Referência | Princípio absorvido para o BFO | O que fica de fora |
+| :--- | :--- | :--- |
+| **Addepar** | **Elevação por iluminação** no escuro (o fundo é o plano `0`; cartões ganham profundidade ficando um grau mais claros em vez de depender de bordas fortes em tudo; poços de entrada e gráficos ficam um grau mais escuros); **links clicáveis em azul/marinho** para nunca disputar cor com o verde de saldo positivo. | Tom corporativo pesado multiusuário e tipografia de marca da Addepar. |
+| **Masttro** | Todo número de topo tem caminho direto até a origem; a **prontidão e confiabilidade dos dados** aparece no centro da tela inicial (fatura fechada sem conferência, conta desatualizada), porque número sem conferência derruba a confiança do painel. | Estruturas societárias complexas de múltiplos custodiantes e automação documental. |
+| **Linear** | **Navegação recuada**: barra lateral ou barra superior entra em contraste mais baixo que a área de trabalho para não competir com os números; **estrutura sentida, não gritada** (menos linhas divisórias); **cuidado com o escuro quente demais**, que deixa a tela turva em uso contínuo. | Visual de startup de engenharia com brilho roxo ou ícones miúdos por toda parte. |
+| **Things 3 e Apple macOS** | **95% da interface em neutros precisos** e cor reservada apenas para significado real; geometria firme de Mac (raios contidos entre `6px` e `14px`, evitando o arredondado "divertido" em excesso); densidade calma com respiro medido, fonte do sistema com `tabular-nums` e prioridade total ao teclado. | Metáforas literais de papelaria ou animações decorativas. |
+| **Mercury** | Tom institucional sério e sereno em modo escuro: fluxos de caixa e transações sem ruído visual de banco de varejo, respeitando a hierarquia entre dia a dia e reservas. | Colaboração em equipe, comentários entre colegas e integrações de folha. |
+
+---
+
+## 2. Linguagem visual do BFO (Tradução arquitetônica sem literalidade)
+
+A sua referência de espaço físico (neutros quentes e claros, marinho como destaque, verde floresta quebrando em pontos específicos, madeira e modernismo brasileiro) não entra de forma literal (sem texturas de madeira nem marrom turvo no fundo). Ela orienta a **temperatura e o peso cromático** sobre um escuro limpo:
+
+### A. Superfícies, profundidade por luz e bordas
+* **Plano `0` (Fundo da aplicação, `#0B0C0E`):** grafite mineral profundo e limpo. Evita ficar turvo (como alerta a Linear) e garante descanso visual no Mac.
+* **Plano `-1` (Poços rebaixados / células em repouso / área de gráficos, `#08090B`):** um degrau abaixo do fundo, seguindo a lógica da Addepar para acomodar números e inputs sem caixas chamativas.
+* **Plano `1` (Superfície de leitura / cartões principais, `#121417`):** eleva pela luz, reduzindo a dependência de bordas pesadas.
+* **Plano `1.5` (Bloco focal em Marinho Profundo, `#0F1926` com brilho sutil `#17283D`):** onde o **marinho** aparece como destaque arquitetônico (card de projeção de 30 dias na Tela inicial e fatura selecionada no Cartão de crédito).
+* **Plano `2` (Barra de navegação recuada / cabeçalho da planilha, `#16191D`):** discreta e estável.
+* **Bordas:** apenas `1px solid rgba(255, 255, 255, 0.06)` nos cartões e `rgba(255, 255, 255, 0.05)` na grade da planilha. O foco de edição usa contorno limpo em marfim (`#D9D4CA`).
+
+### B. Tipografia e escala numérica (Mac nativo + precisão tabular)
+* **Família:** pilha nativa Apple (`-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui`), mantendo `font-variant-numeric: tabular-nums lining-nums` em toda a aplicação.
+* **Três níveis numéricos:**
+  1. **Número herói (`38px`, peso `300` Light, tracking `-0.03em`):** elegância editorial inspirada na Apple e na leveza dos totais da Addepar, em **Marfim Alabastro (`#EFECE6`)** em vez de branco `#FFFFFF` estourado.
+  2. **Indicador (`20px`, peso `500`, tracking `-0.02em`):** nos cartões de grupo, ponto mínimo dos 30 dias, limite do cartão e totais do resumo mensal.
+  3. **Célula da planilha (`12.5px`, peso `400/500`, linhas de `40px`):** alinhada à direita, mantendo o tamanho exato em repouso, hover e edição (conforme decidido na Sessão I).
+* **Regra para `"R$"` e sinal:**
+  * `"R$"` sempre em `0.62em` (ou `10.5px` na célula) e tinta mineral apagada (`#646973`).
+  * Saídas com `-` antes do `"R$"`; entradas com `+` antes do `"R$"` em verde floresta; transferências sem `+` nem `-`, com `⇄` em neutro (`#7A818D`) e destino `→ Conta B` na coluna `Beneficiário`.
+  * **Links e números clicáveis ("todo número leva às transações"):** sublinhado pontilhado discreto no repouso e tinta **Marinho Claro (`#78A2D4`)** no hover, separando clicabilidade do verde positivo.
+
+### C. Cores pontuais e sinais (incluindo o mês ruim)
+* **Verde Floresta (`#3C946E` / suave `#64BA93`):** folga, entrada positiva, categoria abaixo do mês passado, estado `paga`.
+* **Ouro Envelhecido / Latão (`#C99A49`):** o toque quente sutil (referência filosófica aos metais e madeiras do escritório) usado exclusivamente no **Alerta** (fatura fechada sem conferência, assinatura perto de renovar, conta desatualizada, grupo encostando no mês anterior).
+* **Terracota Carmim (`#CC5E55`):** usado exclusivamente no **Estouro / Déficit** (saldo mínimo negativo na projeção de 30 dias, recorrente atrasado, grupo estourado). Mantém o mês ruim visível, pragmático e acionável, sem parecer alarme de videogame.
+* **Transferência neutra (`#7A818D`):** cinza mineral neutro.
+
+---
+
+## 3. Resposta visual para as duas questões abertas do `a-construir.md`
+
+O arquivo HTML interativo abaixo traz dois seletores no topo para você testar olhando:
+1. **Navegação Lateral Recuada (estilo Things/Linear)** contra **Navegação no Topo Compacta (estilo Mira/macOS)**: na lateral, a hierarquia (`Movimento`, `Cadastros`, `Aplicativo`) acomoda melhor o crescimento das Fases 2 e 3, mas disputa `~200px` horizontais com as 9 colunas da planilha de **Transações** e com o resumo mensal ao lado; no topo, a planilha e as telas de 3 colunas ganham largura máxima, exigindo um agrupamento compacto para os futuros itens de Patrimônio e Orçamento.
+2. **Mês Saudável** contra **Mês Apertado ("Todo Ferrado")**: alterna os números da Tela inicial para você julgar se, mesmo mostrando déficit de `- R$ 1.240,00` no ponto mínimo e cartões estourados, a interface continua transmitindo calma, controle e clareza de ação.
+
+---
+
+## 4. Moodboard Interativo Completo (`bfo-moodboard-family-office.html`)
+
+Salve o código abaixo como `bfo-moodboard-family-office.html` e abra no Safari ou navegador no Mac.
+
+### Próximo passo após analisar este protótipo
+1. Alternar **Nav Lateral** contra **Nav no Topo** no HTML e decidir qual acomoda melhor as 9 colunas de **Transações** e o crescimento das Fases 2 e 3.
+2. Alternar **Mês Saudável** contra **Mês Apertado** para validar se o tom pragmático em **Terracota** e **Marinho** passa a firmeza de escritório patrimonial mesmo no aperto.
+3. Após a sua análise das 9 telas do Mobbin depois de 23/11, consolidar a escolha de navegação e fechar os tokens finais antes de aplicar no BFO.
