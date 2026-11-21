@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Direções Visuais Escuras A e B · App Pessoal de Finanças</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: #08090A;
+    color: #EAECEF;
+    padding: 28px 28px 72px;
+    line-height: 1.45;
+  }
+  .nums { font-variant-numeric: tabular-nums lining-nums; }
+  .shell { max-width: 1360px; margin: 0 auto; display: grid; gap: 36px; }
+
+  /* Barra de controle superior */
+  .ctrl-bar {
+    display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px;
+    padding-bottom: 18px; border-bottom: 1px solid #22252A;
+  }
+  .ctrl-bar h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+  .ctrl-bar p { font-size: 13px; color: #8D939E; margin-top: 2px; }
+  .switcher {
+    background: #141619; border: 1px solid #262A30; padding: 4px; border-radius: 999px; display: inline-flex; gap: 4px;
+  }
+  .sw-btn {
+    border: none; background: transparent; color: #9AA0AA; font-family: inherit; font-size: 12px; font-weight: 500;
+    padding: 7px 14px; border-radius: 999px; cursor: pointer;
+  }
+  .sw-btn.active { background: #EAECEF; color: #0D0E10; font-weight: 600; }
+
+  .dir-block { display: grid; gap: 22px; }
+  .dir-block.hidden { display: none; }
+
+  /* Tokens das duas direções */
+  .theme-a {
+    --bg: #0D0E10;
+    --surface: #15171A;
+    --elevated: #1C1F23;
+    --well: #101214;
+    --focal: linear-gradient(155deg, #1E2126 0%, #141619 100%);
+    --border: #26292E;
+    --border-soft: #202328;
+    --ink: #F2F3F5;
+    --ink-2: #9AA0AA;
+    --ink-3: #6E747E;
+    --pos: #38B889;
+    --pos-bg: rgba(56, 184, 137, 0.13);
+    --pos-bd: rgba(56, 184, 137, 0.35);
+    --warn: #E0A23B;
+    --warn-bg: rgba(224, 162, 59, 0.14);
+    --warn-bd: rgba(224, 162, 59, 0.42);
+    --over: #E05858;
+    --over-bg: rgba(224, 88, 88, 0.14);
+    --over-bd: rgba(224, 88, 88, 0.42);
+    --xfer: #8B929E;
+    --focus: #D8DCE2;
+    --accent: #EAECEF;
+    --accent-ink: #0D0E10;
+    --row-hover: #191C20;
+    --pill-open-bg: #1D232B; --pill-open-bd: #2F3A47; --pill-open-ink: #B4C2D4;
+    --pill-imp-bg: #202328; --pill-imp-bd: #323740; --pill-imp-ink: #B5BBC4;
+    --pill-ret-bg: #1F2029; --pill-ret-bd: #37394C; --pill-ret-ink: #B7BCE0;
+    --pill-arq-bd: #353940; --pill-arq-ink: #787E88;
+    --pill-aju-bg: #27221B; --pill-aju-bd: #4A3D28; --pill-aju-ink: #D6B484;
+    --pill-her-bd: #31353B; --pill-her-ink: #9AA0AA;
+  }
+
+  .theme-b {
+    --bg: #071013;
+    --surface: #0D1A1F;
+    --elevated: #122329;
+    --well: #091317;
+    --focal: radial-gradient(circle at 78% 36%, rgba(44, 132, 145, 0.36), transparent 62%),
+             linear-gradient(150deg, #132B32 0%, #0B1519 100%);
+    --border: #1C323A;
+    --border-soft: #162930;
+    --ink: #F0F7F8;
+    --ink-2: #8CAAB2;
+    --ink-3: #63828A;
+    --pos: #47C99E;
+    --pos-bg: rgba(71, 201, 158, 0.14);
+    --pos-bd: rgba(71, 201, 158, 0.36);
+    --warn: #E8AD42;
+    --warn-bg: rgba(232, 173, 66, 0.14);
+    --warn-bd: rgba(232, 173, 66, 0.42);
+    --over: #E86458;
+    --over-bg: rgba(232, 100, 88, 0.15);
+    --over-bd: rgba(232, 100, 88, 0.44);
+    --xfer: #7C9AA3;
+    --focus: #63D0D6;
+    --accent: #63D0D6;
+    --accent-ink: #071013;
+    --row-hover: #112228;
+    --pill-open-bg: rgba(76, 195, 200, 0.12); --pill-open-bd: rgba(76, 195, 200, 0.34); --pill-open-ink: #8CE0E3;
+    --pill-imp-bg: #14262D; --pill-imp-bd: #23414B; --pill-imp-ink: #9EC0C9;
+    --pill-ret-bg: #152130; --pill-ret-bd: #273E59; --pill-ret-ink: #9CC0E8;
+    --pill-arq-bd: #243D45; --pill-arq-ink: #65848C;
+    --pill-aju-bg: #262118; --pill-aju-bd: #4C3F28; --pill-aju-ink: #DFBE8A;
+    --pill-her-bd: #233A42; --pill-her-ink: #89A8B0;
+  }
+
+  /* Container da direção */
+  .dir-canvas {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 26px;
+    padding: 26px;
+    display: grid;
+    gap: 22px;
+  }
+  .theme-b .dir-canvas {
+    background: radial-gradient(circle at 86% 6%, rgba(44, 132, 145, 0.16), transparent 36%), var(--bg);
+  }
+
+  .dir-title {
+    display: flex; justify-content: space-between; align-items: flex-end; gap: 12px;
+    border-bottom: 1px solid var(--border-soft); padding-bottom: 14px;
+  }
+  .eyebrow {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3);
+  }
+  .dir-title h2 { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; color: var(--ink); margin-top: 3px; }
+  .dir-title h2 span { color: var(--ink-2); font-weight: 500; }
+
+  /* Grade de tokens */
+  .spec-grid { display: grid; grid-template-columns: 1.15fr 1fr 1fr; gap: 16px; }
+  .spec-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 18px; display: grid; gap: 12px; align-content: start;
+  }
+  .sw-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+  .sw { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--well); }
+  .sw-box { height: 36px; border-bottom: 1px solid var(--border-soft); }
+  .sw-txt { padding: 6px; font-size: 10px; }
+  .sw-txt strong { display: block; color: var(--ink); }
+  .sw-txt span { color: var(--ink-3); font-family: ui-monospace, monospace; }
+
+  /* Escala de números */
+  .num-row {
+    display: flex; justify-content: space-between; align-items: baseline; padding: 7px 0;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .num-row:last-child { border-bottom: none; }
+  .rs { font-size: 0.66em; font-weight: 500; color: var(--ink-3); margin-right: 4px; }
+  .rs-cell { font-size: 11px; font-weight: 500; color: var(--ink-3); margin-right: 4px; }
+  .sig-pos { color: var(--pos); }
+  .sig-warn { color: var(--warn); }
+  .sig-over { color: var(--over); }
+  .sig-xfer { color: var(--xfer); }
+
+  /* Sinais */
+  .signal-list { display: grid; gap: 8px; }
+  .sig-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 11px; border-radius: 10px; background: var(--well); border: 1px solid var(--border-soft); font-size: 12px;
+  }
+  .sig-chip { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+  /* 9 Pílulas */
+  .pills-wrap {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 16px 18px;
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  .pills-list { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 999px; border: 1px solid transparent;
+    letter-spacing: 0.01em;
+  }
+  .p-aberta { background: var(--pill-open-bg); border-color: var(--pill-open-bd); color: var(--pill-open-ink); }
+  .p-fechada { background: var(--warn-bg); border-color: var(--warn-bd); color: var(--warn); }
+  .p-paga { background: var(--pos-bg); border-color: var(--pos-bd); color: var(--pos); }
+  .p-importada { background: var(--pill-imp-bg); border-color: var(--pill-imp-bd); color: var(--pill-imp-ink); }
+  .p-retroativa { background: var(--pill-ret-bg); border-color: var(--pill-ret-bd); color: var(--pill-ret-ink); }
+  .p-arquivo { background: transparent; border-style: dotted; border-color: var(--pill-arq-bd); color: var(--pill-arq-ink); }
+  .p-pendente { background: rgba(224, 162, 59, 0.08); border-style: dashed; border-color: var(--warn-bd); color: var(--warn); }
+  .p-ajuste { background: var(--pill-aju-bg); border-color: var(--pill-aju-bd); color: var(--pill-aju-ink); }
+  .p-herdada { background: transparent; border-color: var(--pill-her-bd); color: var(--pill-her-ink); }
+
+  /* Telas de Exemplo */
+  .screen-box {
+    background: var(--well); border: 1px solid var(--border); border-radius: 22px; padding: 20px; display: grid; gap: 18px;
+  }
+  .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .app-brand { font-size: 14px; font-weight: 600; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+  .brand-sq {
+    width: 24px; height: 24px; border-radius: 7px; background: var(--elevated); border: 1px solid var(--border);
+    display: grid; place-items: center; font-size: 12px; font-weight: 700; color: var(--ink);
+  }
+  .nav-pills {
+    background: var(--surface); border: 1px solid var(--border); padding: 4px; border-radius: 999px; display: flex; gap: 2px;
+  }
+  .nav-pills span { font-size: 12px; padding: 5px 13px; border-radius: 999px; color: var(--ink-2); }
+  .nav-pills span.active { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+
+  .greeting { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
+  .greeting h3 { font-size: 26px; font-weight: 600; letter-spacing: -0.025em; color: var(--ink); }
+  .greeting h3 span { color: var(--ink-2); font-weight: 500; }
+  .link-hint { font-size: 11px; color: var(--ink-2); border-bottom: 1px dotted var(--border); cursor: pointer; }
+
+  /* 4 Perguntas da Tela Inicial */
+  .home-top { display: grid; grid-template-columns: 1.25fr 1fr; gap: 16px; }
+  .focal-card {
+    background: var(--focal); border: 1px solid var(--border); border-radius: 20px; padding: 20px;
+    display: grid; gap: 12px;
+  }
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 18px; display: grid; gap: 12px; align-content: start;
+  }
+  .attn-list { display: grid; gap: 8px; }
+  .attn-item {
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    padding: 9px 12px; border-radius: 12px; background: var(--well); border: 1px solid var(--border-soft); font-size: 12px;
+  }
+  .home-bot { display: grid; grid-template-columns: 1fr 1.45fr; gap: 16px; }
+  .due-row {
+    display: flex; justify-content: space-between; align-items: center; padding: 8px 0;
+    border-bottom: 1px solid var(--border-soft); font-size: 12px;
+  }
+  .due-row:last-child { border-bottom: none; }
+  .date-badge {
+    width: 34px; text-align: center; padding: 4px 0; border-radius: 8px; background: var(--elevated);
+    border: 1px solid var(--border); font-size: 10px; font-weight: 600; color: var(--ink-2); line-height: 1.15;
+  }
+  .groups-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .g-card {
+    background: var(--elevated); border: 1px solid var(--border-soft); border-radius: 14px; padding: 12px; display: grid; gap: 6px;
+  }
+  .dot-track { display: flex; align-items: center; gap: 3px; height: 14px; margin-top: 2px; }
+  .dt { width: 5px; height: 5px; border-radius: 50%; background: var(--border); }
+  .dt.on { background: var(--ink-2); }
+  .dt.warn { background: var(--warn); }
+  .dt.over { background: var(--over); }
+  .ref-tick { width: 2px; height: 13px; background: var(--ink); border-radius: 2px; margin: 0 1px; }
+
+  /* Planilha densa de transações */
+  .sheet-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
+  .chip-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+  .f-chip {
+    font-size: 11px; padding: 5px 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); color: var(--ink-2);
+  }
+  .f-chip.on { background: var(--elevated); color: var(--ink); border-color: var(--focus); }
+  .sheet-wrap {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow-x: auto;
+  }
+  table.dense { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.dense th {
+    background: var(--elevated); color: var(--ink-2); font-size: 11px; font-weight: 600; text-align: left;
+    padding: 9px 11px; border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  table.dense td {
+    padding: 7px 11px; border-bottom: 1px solid var(--border-soft); color: var(--ink); white-space: nowrap;
+  }
+  table.dense tr:hover td { background: var(--row-hover); }
+  table.dense th.r, table.dense td.r { text-align: right; }
+  .cell-editing {
+    background: var(--well) !important;
+    outline: 2px solid var(--focus);
+    outline-offset: -2px;
+    border-radius: 4px;
+    color: var(--ink);
+  }
+  .caret {
+    display: inline-block; width: 1.5px; height: 13px; background: var(--focus); vertical-align: middle; margin-left: 2px;
+  }
+
+  @media (max-width: 1080px) {
+    .spec-grid, .home-top, .home-bot { grid-template-columns: 1fr; }
+    .groups-4 { grid-template-columns: repeat(2, 1fr); }
+    .sw-row { grid-template-columns: repeat(3, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="ctrl-bar">
+    <div>
+      <h1>Comparativo de Direções Escuras · Linguagem Mira e Charted</h1>
+      <p>Mesma arquitetura de desktop manual, modo escuro sempre, sem copiar cor, fonte ou marca das referências.</p>
+    </div>
+    <div class="switcher">
+      <button class="sw-btn active" onclick="setMode('both', this)">Comparar A + B</button>
+      <button class="sw-btn" onclick="setMode('a', this)">Só Direção A (Carvão)</button>
+      <button class="sw-btn" onclick="setMode('b', this)">Só Direção B (Tingido)</button>
+    </div>
+  </header>
+
+  <!-- ==================== DIREÇÃO A: ESCURO NEUTRO EM CARVÃO ==================== -->
+  <section id="dir-a" class="dir-block theme-a">
+    <div class="dir-canvas">
+      <div class="dir-title">
+        <div>
+          <div class="eyebrow">Direção A · Acromática</div>
+          <h2>Escuro neutro em carvão. <span>Contraste editorial sem tingimento de fundo.</span></h2>
+        </div>
+        <div class="eyebrow">Fundo #0D0E10 · Superfície #15171A · Borda #26292E</div>
+      </div>
+
+      <!-- Tokens A -->
+      <div class="spec-grid">
+        <div class="spec-card">
+          <div class="eyebrow">Superfícies e bordas</div>
+          <div class="sw-row">
+            <div class="sw"><div class="sw-box" style="background:#0D0E10"></div><div class="sw-txt"><strong>Fundo</strong><span>#0D0E10</span></div></div>
+            <div class="sw"><div class="sw-box" style="background:#15171A"></div><div class="sw-txt"><strong>Cartão</strong><span>#15171A</span></div></div>
+            <div class="sw"><div class="sw-box" style="background:#1C1F23"></div><div class="sw-txt"><strong>Elevado</strong><span>#1C1F23</span></div></div>
+            <div class="sw"><div class="sw-box" style="background:#101214"></div><div class="sw-txt"><strong>Poço/Célula</strong><span>#101214</span></div></div>
+            <div class="sw"><div class="sw-box" style="background:#26292E"></div><div class="sw-txt"><strong>Borda 1px</strong><span>#26292E</span></div></div>
+          </div>
+          <div style="font-size:12px;color:var(--ink-2);">Separação por degraus discretos de luminância neutra e linha fina de 1px.</div>
+        </div>
+
+        <div class="spec-card">
+          <div class="eyebrow">Escala de números (3 níveis) e regra de R$</div>
+          <div class="num-row">
+            <span style="font-size:11px;color:var(--ink-2);">1 · Herói (36px)</span>
+            <span class="nums" style="font-size:32px;font-weight:600;letter-spacing:-0.03em;"><span class="rs">R$</span>3.480,00</span>
+          </div>
+          <div class="num-row">
+            <span style="font-size:11px;color:var(--ink-2);">2 · Indicador (20px)</span>
+            <span class="nums sig-warn" style="font-size:20px;font-weight:600;">-<span class="rs">R$</span>1.140,00</span>
+          </div>
+          <div class="num-row">
+            <span style="font-size:11px;color:var(--ink-2);">3 · Célula (13px)</span>
+            <span class="nums sig-xfer" style="font-size:13px;font-weight:500;">⇄ <span class="rs-cell">R$</span>1.500,00</span>
+          </div>
+        </div>
+
+        <div class="spec-card">
+          <div class="eyebrow">Cores de sinal (alerta distinto de estouro)</div>
+          <div class="signal-list">
+            <div class="sig-item"><span class="sig-chip sig-pos"><span class="dot" style="background:var(--pos)"></span>Positivo / entrada</span><span class="nums sig-pos">+ <span class="rs-cell">R$</span>6.800,00</span></div>
+            <div class="sig-item"><span class="sig-chip sig-warn"><span class="dot" style="background:var(--warn)"></span>Alerta (atenção / perto)</span><span class="nums sig-warn">#E0A23B</span></div>
+            <div class="sig-item"><span class="sig-chip sig-over"><span class="dot" style="background:var(--over)"></span>Estouro (ultrapassou)</span><span class="nums sig-over">#E05858</span></div>
+            <div class="sig-item"><span class="sig-chip sig-xfer"><span class="dot" style="background:var(--xfer)"></span>Transferência neutra</span><span class="nums sig-xfer">⇄ #8B929E</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 9 Pílulas A -->
+      <div class="pills-wrap">
+        <span class="eyebrow">9 Pílulas de estado</span>
+        <div class="pills-list">
+          <span class="pill p-aberta">aberta</span>
+          <span class="pill p-fechada">fechada</span>
+          <span class="pill p-paga">paga</span>
+          <span class="pill p-importada">importada</span>
+          <span class="pill p-retroativa">retroativa</span>
+          <span class="pill p-arquivo">só arquivo</span>
+          <span class="pill p-pendente">pendente</span>
+          <span class="pill p-ajuste">ajuste</span>
+          <span class="pill p-herdada">herdada</span>
+        </div>
+      </div>
+
+      <!-- Tela Inicial A -->
+      <div class="screen-box">
+        <div class="topbar">
+          <div class="app-brand"><div class="brand-sq">C</div><span>Caixa Pessoal</span></div>
+          <div class="nav-pills">
+            <span class="active">Tela inicial</span><span>Transações</span><span>Cartão de crédito</span><span>Contas</span><span>Assinaturas</span>
+          </div>
+          <span class="eyebrow">21 nov 2026 · manual</span>
+        </div>
+
+        <div class="greeting">
+          <h3>Sábado, 21 de novembro. <span>Mês estável, com um ponto de atenção no dia 28.</span></h3>
+          <span class="link-hint">Todo número abre as transações</span>
+        </div>
+
+        <div class="home-top">
+          <!-- Pergunta 1 -->
+          <div class="focal-card">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+              <div>
+                <div class="eyebrow">1 · Quanto tenho disponível (projeção 30 dias)</div>
+                <div class="nums" style="font-size:36px;font-weight:600;letter-spacing:-0.03em;margin-top:4px;"><span class="rs">R$</span>3.480,00</div>
+                <div style="font-size:12px;color:var(--ink-2);">Saldo somado livre hoje entre Banco Alvorada e Banco Meridiano</div>
+              </div>
+              <div style="text-align:right;background:var(--well);border:1px solid var(--border);padding:8px 12px;border-radius:12px;">
+                <div class="eyebrow" style="color:var(--warn);">Ponto mais baixo · 28/11</div>
+                <div class="nums sig-warn" style="font-size:18px;font-weight:600;"><span class="rs">R$</span>412,30</div>
+              </div>
+            </div>
+            <svg viewBox="0 0 460 88" width="100%" height="88">
+              <line x1="0" y1="68" x2="460" y2="68" stroke="#26292E" stroke-dasharray="3 3"/>
+              <path d="M8,32 L78,36 L148,26 L218,46 L278,66 L345,42 L452,20" fill="none" stroke="#EAECEF" stroke-width="2" stroke-dasharray="4 4"/>
+              <path d="M8,32 L78,36" fill="none" stroke="#38B889" stroke-width="2.5"/>
+              <circle cx="278" cy="66" r="4.5" fill="#E0A23B"/>
+              <text x="278" y="83" text-anchor="middle" font-size="10" fill="#E0A23B">mín. 28/11 (R$ 412,30)</text>
+            </svg>
+          </div>
+
+          <!-- Pergunta 2 -->
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div class="eyebrow">2 · O que pede atenção</div>
+              <span class="pill p-fechada">4 itens</span>
+            </div>
+            <div class="attn-list">
+              <div class="attn-item"><span>Cartão Cobalto · fatura fechada sem conferência</span><span class="pill p-fechada">fechada</span></div>
+              <div class="attn-item"><span>Aluguel Sala · recorrente atrasado 2 dias</span><span class="pill" style="background:var(--over-bg);border-color:var(--over-bd);color:var(--over);">atrasado</span></div>
+              <div class="attn-item"><span>Nuvem Pro · assinatura renova em 4 dias</span><span class="pill p-pendente">renova 25/11</span></div>
+              <div class="attn-item"><span>Banco Meridiano · sem conferência há 19 dias</span><span class="pill p-ajuste">conferir</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="home-bot">
+          <!-- Pergunta 3 -->
+          <div class="card">
+            <div class="eyebrow">3 · O que vence nos próximos 7 dias</div>
+            <div>
+              <div class="due-row">
+                <div style="display:flex;align-items:center;gap:10px;"><span class="date-badge">23<br>NOV</span><div><strong>Internet Fibra</strong><div style="font-size:11px;color:var(--ink-3);">Banco Alvorada</div></div></div>
+                <span class="nums" style="font-weight:600;">-<span class="rs-cell">R$</span>139,90</span>
+              </div>
+              <div class="due-row">
+                <div style="display:flex;align-items:center;gap:10px;"><span class="date-badge">25<br>NOV</span><div><strong>Fatura Cartão Vértice</strong><div style="font-size:11px;color:var(--ink-3);">Débito previsto</div></div></div>
+                <span class="nums sig-warn" style="font-weight:600;">-<span class="rs-cell">R$</span>1.840,00</span>
+              </div>
+              <div class="due-row">
+                <div style="display:flex;align-items:center;gap:10px;"><span class="date-badge">27<br>NOV</span><div><strong>Condomínio</strong><div style="font-size:11px;color:var(--ink-3);">Banco Meridiano</div></div></div>
+                <span class="nums" style="font-weight:600;">-<span class="rs-cell">R$</span>690,00</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pergunta 4 -->
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div class="eyebrow">4 · Como o mês está andando (dias 1 a 21 vs. mesmo intervalo de out)</div>
+              <span class="link-hint">Clicar no grupo abre transações</span>
+            </div>
+            <div class="groups-4">
+              <div class="g-card">
+                <span style="font-size:11px;color:var(--ink-2);">Moradia</span>
+                <strong class="nums" style="font-size:18px;"><span class="rs">R$</span>2.450</strong>
+                <span class="nums sig-pos" style="font-size:11px;">-4% vs. out</span>
+                <div class="dot-track"><span class="dt on"></span><span class="dt on"></span><span class="dt on"></span><span class="dt on"></span><span class="dt on"></span><span class="ref-tick"></span><span class="dt"></span><span class="dt"></span></div>
+              </div>
+              <div class="g-card">
+                <span style="font-size:11px;color:var(--ink-2);">Mercado</span>
+                <strong class="nums" style="font-size:18px;"><span class="rs">R$</span>1.320</strong>
+                <span class="nums sig-warn" style="font-size:11px;">+9% vs. out</span>
+                <div class="dot-track"><span class="dt on"></span><span class="dt on"></span><span class="dt on"></span><span class="dt on"></span><span class="dt on"></span><span class="ref-tick"></span><span class="dt warn"></span><span class="dt"></span></div>
+              </div>
+              <div class="g-card">
+                <span style="font-size:11px;color:var(--ink-2);">Restaurantes</span>
+                <strong class="nums" style="font-size:18px;"><span class="rs">R$</span>780</strong>
+                <span class="nums sig-over" style="font-size:11px;">+28% vs. out</span>
+                <div class="dot-track"><span class="dt on"></span><span class="dt on"></span><span class="dt on"></span><span class="dt on"></span><span class="ref-tick"></span><span class="dt over"></span><span class="dt over"></span><span class="dt over"></span></div>
+              </div>
+              <div class="g-card">
+                <span style="font-size:11px;color:var(--ink-2);">Transporte</span>
+                <strong class="nums" style="font-size:18px;"><span class="rs">R$</span>340</strong>
+                <span class="nums sig-pos" style="font-size:11px;">-12% vs. out</span>
+                <div class="dot-track"><span class="dt on"></span><span class="dt on"></span><span class="dt on"></span><span class="ref-tick"></span><span class="dt"></span><span class="dt"></span><span class="dt"></span><span class="dt"></span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Planilha Densa A -->
+      <div class="screen-box">
+        <div class="sheet-bar">
+          <div>
+            <div class="eyebrow">Planilha densa de transações · Edição direta na célula</div>
+            <div style="font-size:15px;font-weight:600;margin-top:2px;">Novembro de 2026 <span style="color:var(--ink-2);font-weight:400;">· 6 lançamentos exibidos</span></div>
+          </div>
+          <div class="chip-filters">
+            <span class="f-chip on">Todas as contas</span><span class="f-chip">Banco Alvorada</span><span class="f-chip">Cartão Cobalto</span><span class="f-chip">Tab para avançar célula</span>
+          </div>
+        </div>
+
+        <div class="sheet-wrap">
+          <table class="dense nums">
+            <thead>
+              <tr><th>Data</th><th>Descrição</th><th>Conta / Cartão</th><th>Grupo</th><th>Estado</th><th class="r">Valor</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>21/11/2026</td><td>Supermercado Quitanda Sul</td><td>Cartão Cobalto</td><td class="cell-editing">Mercado<span class="caret"></span></td>
+                <td><span class="pill p-aberta">aberta</span></td><td class="r">- <span class="rs-cell">R$</span>284,50</td>
+              </tr>
+              <tr>
+                <td>20/11/2026</td><td>Reserva mensal</td><td>Alvorada -> Meridiano</td><td>Transferência</td>
+                <td><span class="pill p-paga">paga</span></td><td class="r sig-xfer">⇄ <span class="rs-cell">R$</span>1.500,00</td>
+              </tr>
+              <tr>
+                <td>19/11/2026</td><td>Padaria Trigo Fino (ajuste troco)</td><td>Banco Alvorada</td><td>Restaurantes</td>
+                <td><span class="pill p-ajuste">ajuste</span></td><td class="r">- <span class="rs-cell">R$</span>18,40</td>
+              </tr>
+              <tr>
+                <td>18/11/2026</td><td>Consultoria projeto web</td><td>Banco Alvorada</td><td>Receita</td>
+                <td><span class="pill p-paga">paga</span></td><td class="r sig-pos">+ <span class="rs-cell">R$</span>4.200,00</td>
+              </tr>
+              <tr>
+                <td>15/11/2026</td><td>Compra parcelada 4/6 · Móveis</td><td>Cartão Vértice</td><td>Moradia</td>
+                <td><span class="pill p-herdada">herdada</span></td><td class="r">- <span class="rs-cell">R$</span>390,00</td>
+              </tr>
+              <tr>
+                <td>10/11/2026</td><td>Fatura out · lançamento manual</td><td>Cartão Cobalto</td><td>Moradia</td>
+                <td><span class="pill p-fechada">fechada</span></td><td class="r sig-warn">- <span class="rs-cell">R$</span>1.140,00</td>
+              </tr>
+              <tr>
+                <td>04/11/2026</td><td>Nota antiga de farmácia</td><td>Banco Meridiano</td><td>Saúde</td>
+                <td><span class="pill p-retroativa">retroativa</span> <span class="pill p-importada">importada</span></td><td class="r">- <span class="rs-cell">R$</span>76,20</td>
+              </tr>
+              <tr>
+                <td>01/11/2026</td><td>Fatura Cobalto anterior quitada</td><td>Banco Alvorada</td><td>Histórico</td>
+                <td><span class="pill p-arquivo">só arquivo</span></td><td class="r" style="color:var(--ink-3)"><span class="rs-cell">R$</span>980,00</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== DIREÇÃO B: ESCURO TINGIDO ==================== -->
+  <section id="dir-b" class="dir-block theme-b">
+    <div class="dir-canvas">
+      <div class="dir-title">
+        <div>
+          <div class="eyebrow">Direção B · Atmosférica</div>
+          <h2>Escuro tingido em petróleo mineral. <span>Profundidade do cartão da Mira e dos blocos do Charted.</span></h2>
+        </div>
+        <div class="eyebrow">Fundo #071013 · Cartão #0D1A1F · Borda #1C323A</div>
+      </div>
+
+      <!-- Tokens B -->
+      <div class="spec-grid">
+        <div class="spec-card">
+          <div class="eyebrow">Superfícies e bordas tingidas</div>
+          <div class="sw-row">
+            <div class="sw"><div class="sw-box" style="background:#071013"></div><div class="sw-txt"><strong>Fundo</strong><span>#071013</span></div></div>
+            <div class="sw"><div class="sw-box" style="background:#0D1A1F"></div><div class="sw-txt"><strong>Cartão</strong><span>#0D1A1F</span></div></div>
+            <div class="sw"><div class="sw-box" style="background:#122329"></div><div class="sw-txt"><strong>Elevado</strong><span>#122329</span></div></div>
+            <div class="sw"><div class="sw-box" style="background:#132B32"></div><div class="sw-txt"><strong>Brilho Mira</strong><span>#132B32</span></div></div>
+            <div class="sw"><div class="sw-box" style="background:#1C323A"></div><div class="sw-txt"><strong>Borda 1px</strong><span>#1C323A</span></div></div>
+          </div>
+          <div style="font-size:12px;color:var(--ink-2);">Todas as superfícies e bordas compartilham o matiz petróleo frio, evitando cinza apagado.</div>
+        </div>
+
+        <div class="spec-card">
+          <div class="eyebrow">Escala de números (3 níveis) e regra de R$</div>
+          <div class="num-row">
+            <span style="font-size:11px;color:var(--ink-2);">1 · Herói (36px)</span>
+            <span class="nums" style="font-size:32px;font-weight:500;letter-spacing:-0.03em;"><span class="rs">R$</span>3.480,00</span>
+          </div>
+          <div class="num-row">
+            <span style="font-size:11px;color:var(--ink-2);">2 · Indicador (20px)</span>
+            <span class="nums sig-over" style="font-size:20px;font-weight:600;">-<span class="rs">R$</span>780,00</span>
+          </div>
+          <div class="num-row">
+            <span style="font-size:11px;color:var(--ink-2);">3 · Célula (13px)</span>
+            <span class="nums sig-xfer" style="font-size:13px;font-weight:500;">⇄ <span class="rs-cell">R$</span>1.500,00</span>
+          </div>
+        </div>
+
+        <div class="spec-card">
+          <div class="eyebrow">Cores de sinal (alerta distinto de estouro)</div>
+          <div class="signal-list">
+            <div class="sig-item"><span class="sig-chip sig-pos"><span class="dot" style="background:var(--pos)"></span>Positivo / entrada</span><span class="nums sig-pos">+ <span class="rs-cell">R$</span>6.800,00</span></div>
+            <div class="sig-item"><span class="sig-chip sig-warn"><span class="dot" style="background:var(--warn)"></span>Alerta (atenção / perto)</span><span class="nums sig-warn">#E8AD42</span></div>
+            <div class="sig-item"><span class="sig-chip sig-over"><span class="dot" style="background:var(--over)"></span>Estouro (ultrapassou)</span><span class="nums sig-over">#E86458</span></div>
+            <div class="sig-item"><span class="sig-chip sig-xfer"><span class="dot" style="background:var(--xfer)"></span>Transferência neutra</span><span class="nums sig-xfer">⇄ #7C9AA3</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 9 Pílulas B -->
+      <div class="pills-wrap">
+        <span class="eyebrow">9 Pílulas de estado</span>
+        <div class="pills-list">
+          <span class="pill p-aberta">aberta</span>
+          <span class="pill p-fechada">fechada</span>
+          <span class="pill p-paga">paga</span>
+          <span class="pill p-importada">importada</span>
+          <span class="pill p-retroativa">retroativa</span>
+          <span class="pill p-arquivo">só arquivo</span>
+          <span class="pill p-pendente">pendente</span>
+          <span class="pill p-ajuste">ajuste</span>
+          <span class="pill p-herdada">herdada</span>
+        </div>
+      </div>
+
+      <!-- Tela Inicial B -->
+      <div class="screen-box">
+        <div class="topbar">
+          <div class="app-brand"><div class="brand-sq">C</div><span>Caixa Pessoal</span></div>
+          <div class="nav-pills">
+            <span class="active">Tela inicial</span><span>Transações</span><span>Cartão de crédito</span><span>Contas</span><span>Assinaturas</span>
+          </div>
+          <span class="eyebrow">21 nov 2026 · manual</span>
+        </div>
+
+        <div class="greeting">
+          <h3>Sábado, 21 de novembro. <span>Mês estável, com atenção no dia 28.</span></h3>
+          <span class="link-hint">Todo número abre as transações</span>
+        </div>
+
+        <div class="home-top">
+          <!-- Pergunta 1 -->
+          <div class="focal-card">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+              <div>
+                <div class="eyebrow">1 · Quanto tenho disponível (projeção 30 dias)</div>
+                <div class="nums" style="font-size:36px;font-weight:500;letter-spacing:-0.03em;margin-top:4px;"><span class="rs">R$</span>3.480,00</div>
+                <div style="font-size:12px;color:var(--ink-2);">Disponível hoje entre Banco Alvorada e Banco Meridiano</div>
+              </div>
+              <div style="text-align:right;background:rgba(7,16,19,0.55);border:1px solid var(--border);padding:8px 12px;border-radius:12px;">
+                <div class="eyebrow" style="color:var(--warn);">Ponto mais baixo · 28/11</div>
+                <div class="nums sig-warn" style="font-size:18px;font-weight:600;"><span class="rs">R$</span>412,30</div>
+              </div>
+            </div>
+            <svg viewBox="0 0 460 88" width="100%" height="88">
+              <line x1="0" y1="68" x2="460" y2="68" stroke="#1C323A" stroke-dasharray="3 3"/>
+              <path d="M8,32 L78,36 L148,26 L218,46 L278,66 L345,42 L452,20" fill="none" stroke="#63D0D6" stroke-width="2" stroke-dasharray="4 4"/>
+              <path d="M8,32 L78,36" fill="none" stroke="#47C99E" stroke-width="2.5"/>
+              <circle cx="278" cy="66" r="4.5" fill="#E8AD42"/>
+              <text x="278" y="83" text-anchor="middle" font-size="10" fill="#E8AD42">mín. 28/11 (R$ 412,30)</text>
+            </svg>
+          </div>
+
+          <!-- Pergunta 2 -->
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div class="eyebrow">2 · O que pede atenção</div>
+              <span class="pill p-fechada">4 itens</span>
+            </div>
+            <div class="attn-list">
+              <div class="attn-item"><span>Cartão Cobalto · fatura fechada sem conferência</span><span class="pill p-fechada">fechada</span></div>
+              <div class="attn-item"><span>Aluguel Sala · recorrente atrasado 2 dias</span><span class="pill" style="background:var(--over-bg);border-color:var(--over-bd);color:var(--over);">atrasado</span></div>
+              <div class="attn-item"><span>Nuvem Pro · assinatura renova em 4 dias</span><span class="pill p-pendente">renova 25/11</span></div>
+              <div class="attn-item"><span>Banco Meridiano · sem conferência há 19 dias</span><span class="pill p-ajuste">conferir</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="home-bot">
+          <!-- Pergunta 3 -->
+          <div class="card">
+            <div class="eyebrow">3 · O que vence nos próximos 7 dias</div>
+            <div>
+              <div class="due-row">
+                <div style="display:flex;align-items:center;gap:10px;"><span class="date-badge">23<br>NOV</span><div><strong>Internet Fibra</strong><div style="font-size:11px;color:var(--ink-3);">Banco Alvorada</div></div></div>
+                <span class="nums" style="font-weight:600;">-<span class="rs-cell">R$</span>139,90</span>
+              </div>
+              <div class="due-row">
+                <div style="display:flex;align-items:center;gap:10px;"><span class="date-badge">25<br>NOV</span><div><strong>Fatura Cartão Vértice</strong><div style="font-size:11px;color:var(--ink-3);">Débito previsto</div></div></div>
+                <span class="nums sig-warn" style="font-weight:600;">-<span class="rs-cell">R$</span>1.840,00</span>
+              </div>
+              <div class="due-row">
+                <div style="display:flex;align-items:center;gap:10px;"><span class="date-badge">27<br>NOV</span><div><strong>Condomínio</strong><div style="font-size:11px;color:var(--ink-3);">Banco Meridiano</div></div></div>
+                <span class="nums" style="font-weight:600;">-<span class="rs-cell">R$</span>690,00</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pergunta 4 -->
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div class="eyebrow">4 · Como o mês está andando (dias 1 a 21 vs. mesmo intervalo de out)</div>
+              <span class="link-hint">Clicar no grupo abre transações</span>
+            </div>
+            <div class="groups-4">
+              <div class="g-card">
+                <span style="font-size:11px;color:var(--ink-2);">Moradia</span>
+                <strong class="nums" style="font-size:18px;"><span class="rs">R$</span>2.450</strong>
+                <span class="nums sig-pos" style="font-size:11px;">-4% vs. out</span>
+                <div class="dot-track"><span class="dt on"></span><span class="dt on"></span><span class="dt on"></span><span class="dt on"></span><span class="dt on"></span><span class="ref-tick"></span><span class="dt"></span><span class="dt"></span></div>
+              </div>
+              <div class="g-card">
+                <span style="font-size:11px;color:var(--ink-2);">Mercado</span>
+                <strong class="nums" style="font-size:18px;"><span class="rs">R$</span>1.320</strong>
+                <span class="nums sig-warn" style="font-size:11px;">+9% vs. out</span>
+                <div class="dot-track"><span class="dt on"></span><span class="dt on"></span><span class="dt on"></span><span class="dt on"></span><span class="dt on"></span><span class="ref-tick"></span><span class="dt warn"></span><span class="dt"></span></div>
+              </div>
+              <div class="g-card">
+                <span style="font-size:11px;color:var(--ink-2);">Restaurantes</span>
+                <strong class="nums" style="font-size:18px;"><span class="rs">R$</span>780</strong>
+                <span class="nums sig-over" style="font-size:11px;">+28% vs. out</span>
+                <div class="dot-track"><span class="dt on"></span><span class="dt on"></span><span class="dt on"></span><span class="dt on"></span><span class="ref-tick"></span><span class="dt over"></span><span class="dt over"></span><span class="dt over"></span></div>
+              </div>
+              <div class="g-card">
+                <span style="font-size:11px;color:var(--ink-2);">Transporte</span>
+                <strong class="nums" style="font-size:18px;"><span class="rs">R$</span>340</strong>
+                <span class="nums sig-pos" style="font-size:11px;">-12% vs. out</span>
+                <div class="dot-track"><span class="dt on"></span><span class="dt on"></span><span class="dt on"></span><span class="ref-tick"></span><span class="dt"></span><span class="dt"></span><span class="dt"></span><span class="dt"></span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Planilha Densa B -->
+      <div class="screen-box">
+        <div class="sheet-bar">
+          <div>
+            <div class="eyebrow">Planilha densa de transações · Edição direta na célula</div>
+            <div style="font-size:15px;font-weight:600;margin-top:2px;">Novembro de 2026 <span style="color:var(--ink-2);font-weight:400;">· 8 lançamentos exibidos</span></div>
+          </div>
+          <div class="chip-filters">
+            <span class="f-chip on">Todas as contas</span><span class="f-chip">Banco Alvorada</span><span class="f-chip">Cartão Cobalto</span><span class="f-chip">Tab para avançar célula</span>
+          </div>
+        </div>
+
+        <div class="sheet-wrap">
+          <table class="dense nums">
+            <thead>
+              <tr><th>Data</th><th>Descrição</th><th>Conta / Cartão</th><th>Grupo</th><th>Estado</th><th class="r">Valor</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>21/11/2026</td><td>Supermercado Quitanda Sul</td><td>Cartão Cobalto</td><td class="cell-editing">Mercado<span class="caret"></span></td>
+                <td><span class="pill p-aberta">aberta</span></td><td class="r">- <span class="rs-cell">R$</span>284,50</td>
+              </tr>
+              <tr>
+                <td>20/11/2026</td><td>Reserva mensal</td><td>Alvorada -> Meridiano</td><td>Transferência</td>
+                <td><span class="pill p-paga">paga</span></td><td class="r sig-xfer">⇄ <span class="rs-cell">R$</span>1.500,00</td>
+              </tr>
+              <tr>
+                <td>19/11/2026</td><td>Padaria Trigo Fino (ajuste troco)</td><td>Banco Alvorada</td><td>Restaurantes</td>
+                <td><span class="pill p-ajuste">ajuste</span></td><td class="r">- <span class="rs-cell">R$</span>18,40</td>
+              </tr>
+              <tr>
+                <td>18/11/2026</td><td>Consultoria projeto web</td><td>Banco Alvorada</td><td>Receita</td>
+                <td><span class="pill p-paga">paga</span></td><td class="r sig-pos">+ <span class="rs-cell">R$</span>4.200,00</td>
+              </tr>
+              <tr>
+                <td>15/11/2026</td><td>Compra parcelada 4/6 · Móveis</td><td>Cartão Vértice</td><td>Moradia</td>
+                <td><span class="pill p-herdada">herdada</span></td><td class="r">- <span class="rs-cell">R$</span>390,00</td>
+              </tr>
+              <tr>
+                <td>10/11/2026</td><td>Fatura out · lançamento manual</td><td>Cartão Cobalto</td><td>Moradia</td>
+                <td><span class="pill p-fechada">fechada</span></td><td class="r sig-warn">- <span class="rs-cell">R$</span>1.140,00</td>
+              </tr>
+              <tr>
+                <td>04/11/2026</td><td>Nota antiga de farmácia</td><td>Banco Meridiano</td><td>Saúde</td>
+                <td><span class="pill p-retroativa">retroativa</span> <span class="pill p-importada">importada</span></td><td class="r">- <span class="rs-cell">R$</span>76,20</td>
+              </tr>
+              <tr>
+                <td>01/11/2026</td><td>Fatura Cobalto anterior quitada</td><td>Banco Alvorada</td><td>Histórico</td>
+                <td><span class="pill p-arquivo">só arquivo</span></td><td class="r" style="color:var(--ink-3)"><span class="rs-cell">R$</span>980,00</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+  function setMode(mode, btn) {
+    document.querySelectorAll('.sw-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const a = document.getElementById('dir-a');
+    const b = document.getElementById('dir-b');
+    a.classList.toggle('hidden', mode === 'b');
+    b.classList.toggle('hidden', mode === 'a');
+  }
+</script>
+</body>
+</html>

@@ -242,3 +242,121 @@ Abaixo está a análise das 16 capturas avaliada estritamente segundo as decisõ
 3. **input_file_4.png (Mira, Care):** Tela inteira dedicada a chat com equipe clínica e marcação de videoconferência, recursos que conflitam diretamente com a premissa de aplicativo individual, sem terceiros, sem consultor e sem modo casal.
 4. **input_file_6.png (Mobbin, Remote):** Painel corporativo claro de gestão de período de teste de RH, dominado por roscas grandes com pouquíssimos dados (`9/20`, `1/50`, `1/15`), banner promocional e menus de equipe e folha de pagamento distantes de finanças pessoais manuais.
 5. **input_file_12.png (Mobbin, Sweatpals):** Embora esteja em modo escuro, é um painel de funil de marketing para produtores de eventos (`RSVPs`, visualizações de página, taxa de conversão e retenção) com gráficos de rosca gigantes quase vazios e nenhuma estrutura ligada a fluxo de caixa, vencimentos, faturas ou planilha editável.
+---
+
+# Rodada 3: a linguagem das referências no escuro, em duas direções
+
+Mesma conversa, 20/11/2026. Pedido: mostrar como a linguagem da Mira e do Charted vive num fundo escuro, em duas direções (A, escuro neutro em carvão; B, escuro tingido), com superfícies, escala de números, pílulas de estado, cores de sinal e duas telas de exemplo. O HTML está em [referencias/ai-studio-direcoes-escuras.html](referencias/ai-studio-direcoes-escuras.html), com nomes de banco inventados. Sem decisão: identidade visual só sai das duas direções do conceito, escolhidas pelo dono.
+
+## Cruzamento
+
+### O que serve ao conceito
+
+- A divisão das duas direções coincide com o eixo do consolidado (escuro neutro ou tingido) e mostra que os dois funcionam com números densos.
+- Regras de número que valem testar: "R$" menor e em tom apagado, para o olho correr só pelos algarismos; três níveis (herói, indicador, célula); transferência com uma marca neutra (⇄) no lugar do sinal.
+- Alerta (âmbar) e estouro (vermelho-coral) distintos em matiz, como o consolidado pedia, e transferência em cinza.
+- Pílulas que se diferenciam também por contorno (pontilhado, tracejado, só borda), não só por cor. Ajuda a planilha a não virar mosaico.
+- A leitura dele sobre a escolha: A favorece a planilha, onde nada compete com os estados; B dá personalidade às telas de leitura. Fica a pergunta para o conceito se os dois registros (planilha e leitura) podem usar graus diferentes de tingimento.
+
+### Onde erra o BFO, por falta de contexto
+
+- Estados usados no sentido errado. Aberta, fechada e paga são estados de fatura, e aparecem em linhas de transação. "Herdada" no BFO é a marca de categoria que vem do grupo, e ele usa em parcela. "Pendente" no BFO é a transação que veio pendente do Lunch Money, e ele usa em assinatura perto de renovar. "Só arquivo" é estado de conta. "Ajuste" é lançamento de diferença, e ele usa como "conferir". Fatura fechada aparece sempre em âmbar, mas só pede atenção enquanto não foi conferida. O prompt do conceito precisa trazer a definição de cada estado.
+- Transferência mostrada como "Alvorada -> Meridiano" na coluna da conta, que é justamente o formato substituído em 19/11 (origem na coluna Conta, "→ destino" no Beneficiário).
+- Pagamento de fatura aparece como lançamento comum em âmbar; no BFO é transferência para o cartão, neutra.
+- A planilha tem colunas genéricas (Grupo, Estado). A do BFO tem conta, beneficiário, categoria, tags, notas e valor com o botão de sinal.
+- Pergunta 1: o número herói é o saldo de hoje. A regra da tela inicial pede o resultado no fim da janela, separando o que já entrou, o que vai entrar e o que vai sair. A conta "+ / - / =" da rodada 2 resolve isso.
+- Pergunta 4: grupos acima do mês anterior em âmbar e vermelho. Nenhuma decisão define limiar de alerta nessa comparação; fica como pergunta.
+- Só mostra navegação no topo; a pergunta de navegação lateral ou no topo segue aberta.
+
+---
+
+A linguagem da Mira e do Charted não depende do fundo branco para existir. O que sustenta aquela estética é a combinação de **hierarquia tipográfica em dois tons** (fato principal em alto contraste e contexto em tinta contida), **camadas com contraste controlado**, **micrográficos limpos sem ruído de eixos** e **espaço de respiro nas telas de leitura** em contraste com **alta densidade alinhada nas grades**.
+
+Para trazer essa linguagem para um aplicativo **sempre escuro**, sem apenas inverter o claro para preto, o caminho se divide em duas direções contrastantes. Nenhuma delas copia o verde oliva e o lima da Mira, o verde musgo do Charted ou as fontes de marca de qualquer referência.
+
+---
+
+## Direção A: Escuro neutro em carvão
+
+Esta direção traduz a clareza editorial do Charted e a leveza da Mira para um ambiente **estritamente acromático nas superfícies**. O fundo e os cartões não têm temperatura de cor; todo o protagonismo cromático fica reservado exclusivamente aos sinais financeiros (positivo, alerta e estouro).
+
+### 1. Superfícies e bordas
+* **Fundo da aplicação (`#0D0E10`):** carvão profundo fosco, sem brilho ambiente colorido, reduzindo fadiga em uso prolongado no desktop.
+* **Superfície primária de leitura (`#15171A`):** cartões da Tela inicial, painéis laterais e área principal da planilha.
+* **Superfície elevada / cabeçalho fixo / barra de navegação (`#1C1F23`):** usada na pílula de navegação superior, no cabeçalho fixo da planilha de transações e no cartão de projeção de 30 dias (destacado por contraste de borda e iluminação sutil branca de 4% no topo, e não por cor).
+* **Poço interno / célula em edição / campo de entrada (`#101214`):** afunda levemente para dar sensação tátil de digitação direta na célula.
+* **Bordas:** hairline de `1px` em `#26292E` para cartões e `#202328` para divisórias internas de planilha; na célula ativa em edição, borda de foco nítida em branco suave (`#D8DCE2`) com anel externo discreto.
+
+### 2. Escala de números em três níveis e regra de `R$` e sinal
+* **Nível 1, Número herói (`36px`, peso `600`, tracking `-0.03em`, `tabular-nums`):** usado apenas no valor central de disponibilidade da projeção de 30 dias na Tela inicial.
+* **Nível 2, Indicador (`20px`, peso `600`, tracking `-0.02em`, `tabular-nums`):** usado nos totais dos grupos de gasto, no ponto mais baixo projetado e nos totais de resumo da barra superior da planilha.
+* **Nível 3, Célula de tabela (`13px`, peso `500`, `tabular-nums`):** usado em todas as linhas da planilha densa de transações, sempre alinhado à direita.
+* **Regra para `"R$"`:** sempre dois pontos abaixo em peso e menor em escala (`0.68em` no herói e indicador; `11px` na célula), em tinta apagada (`#7E848E`), separado por um espaço fino fixo, para que o olho escaneie apenas a coluna dos algarismos.
+* **Regra para o sinal:**
+  * **Saídas:** sinal `-` em cor de texto principal ou de estouro/despesa antes do `"R$"` (ex.: `- R$ 284,50`), alinhado à esquerda do bloco numérico da célula.
+  * **Entradas:** sinal `+` em cor positiva antes do `"R$"` (ex.: `+ R$ 6.800,00`).
+  * **Transferência entre contas:** sem sinal de `+` nem `-` (substituído por ícone discreto de dupla seta `⇄` em cinza neutro antes do `"R$"`), garantindo que nunca pareça gasto nem receita.
+
+### 3. Cores de sinal
+* **Positivo / folga (`#38B889`):** verde esmeralda frio dessaturado, legível sobre carvão sem vibrar.
+* **Alerta (`#E0A23B`):** âmbar dourado quente, usado para fatura fechada sem conferência, assinatura perto de renovar, conta desatualizada ou grupo encostando no ritmo do mês anterior.
+* **Estouro (`#E05858`):** carmim coral nítido, claramente separado do âmbar tanto no matiz quanto na carga emocional, reservado para saldo projetado negativo, recorrente atrasado ou grupo que já superou o mesmo intervalo do mês anterior.
+* **Transferência entre contas (`#8B929E`):** cinza ardósia neutro, com zero carga semântica de ganho ou perda.
+
+### 4. Pílulas de estado (9 estados)
+Para manter a planilha densa sem virar um mosaico colorido, as pílulas diferenciam estado financeiro por **preenchimento sutil, contorno ou estilo de borda**:
+* **aberta:** fundo `#1D232B`, borda `#2F3A47`, texto `#B4C2D4` (ciclo atual em andamento).
+* **fechada:** fundo `rgba(224, 162, 59, 0.14)`, borda `rgba(224, 162, 59, 0.40)`, texto `#ECC173` (fatura fechada pedindo conferência).
+* **paga:** fundo `rgba(56, 184, 137, 0.13)`, borda `rgba(56, 184, 137, 0.35)`, texto `#6BD4AC`.
+* **importada:** fundo `#202328`, borda `#323740`, texto `#B5BBC4` (vinda de importação manual de arquivo).
+* **retroativa:** fundo `#1F2029`, borda `#37394C`, texto `#B7BCE0` (lançada em data passada).
+* **só arquivo:** fundo transparente, borda pontilhada `#353940`, texto `#787E88` (registro histórico fora do saldo ativo).
+* **pendente:** fundo `rgba(224, 162, 59, 0.08)`, borda tracejada `rgba(224, 162, 59, 0.45)`, texto `#E0A23B`.
+* **ajuste:** fundo `#27221B`, borda `#4A3D28`, texto `#D6B484` (acerto manual de conciliação).
+* **herdada:** fundo transparente, borda sólida `#31353B`, texto `#9AA0AA` (parcela ou recorrência trazida de ciclo anterior).
+
+---
+
+## Direção B: Escuro tingido (inspirada no cartão escuro da Mira e nos blocos do Charted)
+
+Esta direção transporta para a tela inteira a atmosfera do cartão escuro da Mira (profundidade por gradiente radial deslocado e superfícies translúcidas sobrepostas) e a precisão dos blocos escuros do Charted (tabelas de borda fina sobre massa cromática escura). Para não copiar os verdes da Mira nem do Charted, o tingimento aqui usa um **petróleo oceânico profundo e frio**.
+
+### 1. Superfícies e bordas
+* **Fundo da aplicação (`#071013`):** carvão profundamente tingido de petróleo frio, com brilho radial muito suave no quadrante superior direito (`rgba(44, 132, 145, 0.14)`).
+* **Superfície primária de leitura (`#0D1A1F`):** cartões de leitura e área base da planilha com leve transparência mineral.
+* **Cartão focal com atmosfera Mira (`linear-gradient` `#132B32` até `#0B1519` com foco radial `#1C4954`):** usado no card de projeção de 30 dias da Tela inicial, reproduzindo exatamente a profundidade do cartão escuro da Mira sem recorrer ao verde oliva.
+* **Superfície elevada / cabeçalho / barra de pílulas (`#122329`):** mantém o mesmo matiz petróleo para evitar cinza morto sobre fundo tingido.
+* **Bordas:** sempre tingidas no mesmo eixo (`#1C323A` nos cartões e `#162930` nas linhas da planilha); célula em edição recebe borda luminosa em água-marinha clara (`#63D0D6`).
+
+### 2. Escala de números em três níveis e regra de `R$` e sinal
+* **Nível 1, Número herói (`36px`, peso `500`, tracking `-0.03em`, `tabular-nums`):** segue o peso ligeiramente mais esguio e editorial dos números grandes da Mira (`31.6`, `103`), em branco mineral (`#F0F7F8`).
+* **Nível 2, Indicador (`20px`, peso `600`, tracking `-0.02em`, `tabular-nums`):** leitura imediata nos cards de grupo, ponto mínimo da projeção e subtotais.
+* **Nível 3, Célula de tabela (`13px`, peso `500`, `tabular-nums`):** células densas da planilha, com alto contraste (`#E1ECEE`) contra fundo `#0D1A1F`.
+* **Regra para `"R$"`:** em escala reduzida (`0.65em` no herói e indicador; `11px` na célula) e tinta secundária tingida (`#719199`), mantendo a coluna numérica limpa.
+* **Regra para o sinal:**
+  * **Saídas:** sinal `-` antes do `"R$"` em `#B9CDD2` (ou `#E86B5D` quando for atraso/estouro).
+  * **Entradas:** sinal `+` antes do `"R$"` em verde água-esmeralda (`#47C99E`).
+  * **Transferência entre contas:** marcador neutro `⇄` antes do `"R$"` em azul-petróleo dessaturado (`#7C9AA3`), sem alterar o peso semântico de receitas ou despesas.
+
+### 3. Cores de sinal
+* **Positivo / folga (`#47C99E`):** verde-menta mineral frio, harmonizado com a base petróleo.
+* **Alerta (`#E8AD42`):** ocre dourado luminoso, nítido para pendências, vencimentos próximos e itens próximos do limite.
+* **Estouro (`#E86458`):** terracota coral vivo, bem separado do ocre dourado tanto em temperatura quanto em saturação, usado para estouro de gasto contra o mês anterior, atraso ou saldo mínimo crítico.
+* **Transferência entre contas (`#7C9AA3`):** cinza-petróleo neutro, integrado à paleta sem parecer entrada nem saída.
+
+### 4. Pílulas de estado (9 estados)
+* **aberta:** fundo `rgba(76, 195, 200, 0.12)`, borda `rgba(76, 195, 200, 0.34)`, texto `#8CE0E3`.
+* **fechada:** fundo `rgba(232, 173, 66, 0.14)`, borda `rgba(232, 173, 66, 0.42)`, texto `#F2C572`.
+* **paga:** fundo `rgba(71, 201, 158, 0.14)`, borda `rgba(71, 201, 158, 0.36)`, texto `#78DFBA`.
+* **importada:** fundo `#14262D`, borda `#23414B`, texto `#9EC0C9`.
+* **retroativa:** fundo `#152130`, borda `#273E59`, texto `#9CC0E8`.
+* **só arquivo:** fundo transparente, borda pontilhada `#243D45`, texto `#65848C`.
+* **pendente:** fundo `rgba(232, 173, 66, 0.08)`, borda tracejada `rgba(232, 173, 66, 0.48)`, texto `#E8AD42`.
+* **ajuste:** fundo `#262118`, borda `#4C3F28`, texto `#DFBE8A`.
+* **herdada:** fundo transparente, borda sólida `#233A42`, texto `#89A8B0`.
+
+---
+
+### Resumo prático da escolha entre A e B
+* **Direção A (Carvão Neutro)** maximiza neutralidade na planilha densa de **Transações**, pois nada compete com as 9 pílulas de estado e com os sinais de positivo, alerta e estouro durante horas de digitação manual.
+* **Direção B (Escuro Tingido)** preserva melhor a personalidade atmosférica do cartão escuro da Mira e dos blocos do Charted nas telas de leitura arejadas (**Tela inicial**, **Contas**, **Cartão de crédito** e **Assinaturas**), dando identidade própria sem perder legibilidade numérica.
