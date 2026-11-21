@@ -451,3 +451,189 @@ Salve o código abaixo como `bfo-moodboard-family-office.html` e abra no Safari 
 1. Alternar **Nav Lateral** contra **Nav no Topo** no HTML e decidir qual acomoda melhor as 9 colunas de **Transações** e o crescimento das Fases 2 e 3.
 2. Alternar **Mês Saudável** contra **Mês Apertado** para validar se o tom pragmático em **Terracota** e **Marinho** passa a firmeza de escritório patrimonial mesmo no aperto.
 3. Após a sua análise das 9 telas do Mobbin depois de 23/11, consolidar a escolha de navegação e fechar os tokens finais antes de aplicar no BFO.
+# Rodada 5: duas teses, Gabinete e Mesa de Gestão
+
+Conversa nova do AI Studio, 21/11/2026, com a intenção do dono e as referências de family office como base. Primeiro o AI Studio separou o problema e propôs as duas teses; depois entregou um protótipo com as duas direções, as duas navegações e três telas (Início, Transações, Cartão). HTML em [referencias/ai-studio-gabinete-mesa.html](referencias/ai-studio-gabinete-mesa.html), com os nomes de bancos e da renda trocados por nomes fictícios. Sem decisão.
+
+Leitura do dono: o AI Studio chegou no limite dele. Andou mais na sessão nova, ainda ficou um pouco lugar comum, mas tem ideias bem boas, como a forma de organizar os cartões na página de Cartão.
+
+## Cruzamento
+
+### Marcado pelo dono
+
+- Página de Cartão, nesta ordem: seletor de cartões em abas no topo, cada aba com nome, final, dia de vencimento e valor da fatura; a fatura selecionada ao lado do limite e do comprometido; as compras do ciclo numa tabela, com a parcela ("3/10, restam 7") e a antecipação com o desconto; os ciclos por último, como uma linha de cartões lado a lado (outubro parcial com o restante passado para novembro, novembro aberta, dezembro e janeiro futuros com parcelas e recorrentes previstos). Atende o ajuste da revisão da Sessão L (fatura selecionada e compras antes da lista) e mostra o comprometido ciclo a ciclo.
+
+### O que mais serve, na leitura do chat
+
+- As invariantes antes das direções: nada de preto chapado nem branco puro, número tabular alinhado à direita, mês ruim visível sem alarme, as duas navegações testadas nas duas direções.
+- O par de teses vai além da paleta: separar por planos de luz (Gabinete) ou por módulos com divisória fina (Mesa de Gestão), cada uma com o risco a vigiar escrito.
+- As três telas-prova, com a planilha de Transações como teste de fogo. Serve de estrutura para o prompt do conceito.
+- A tela inicial na ordem da pesquisa com o dono: cartão principal e investimentos no primeiro olhar, depois os outros cartões e o tamanho do déficit, depois o que pede atenção e o que vence.
+
+### Por que ainda está perto da origem, na leitura do chat
+
+- As duas teses ficaram só nos tokens. O HTML é o mesmo para A e B, e muda raio, borda e cor. O próprio texto do AI Studio dizia que as direções não podiam ser o mesmo layout com duas cores.
+- O esqueleto de painel continua: grade de cartões com rótulo em caixa alta, dois números heróis do mesmo peso lado a lado, pílula de estado em quase todo bloco.
+
+### Onde erra o BFO, por falta de contexto
+
+- "Resgate sugerido" em "o que pede atenção": o app aconselhando uma ação. A tela inicial decidida responde a quatro perguntas e não sugere movimentações.
+- Projeção de 30 dias mostrada como um número de déficit, sem o ponto mais baixo e a data dele. "Próximos 15 dias" no lugar dos 7 dias decididos.
+- Privacidade por desfoque; o decidido é "R$ ••••". O aviso some em 3,6 segundos; o decidido é sete segundos, parado com o mouse em cima.
+- Colunas de Transações em outra ordem (notas e tags antes de alocação e origem).
+- O saldo anterior aparece com a categoria Transporte na tabela de compras.
+- "Liquidez D+0/D+1" e "carteira de longo prazo" na tela inicial antecipam a fase 2. Conversa com a pergunta de liquidez por tipo, guardada para o brief da fase 2.
+
+## Efeito na fila
+
+A rodada fecha o uso do AI Studio como fonte de referência. O próximo passo do conceito segue o mesmo: confirmação curta das telas do Mobbin, o dono marca as referências de family office e o conceito sai no Fable, em duas direções com layout próprio, já com a organização da página de Cartão marcada acima.
+
+---
+
+## Texto do AI Studio, primeira parte: o problema em camadas
+
+O ponto de partida que você registrou é muito claro — e tem uma tensão criativa
+ótima para resolver antes de desenhar qualquer tela:
+
+Como fazer um sistema escuro, denso e pragmático ter a calma, o rigor e o
+acabamento de um family office sob medida (Jacobsen + Apple), sem cair no "modo
+escuro genérico de SaaS" nem virar algo decorativo ou turvo?
+
+Antes de propor caminhos, vale separar o problema em quatro camadas concretas:
+
+1. Por que a maioria dos painéis escuros cai no "lugar comum"
+
+O padrão atual (muito influenciado por Linear/Vercel e fintechs novas) cria cara
+de produto genérico por quatro vícios:
+
+  - Cartões demais com borda acesa: tudo vira caixa com 1px claro ao redor,
+    fragmentando a leitura.
+  - Contraste agressivo: fundo quase preto + branco puro (#FFFFFF) + cores
+    saturadas em badges e gráficos. Cansa o olho e grita "app de tech".
+  - Hierarquia plana: a navegação, os filtros e os números disputam a mesma
+    atenção visual.
+  - Espaçamento de marketing, não de ferramenta: ou fica solto demais (parece
+    landing page) ou apertado sem respiro estrutural.
+
+2. Traduzindo a filosofia (sem literalidade)
+
+Pegando as suas referências — arquitetura da Jacobsen, modernismo brasileiro,
+luxo digital da Apple, sobriedade do Mercury/Addepar e a calma do Things 3:
+
+  - Superfícies em vez de bordas: na boa arquitetura e nos apps nativos do Mac,
+    o que separa as zonas é a diferença sutil de plano, luz e proporção — não um
+    monte de linhas desenhadas. Linhas entram só onde ajudam o olho a cruzar
+    dado (como na planilha de Transações).
+  - A tensão do escuro com temperatura: você gosta de neutros quentes, marinho e
+    verde floresta, mas a observação da Linear é real — esquentar demais o fundo
+    escuro deixa a tela barrenta/turva. A saída elegante costuma ser manter o
+    fundo em grafite/obsidiana quase neutro (com um desvio mínimo, imperceptível
+    como "marrom"), usar marfim/off-white suave no texto principal em vez de
+    branco estourado, e reservar marinho profundo ou verde floresta para estados
+    de foco, seleção ou destaque estrutural — raros, nunca espalhados pela tela.
+  - Precisão numérica como assinatura de luxo: o que dá "cara de caro" numa tela
+    cheia de informação não é efeito visual, é a disciplina tipográfica: SF Pro
+    (ou equivalente com o mesmo rigor), tabular-nums, alinhamento milimétrico à
+    direita, rótulos discretos e o valor respirando com autoridade.
+  - Dignidade no mês ruim: um déficit ou fatura alta não precisa de um vermelho
+    neon gritando "erro". Um carmim/terracota sóbrio, contraste claro e
+    proximidade imediata com a ação (ex.: cartão + investimentos + tamanho do
+    déficit na tela inicial) mantém o tom de escritório que resolve, não de app
+    que dá bronca.
+
+3. Onde o conceito vai ser testado de verdade
+
+A Tela Inicial é o cartão de visitas, mas o que define se o BFO parece sob
+medida são as telas densas:
+
+1.  Tela Inicial: responder às 4 perguntas + projeção de 30 dias, acomodando o
+    que você percebeu no mês apertado (cartão principal e investimentos visíveis
+    juntos, depois outros cartões e o déficit).
+2.  Transações (o teste de fogo): planilha com 9 colunas, linha de 40 px, edição
+    na própria célula, linha de lançamento no topo e resumo lateral recolhível.
+    Se o conceito funcionar aqui sem ficar claustrofóbico nem espalhado,
+    funciona no sistema inteiro.
+3.  Cartão: fatura selecionada + compras do ciclo em destaque, com a lista de
+    ciclos sem competir por largura.
+4.  Navegação (lateral vs. topo): como você já mapeou, isso muda a geometria das
+    três telas acima e precisa ser comparado lado a lado nas duas direções.
+
+Como avançar agora
+
+Para calibrarmos os critérios antes da análise das 9 telas do Mobbin (depois
+de 23/11), me diga por onde você prefere começar:
+
+1.  Olhar para as referências do arquivo (Addepar, Masttro, Things 3, Linear,
+    Apple, Mercury) — você já chegou a abrir alguma delas para marcar o que
+    bateu certo e o que rejeitou, ou quer que eu sintetize o que vale extrair de
+    cada uma?
+2.  Dissecar o incômodo com as duas direções do AI Studio — o que faltou ali
+    pesou mais na paleta/acabamento (cara de SaaS), na organização espacial
+    ("painel sem muito lugar pra ir"), ou na densidade/proporção?
+3.  Já desenhar a tese das duas direções contrastantes (ex.: o que separa a
+    Direção A da Direção B além de "lateral vs. topo"), para deixarmos o terreno
+    pronto para o prompt do conceito visual.
+
+## Texto do AI Studio, segunda parte: as duas teses
+
+Para as duas propostas valerem a pena na hora de escolher olhando a tela, elas não podem ser "o mesmo layout com duas cores". Elas precisam representar **duas teses reais de como traduzir um *family office* sob medida no modo escuro**, mantendo a navegação (lateral vs. topo) como um teste independente aplicado às duas.
+
+Aqui está uma proposta de contraste entre as duas direções:
+
+---
+
+### Invariantes (o que é obrigatório nas duas)
+Antes de separar as direções, o que **não muda** entre elas:
+- **Zero estética de SaaS genérico:** sem preto `#000` chapado, sem branco `#FFF` estourado, sem gradientes/glows, sem badges coloridas espalhadas pela tela.
+- **Rigidez numérica:** tipografia de sistema Apple (`SF Pro`) com `tabular-nums`, valores alinhados à direita, moeda e sinal sem ruído.
+- **Mês ruim com dignidade:** déficit, fatura alta e alertas aparecem claros e ligados à ação — sem vermelho neon nem tom de "app dando bronca".
+- **Teste nas duas navegações:** cada direção mostra a mesma tela com **barra lateral** e com **navegação no topo**, para a escolha estética não se misturar com a escolha de largura/estrutura.
+
+---
+
+### Direção A — "Gabinete" (Planos, Silêncio e Acabamento de App Nativo)
+*Referência de sensação: a calma arquitetônica da Jacobsen + o refino tátil de apps nativos do Mac (Apple HIG, Things 3).*
+
+- **Tese espacial:** **hierarquia por planos, quase sem bordas.** Em vez de dividir a tela em caixas com contornos, a separação acontece por degraus muito sutis de luminância entre 3 superfícies (fundo recuado, área de trabalho, plano de foco). Menos linhas na tela = mais calma nas telas cheias.
+- **Temperatura e paleta:** base em **grafite mineral levemente aquecido** (calibrado no limite mínimo para ter calor humano sem ficar turvo/marrom), texto principal em **marfim suave**. Destaque raro em **verde floresta profundo** (estados ativos, ação primária) e **marinho** reservado a elementos secundários ou seleções. Alerta/déficit em **terracota/carmim fosco**.
+- **Tratamento da densidade (Transações e Cartão):** a planilha de 9 colunas (40 px) parece um *Numbers/Finder* feito sob medida — sem grades verticais, divisórias horizontais quase imperceptíveis, hover suave na linha inteira e célula em edição destacada por elevação sutil, não por caixa gritante.
+- **Tela Inicial:** leitura fluida, quase como uma folha contínua bem proporcionada em vez de "dashboard de widgets". Cartão principal e investimentos dividem o primeiro plano com respiro generoso.
+- **Sensação geral:** **acolhedora, silenciosa, tátil.** O sistema recua ao máximo para o dado parecer pousado sobre uma mesa impecável.
+- **Risco a vigiar na prévia:** se o contraste entre planos for suave demais, telas muito densas podem perder ancoragem visual.
+
+---
+
+### Direção B — "Mesa de Gestão" (Estrutura, Precisão e Instrumento Financeiro)
+*Referência de sensação: a autoridade sóbria de plataformas patrimoniais (Addepar, Mercury no escuro) + rigor do modernismo brasileiro com acabamento Apple.*
+
+- **Tese espacial:** **arquitetura modular e proporção geométrica nítida.** A tela é organizada em compartimentos claros com cantos mais contidos, divisórias `1px` de baixíssimo contraste (calibradas para guiar o olho sem poluir) e separação mais firme entre a moldura do sistema (mais escura) e a área dos números (mais nítida).
+- **Temperatura e paleta:** base em **obsidiana / marinho-carvão bem fechado** (mais frio e cristalino, zero risco de turvar), texto de alto contraste controlado. Destaque principal em **azul-marinho iluminado / aço-marinho** para foco e ação, com **verde floresta** usado apenas semanticamente (patrimônio/positivo) e **vinho sóbrio** para déficit/atenção.
+- **Tratamento da densidade (Transações e Cartão):** sensação de instrumento de precisão. Cabeçalho de tabela com mais autoridade, colunas ancoradas com clareza, estado de foco na célula muito nítido e resumo lateral estruturado como coluna de balanço.
+- **Tela Inicial:** cara de **relatório executivo vivo** — cada uma das 4 perguntas ocupa um módulo com fronteira clara e ritmo editorial firme, facilitando bater o olho e medir o tamanho do mês em segundos.
+- **Sensação geral:** **cristalina, autoritária, sob controle.** Especialmente forte no mês apertado, porque enquadra o problema com precisão cirúrgica.
+- **Risco a vigiar na prévia:** se as divisórias pesarem um pouco demais, pode escorregar de "sofisticado" para "técnico/corporativo demais".
+
+---
+
+### Comparativo direto
+
+| Dimensão | Direção A — Gabinete | Direção B — Mesa de Gestão |
+|---|---|---|
+| **Como separa informação** | Planos e luminância (quase sem bordas) | Módulos e divisórias ultra-finas calibradas |
+| **Base escura** | Grafite mineral levemente aquecido | Obsidiana / marinho-carvão cristalino |
+| **Cor de assinatura** | Verde floresta profundo | Marinho profundo / aço-marinho |
+| **Parentesco digital** | Things 3 / Apple Mac nativo | Addepar / Mercury (modo escuro) |
+| **Sensação no mês ruim** | Calma para pensar e decidir | Controle imediato e diagnóstico preciso |
+| **Estilo da planilha** | Limpa, contínua, quase sem grade | Ancorada, tabular, instrumento de precisão |
+
+---
+
+### Telas-prova recomendadas para a prévia
+Para não escolher olhando só uma tela "fácil", as duas direções deveriam renderizar o mesmo conjunto mínimo:
+1. **Tela Inicial** (em um mês apertado real do seed: cartão principal + investimentos no primeiro olhar, outros cartões, déficit e projeção de 30 dias) — **versão navegação lateral e versão topo**.
+2. **Transações** (planilha de 9 colunas, 40 px, uma linha em edição, linha nova no topo e resumo lateral aberto) — onde a densidade realmente testa o conceito.
+3. **Cartão** (fatura selecionada + compras do ciclo acima da lista de faturas).
+
+---
+
+O que você acha desse eixo de contraste entre **A (Gabinete)** e **B (Mesa de Gestão)**? Alguma das duas já puxa para um lado que você sabe que *não* quer, ou vale ajustar algum ingrediente (por exemplo, inverter qual leva marinho e qual leva verde, ou calibrar o grau de calor da base escura) antes de cruzar isso com as telas do Mobbin?

@@ -19,7 +19,8 @@ Este arquivo vale para qualquer agente (Codex, Claude Code). O CLAUDE.md aponta 
 ## Segurança e dados
 
 - Este repositório é público por enquanto. Só dados fictícios entram aqui.
-- Nunca colocar no repositório, commit, log ou relatório: tokens, segredos, e-mails reais, nomes reais de bancos do dono, valores reais, arquivos de importação.
+- Nunca colocar no repositório, commit, log ou relatório: tokens, segredos, e-mails reais, valores reais, arquivos de importação.
+- Instituições financeiras: nunca registrar onde o dono tem conta, nem associar uma instituição real a ele (seed com o conjunto real de bancos dele, nota como "meu cartão do banco X", nome de banco junto de valor, data de corte ou conta dele). Citar um banco pelo nome como referência de funcionalidade ou de mercado é permitido (ex.: "o vira fatura do Itaú", "alguns Amex não têm limite"). O seed e as telas de exemplo usam nomes fictícios. Esclarecido pelo dono em 21/11/2026.
 - O arquivo gerado pela importação do Lunch Money fica fora do repo (pasta listada no `.gitignore`).
 - Segredos vão para `wrangler secret` ou variáveis do painel da Cloudflare, digitados pelo dono.
 - Siga as [Conferências](docs/cloudflare.md#conferências). Nenhuma sessão desliga ou afrouxa a guarda sem decisão do dono.
