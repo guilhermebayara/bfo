@@ -6,6 +6,8 @@ Complemento de estrutura e fluxo: [docs/referencia-manus.md](referencia-manus.md
 
 Análise do Google AI Studio, que viu as capturas da Mira, do Charted e das nove telas do Mobbin: [docs/referencia-ai-studio.md](referencia-ai-studio.md), com cruzamento.
 
+Referências da sensação de family office, depois da intenção registrada pelo dono: [docs/referencia-family-office.md](referencia-family-office.md).
+
 Pendente: o Wealthfolio (https://wealthfolio.app), enviado pelo dono em 20/11/2026, entra na mesma análise. Pendente também: as nove telas do Mobbin. O site bloqueou o navegador do chat, então elas entram aqui só pela descrição da Sessão O. O dono vai analisá-las junto com o chat depois de 23/11, e a revisão visual começa depois disso.
 
 ## O que se vê nas duas preferidas
